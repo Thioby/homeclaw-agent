@@ -1,0 +1,81 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Agente de IA HA - Seleccionar proveedor",
+                "description": "Elige tu proveedor de IA",
+                "data": {
+                    "ai_provider": "Proveedor de IA"
+                },
+                "data_description": {
+                    "ai_provider": "Selecciona tu proveedor de IA preferido"
+                }
+            },
+            "configure": {
+                "title": "Agente de IA HA - Configurar {provider}",
+                "description": "Configura tus credenciales de API y modelo de {provider}",
+                "data": {
+                    "llama_token": "Token de la API de Llama",
+                    "openai_token": "Clave de la API de OpenAI",
+                    "gemini_token": "Clave de la API de Google Gemini",
+                    "openrouter_token": "Clave de la API de OpenRouter",
+                    "model": "Modelo (Opcional)",
+                    "custom_model": "Nombre de modelo personalizado (Opcional)"
+                },
+                "data_description": {
+                    "llama_token": "Introduce tu token de la API de Llama",
+                    "openai_token": "Introduce tu clave de la API de OpenAI",
+                    "gemini_token": "Introduce tu clave de la API de Google Gemini",
+                    "openrouter_token": "Introduce tu clave de la API de OpenRouter",
+                    "model": "Elige un modelo predefinido o selecciona 'Personalizado...' para usar un modelo personalizado",
+                    "custom_model": "Introduce un nombre de modelo personalizado (anula la selección desplegable anterior)"
+                }
+            }
+        },
+        "error": {
+            "invalid_api_key": "Clave o token de API no válido",
+            "llama_token": "Se requiere el token de la API de Llama",
+            "openai_token": "Se requiere la clave de la API de OpenAI",
+            "gemini_token": "Se requiere la clave de la API de Google Gemini",
+            "openrouter_token": "Se requiere la clave de la API de OpenRouter",
+            "unknown": "Ha ocurrido un error inesperado"
+        },
+        "abort": {
+            "already_configured": "El Agente de IA HA ya está configurado"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Agente de IA HA - Seleccionar proveedor",
+                "description": "Elige tu proveedor de IA (Actual: {current_provider})",
+                "data": {
+                    "ai_provider": "Proveedor de IA"
+                },
+                "data_description": {
+                    "ai_provider": "Selecciona tu proveedor de IA preferido"
+                }
+            },
+            "configure_options": {
+                "title": "Agente de IA HA - Configurar {provider}",
+                "description": "Actualiza tus credenciales de API y modelo de {provider}",
+                "data": {
+                    "llama_token": "Token de la API de Llama",
+                    "openai_token": "Clave de la API de OpenAI",
+                    "gemini_token": "Clave de la API de Google Gemini",
+                    "openrouter_token": "Clave de la API de OpenRouter",
+                    "model": "Modelo (Opcional)",
+                    "custom_model": "Nombre de modelo personalizado (Opcional)"
+                },
+                "data_description": {
+                    "llama_token": "Introduce tu token de la API de Llama",
+                    "openai_token": "Introduce tu clave de la API de OpenAI",
+                    "gemini_token": "Introduce tu clave de la API de Google Gemini",
+                    "openrouter_token": "Introduce tu clave de la API de OpenRouter",
+                    "model": "Elige un modelo predefinido o selecciona 'Personalizado...' para usar un modelo personalizado",
+                    "custom_model": "Introduce un nombre de modelo personalizado (anula la selección desplegable anterior)"
+                }
+            }
+        }
+    }
+}

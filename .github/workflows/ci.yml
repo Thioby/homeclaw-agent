@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+        pip install homeassistant>=2025.1.0
+
+    - name: Lint with flake8
+      run: |
+        flake8 .
+
+    - name: Check code formatting with black
+      run: |
+        black --check --diff custom_components/
+
+    - name: Check import sorting with isort
+      run: |
+        isort --check --diff custom_components/
+
+    - name: Type check with mypy
+      run: |
+        mypy --ignore-missing-imports custom_components/
+
+    - name: Security scan with bandit
+      run: |
+        bandit -r custom_components/
+
+    - name: Run basic tests (must pass)
+      run: |
+        pytest tests/test_ai_agent_ha/test_basic.py tests/test_ai_agent_ha/test_constants.py -v
+
+    - name: Run full test suite with coverage
+      run: |
+        pytest tests/ --asyncio-mode=auto --cov=custom_components/ai_agent_ha --cov-report=xml --cov-report=term-missing -v --tb=short
+      continue-on-error: true
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  validate-integration:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run hassfest validation
+      uses: home-assistant/actions/hassfest@master
+      with:
+        path: "./custom_components/ai_agent_ha"
+
+    - name: Run HACS validation
+      uses: hacs/action@main
+      with:
+        category: integration
+        ignore: brands
+
+  test-without-homeassistant:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install minimal dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio
+
+    - name: Run basic tests without Home Assistant
+      run: |
+        pytest tests/test_ai_agent_ha/test_basic.py -v

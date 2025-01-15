@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "KI-Anbieter wählen",
+        "description": "Wähle deinen KI-Anbieter aus",
+        "data": {
+          "ai_provider": "KI-Anbieter"
+        },
+        "data_description": {
+          "ai_provider": "Wähle deinen bevorzugten KI-Anbieter"
+        }
+      },
+      "configure": {
+        "title": "{provider} konfigurieren",
+        "description": "Gib deinen {token_label} ein und wähle optional ein Model",
+        "data": {
+          "llama_token": "Llama API Token",
+          "openai_token": "OpenAI API Key",
+          "gemini_token": "Google Gemini API Key",
+          "openrouter_token": "OpenRouter API Key",
+          "anthropic_token": "Anthropic API Key",
+          "model": "Model (Optional)",
+          "custom_model": "Custom Model (Optional)"
+        },
+        "data_description": {
+          "llama_token": "Gib deinen Llama API Token ein",
+          "openai_token": "Gib deinen OpenAI API Key ein",
+          "gemini_token": "Gib deinen Google Gemini API Key ein",
+          "openrouter_token": "Gib deinen OpenRouter API Key ein",
+          "anthropic_token": "Gib deinen Anthropic API Key ein",
+          "model": "Wähle ein vordefiniertes Model oder 'Custom...' zum manuellen Eintrag",
+          "custom_model": "Gib einen benutzerdefinierten Model-Namen ein (nur relevant bei Auswahl von 'Custom...')"
+        }
+      }
+    },
+    "error": {
+      "invalid_api_key": "Ungültiges API-Key-Format",
+      "unknown": "Unbekannter Fehler aufgetreten",
+      "llama_token": "Llama API Token ist erforderlich",
+      "openai_token": "OpenAI API Key ist erforderlich",
+      "gemini_token": "Google Gemini API Key ist erforderlich",
+      "openrouter_token": "OpenRouter API Key ist erforderlich",
+      "anthropic_token": "Anthropic API Key ist erforderlich"
+    },
+    "abort": {
+      "already_configured": "Homeclaw ist bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Einstellungen für KI-Anbieter",
+        "description": "Aktueller Anbieter: {current_provider}. Wähle einen Anbieter zur Konfiguration",
+        "data": {
+          "ai_provider": "KI-Anbieter"
+        },
+        "data_description": {
+          "ai_provider": "Wähle deinen bevorzugten KI-Anbieter"
+        }
+      },
+      "configure_options": {
+        "title": "{provider} konfigurieren",
+        "description": "Aktualisiere deinen {token_label} und Model-Einstellungen",
+        "data": {
+          "llama_token": "Llama API Token",
+          "openai_token": "OpenAI API Key",
+          "gemini_token": "Google Gemini API Key",
+          "openrouter_token": "OpenRouter API Key",
+          "anthropic_token": "Anthropic API Key",
+          "model": "Model",
+          "custom_model": "Custom Model (Optional)"
+        },
+        "data_description": {
+          "llama_token": "Gib deinen Llama API Token ein",
+          "openai_token": "Gib deinen OpenAI API Key ein",
+          "gemini_token": "Gib deinen Google Gemini API Key ein",
+          "openrouter_token": "Gib deinen OpenRouter API Key ein",
+          "anthropic_token": "Gib deinen Anthropic API Key ein",
+          "model": "Wähle ein Model oder 'Custom...' zum manuellen Eintrag",
+          "custom_model": "Gib einen benutzerdefinierten Model-Namen ein (nur relevant bei Auswahl von 'Custom...')"
+        }
+      }
+    }
+  }
+}

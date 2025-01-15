@@ -1,0 +1,54 @@
+name: Weekly Full Test
+
+on:
+  schedule:
+    # Run every Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  full-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+        homeassistant-version: ["2025.1.0", "latest"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+        if [ "${{ matrix.homeassistant-version }}" = "latest" ]; then
+          pip install homeassistant
+        else
+          pip install homeassistant==${{ matrix.homeassistant-version }}
+        fi
+
+    - name: Run comprehensive tests
+      run: |
+        pytest tests/ --asyncio-mode=auto --cov=custom_components/ai_agent_ha --cov-report=xml --cov-report=term-missing -v --slow
+
+    - name: Run integration tests with real AI providers (mock)
+      run: |
+        pytest tests/test_ai_agent_ha/test_integration.py -v
+
+    - name: Performance test
+      run: |
+        python -m pytest tests/ --durations=10
+
+    - name: Upload comprehensive coverage
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        flags: comprehensive
+        name: weekly-test
+        fail_ci_if_error: false

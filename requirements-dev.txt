@@ -1,0 +1,14 @@
+# Development dependencies for Homeclaw
+# Requires Python 3.12+ for Home Assistant compatibility
+flake8>=6.0.0
+black>=23.1.0
+isort>=5.12.0
+mypy>=1.0.1
+pytest>=7.3.1
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-homeassistant-custom-component>=0.13.0
+homeassistant
+syrupy>=4.0.0
+bandit>=1.7.5
+voluptuous>=0.13.1 

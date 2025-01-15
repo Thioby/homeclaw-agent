@@ -1,0 +1,57 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Exception for Svelte frontend lib
+!custom_components/homeclaw/frontend/src/lib/
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+coverage.xml
+
+# Environments
+.env
+.venv
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# mypy / ruff
+.mypy_cache/
+.ruff_cache/
+
+# Security scan reports
+security-report.json
+
+# Agent instructions (local only)
+AGENTS.md
+CLAUDE.md
+.claude/
+.opencode/
+.gemini/
+
+# Deploy scripts (local only)
+deploy.sh
+deploy-quick.sh
+
+# Frontend dependencies
+custom_components/homeclaw/frontend/node_modules/

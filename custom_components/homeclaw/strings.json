@@ -1,0 +1,108 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Choose AI Provider",
+                "description": "Select your AI provider",
+                "data": {
+                    "ai_provider": "AI Provider"
+                },
+                "data_description": {
+                    "ai_provider": "Choose your preferred AI provider"
+                }
+            },
+            "anthropic_oauth": {
+                "title": "Authorize with Claude",
+                "description": "1. Click the link to authorize: [Open Claude Authorization]({auth_url})\n2. After authorizing, copy the code shown\n3. Paste it below and click Submit",
+                "data": {
+                    "code": "Authorization Code"
+                },
+                "data_description": {
+                    "code": "Paste the authorization code from Claude"
+                }
+            },
+            "configure": {
+                "title": "Configure {provider}",
+                "description": "Enter your {token_label} and optionally select a model",
+                "data": {
+                    "llama_token": "Llama API Token",
+                    "openai_token": "OpenAI API Key",
+                    "gemini_token": "Google Gemini API Key",
+                    "openrouter_token": "OpenRouter API Key",
+                    "anthropic_token": "Anthropic API Key",
+                    "alter_token": "Alter API Key",
+                    "model": "Model (Optional)",
+                    "custom_model": "Custom Model (Optional)",
+                    "rag_enabled": "Enable RAG (Semantic Search)"
+                },
+                "data_description": {
+                    "llama_token": "Enter your Llama API token",
+                    "openai_token": "Enter your OpenAI API key",
+                    "gemini_token": "Enter your Google Gemini API key",
+                    "openrouter_token": "Enter your OpenRouter API key",
+                    "anthropic_token": "Enter your Anthropic API key",
+                    "alter_token": "Enter your Alter API key",
+                    "model": "Choose a predefined model or select 'Custom...' to enter your own",
+                    "custom_model": "Enter a custom model name (only used if 'Custom...' is selected above)",
+                    "rag_enabled": "Enable semantic search for entities. Reduces token usage by providing only relevant context."
+                }
+            }
+        },
+        "error": {
+            "invalid_api_key": "Invalid API key format",
+            "oauth_failed": "OAuth authorization failed. Please try again.",
+            "required": "This field is required",
+            "unknown": "Unknown error occurred",
+            "llama_token": "Llama API token is required",
+            "openai_token": "OpenAI API key is required",
+            "gemini_token": "Google Gemini API key is required",
+            "openrouter_token": "OpenRouter API key is required",
+            "anthropic_token": "Anthropic API key is required",
+            "alter_token": "Alter API key is required"
+        },
+        "abort": {
+            "already_configured": "Homeclaw is already configured",
+            "oauth_reconfigure_not_supported": "To reconfigure Anthropic OAuth, please delete and re-add the integration"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "AI Provider Settings",
+                "description": "Current provider: {current_provider}. Select a provider to configure",
+                "data": {
+                    "ai_provider": "AI Provider"
+                },
+                "data_description": {
+                    "ai_provider": "Choose your preferred AI provider"
+                }
+            },
+            "configure_options": {
+                "title": "Configure {provider}",
+                "description": "Update your {token_label} and model settings",
+                "data": {
+                    "llama_token": "Llama API Token",
+                    "openai_token": "OpenAI API Key",
+                    "gemini_token": "Google Gemini API Key",
+                    "openrouter_token": "OpenRouter API Key",
+                    "anthropic_token": "Anthropic API Key",
+                    "alter_token": "Alter API Key",
+                    "model": "Model",
+                    "custom_model": "Custom Model (Optional)",
+                    "rag_enabled": "Enable RAG (Semantic Search)"
+                },
+                "data_description": {
+                    "llama_token": "Enter your Llama API token",
+                    "openai_token": "Enter your OpenAI API key",
+                    "gemini_token": "Enter your Google Gemini API key",
+                    "openrouter_token": "Enter your OpenRouter API key",
+                    "anthropic_token": "Enter your Anthropic API key",
+                    "alter_token": "Enter your Alter API key",
+                    "model": "Choose a model or select 'Custom...' to enter your own",
+                    "custom_model": "Enter a custom model name (only used if 'Custom...' is selected above)",
+                    "rag_enabled": "Enable semantic search for entities. Reduces token usage by providing only relevant context."
+                }
+            }
+        }
+    }
+} 

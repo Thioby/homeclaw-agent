@@ -1,0 +1,387 @@
+{
+  "gemini_oauth": {
+    "display_name": "Gemini (OAuth)",
+    "description": "Google Gemini via OAuth (Cloud Code Assist API)",
+    "models": [
+      {
+        "id": "gemini-3-pro-preview",
+        "name": "Gemini 3 Pro Preview",
+        "description": "Best multimodal understanding, advanced reasoning",
+        "context_window": 1048576,
+        "default": true
+      },
+      {
+        "id": "gemini-3-flash-preview",
+        "name": "Gemini 3 Flash Preview",
+        "description": "Balanced speed, scale and frontier intelligence",
+        "context_window": 1048576
+      },
+      {
+        "id": "gemini-3-flash",
+        "name": "Gemini 3 Flash",
+        "description": "Lightning-fast and highly capable",
+        "context_window": 1048576
+      },
+      {
+        "id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "description": "Complex reasoning and thinking model",
+        "context_window": 1048576
+      },
+      {
+        "id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "description": "High volume tasks, good price-performance",
+        "context_window": 1048576
+      },
+      {
+        "id": "gemini-2.5-flash-lite",
+        "name": "Gemini 2.5 Flash Lite",
+        "description": "Fastest, optimized for cost-efficiency",
+        "context_window": 1048576
+      }
+    ]
+  },
+  "gemini": {
+    "display_name": "Google Gemini",
+    "description": "Google Gemini via API Key",
+    "models": [
+      {
+        "id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "description": "Fast, good quality, recommended",
+        "context_window": 1048576,
+        "default": true
+      },
+      {
+        "id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "description": "Higher quality, complex reasoning",
+        "context_window": 1048576
+      },
+      {
+        "id": "gemini-2.5-flash-lite",
+        "name": "Gemini 2.5 Flash Lite",
+        "description": "Fastest, cost-efficient",
+        "context_window": 1048576
+      },
+      {
+        "id": "gemini-2.0-flash",
+        "name": "Gemini 2.0 Flash",
+        "description": "Legacy model (deprecated March 2026)",
+        "context_window": 1048576
+      }
+    ]
+  },
+  "anthropic": {
+    "display_name": "Anthropic",
+    "description": "Anthropic Claude via API Key",
+    "models": [
+      {
+        "id": "claude-sonnet-4-20250514",
+        "name": "Claude Sonnet 4",
+        "description": "Best balance of speed and intelligence",
+        "context_window": 200000,
+        "default": true
+      },
+      {
+        "id": "claude-opus-4-20250514",
+        "name": "Claude Opus 4",
+        "description": "Most capable, complex tasks",
+        "context_window": 200000
+      },
+      {
+        "id": "claude-sonnet-4-5-20250929",
+        "name": "Claude Sonnet 4.5",
+        "description": "Latest Sonnet, enhanced coding and reasoning",
+        "context_window": 200000
+      },
+      {
+        "id": "claude-3-5-haiku-20241022",
+        "name": "Claude 3.5 Haiku",
+        "description": "Fastest, everyday tasks",
+        "context_window": 200000
+      }
+    ]
+  },
+  "anthropic_oauth": {
+    "display_name": "Claude Pro/Max",
+    "description": "Claude Pro/Max via OAuth",
+    "models": [
+      {
+        "id": "claude-sonnet-4-20250514",
+        "name": "Claude Sonnet 4",
+        "description": "Best balance of speed and intelligence",
+        "context_window": 200000,
+        "default": true
+      },
+      {
+        "id": "claude-opus-4-20250514",
+        "name": "Claude Opus 4",
+        "description": "Most capable, complex tasks",
+        "context_window": 200000
+      }
+    ]
+  },
+  "openai": {
+    "display_name": "OpenAI",
+    "description": "OpenAI via API Key",
+    "models": [
+      {
+        "id": "gpt-4o",
+        "name": "GPT-4o",
+        "description": "Most capable, multimodal",
+        "context_window": 128000,
+        "default": true
+      },
+      {
+        "id": "gpt-4o-mini",
+        "name": "GPT-4o Mini",
+        "description": "Fast and affordable",
+        "context_window": 128000
+      },
+      {
+        "id": "gpt-5",
+        "name": "GPT-5",
+        "description": "Latest flagship model",
+        "context_window": 1048576
+      },
+      {
+        "id": "gpt-5-mini",
+        "name": "GPT-5 Mini",
+        "description": "Fast next-gen model",
+        "context_window": 1048576
+      },
+      {
+        "id": "gpt-4.1",
+        "name": "GPT-4.1",
+        "description": "Enhanced GPT-4 for coding",
+        "context_window": 1048576
+      },
+      {
+        "id": "gpt-4.1-mini",
+        "name": "GPT-4.1 Mini",
+        "description": "Compact coding model",
+        "context_window": 1048576
+      },
+      {
+        "id": "o3",
+        "name": "o3",
+        "description": "Advanced reasoning",
+        "context_window": 200000
+      },
+      {
+        "id": "o3-mini",
+        "name": "o3-mini",
+        "description": "Fast reasoning model",
+        "context_window": 200000
+      },
+      {
+        "id": "o4-mini",
+        "name": "o4-mini",
+        "description": "Latest compact reasoning",
+        "context_window": 200000
+      },
+      {
+        "id": "o1",
+        "name": "o1",
+        "description": "Original reasoning model",
+        "context_window": 200000
+      }
+    ]
+  },
+  "openrouter": {
+    "display_name": "OpenRouter",
+    "description": "OpenRouter - multiple providers",
+    "allow_custom_model": true,
+    "models": [
+      {
+        "id": "openai/gpt-4o",
+        "name": "OpenAI GPT-4o",
+        "description": "Most capable OpenAI model",
+        "context_window": 128000,
+        "default": true
+      },
+      {
+        "id": "openai/gpt-4-turbo",
+        "name": "OpenAI GPT-4 Turbo",
+        "description": "Fast GPT-4 variant",
+        "context_window": 128000
+      },
+      {
+        "id": "anthropic/claude-3.5-sonnet",
+        "name": "Claude 3.5 Sonnet",
+        "description": "Anthropic's balanced model",
+        "context_window": 200000
+      },
+      {
+        "id": "anthropic/claude-3-haiku",
+        "name": "Claude 3 Haiku",
+        "description": "Fast Anthropic model",
+        "context_window": 200000
+      },
+      {
+        "id": "meta-llama/llama-3.1-70b-instruct",
+        "name": "Llama 3.1 70B",
+        "description": "Meta's large open model",
+        "context_window": 131072
+      },
+      {
+        "id": "meta-llama/llama-3.2-90b-instruct",
+        "name": "Llama 3.2 90B",
+        "description": "Meta's latest large model",
+        "context_window": 131072
+      },
+      {
+        "id": "google/gemini-pro",
+        "name": "Gemini Pro",
+        "description": "Google's Gemini via OpenRouter",
+        "context_window": 1048576
+      },
+      {
+        "id": "deepseek/deepseek-r1",
+        "name": "DeepSeek R1",
+        "description": "DeepSeek reasoning model",
+        "context_window": 131072
+      }
+    ]
+  },
+  "groq": {
+    "display_name": "Groq",
+    "description": "Groq - fast LPU inference",
+    "models": [
+      {
+        "id": "llama-3.3-70b-versatile",
+        "name": "Llama 3.3 70B Versatile",
+        "description": "Large, versatile Llama model",
+        "context_window": 131072,
+        "default": true
+      },
+      {
+        "id": "llama-3.1-8b-instant",
+        "name": "Llama 3.1 8B Instant",
+        "description": "Ultra-fast small model",
+        "context_window": 131072
+      }
+    ]
+  },
+  "llama": {
+    "display_name": "Llama",
+    "description": "Meta Llama API",
+    "models": [
+      {
+        "id": "Llama-4-Maverick-17B-128E-Instruct-FP8",
+        "name": "Llama 4 Maverick 17B",
+        "description": "Latest Llama flagship model",
+        "context_window": 1048576,
+        "default": true
+      },
+      {
+        "id": "Llama-3.2-90B-Instruct",
+        "name": "Llama 3.2 90B",
+        "description": "Large instruction-tuned model",
+        "context_window": 131072
+      },
+      {
+        "id": "Llama-3.1-70B-Instruct",
+        "name": "Llama 3.1 70B",
+        "description": "Proven large model",
+        "context_window": 131072
+      },
+      {
+        "id": "Llama-3.1-8B-Instruct",
+        "name": "Llama 3.1 8B",
+        "description": "Compact instruction-tuned model",
+        "context_window": 131072
+      }
+    ]
+  },
+  "alter": {
+    "display_name": "Alter",
+    "description": "Alter AI API",
+    "allow_custom_model": true,
+    "models": []
+  },
+  "zai": {
+    "display_name": "z.ai",
+    "description": "z.ai (Zhipu AI) API",
+    "allow_custom_model": true,
+    "models": [
+      {
+        "id": "glm-4.7",
+        "name": "GLM-4.7",
+        "description": "Latest flagship model",
+        "context_window": 131072,
+        "default": true
+      },
+      {
+        "id": "glm-4.6",
+        "name": "GLM-4.6",
+        "description": "Previous generation flagship",
+        "context_window": 131072
+      },
+      {
+        "id": "glm-4.5",
+        "name": "GLM-4.5",
+        "description": "Balanced performance",
+        "context_window": 131072
+      },
+      {
+        "id": "glm-4.5-air",
+        "name": "GLM-4.5 Air",
+        "description": "Lightweight variant",
+        "context_window": 131072
+      },
+      {
+        "id": "glm-4.5-x",
+        "name": "GLM-4.5 X",
+        "description": "Extended context",
+        "context_window": 131072
+      },
+      {
+        "id": "glm-4.5-airx",
+        "name": "GLM-4.5 AirX",
+        "description": "Lightweight extended",
+        "context_window": 131072
+      },
+      {
+        "id": "glm-4.5-flash",
+        "name": "GLM-4.5 Flash",
+        "description": "Fastest GLM model",
+        "context_window": 131072
+      },
+      {
+        "id": "glm-4-32b-0414-128k",
+        "name": "GLM-4 32B 128K",
+        "description": "Long context model",
+        "context_window": 131072
+      }
+    ]
+  },
+  "local": {
+    "display_name": "Local Model",
+    "description": "Local inference (Ollama, LM Studio, etc.)",
+    "allow_custom_model": true,
+    "models": [
+      {
+        "id": "llama3.2",
+        "name": "Llama 3.2",
+        "description": "Meta's latest compact model",
+        "context_window": 131072,
+        "default": true
+      },
+      {
+        "id": "llama3.1",
+        "name": "Llama 3.1",
+        "description": "Previous generation Llama",
+        "context_window": 131072
+      },
+      {
+        "id": "deepseek-coder",
+        "name": "DeepSeek Coder",
+        "description": "Code-specialized model",
+        "context_window": 131072
+      }
+    ]
+  }
+}
