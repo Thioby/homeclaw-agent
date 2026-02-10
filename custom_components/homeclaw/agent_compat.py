@@ -213,6 +213,8 @@ class HomeclawAgent:
         conversation_history: list[dict] | None = None,
         user_id: str | None = None,
         session_id: str = "",
+        denied_tools: frozenset[str] | None = None,
+        system_prompt: str | None = None,
     ) -> dict[str, Any]:
         """Process a user query through the AI provider.
 
@@ -226,6 +228,8 @@ class HomeclawAgent:
             conversation_history: External conversation history.
             user_id: User ID for memory flush scoping.
             session_id: Session ID for memory flush context.
+            denied_tools: Optional frozenset of tool names to block from execution.
+            system_prompt: Optional system prompt override (e.g. for subagent/heartbeat).
         """
         # If external conversation history provided, use it
         if conversation_history:
@@ -250,7 +254,18 @@ class HomeclawAgent:
         # Add tools for native function calling
         tools = self._get_tools_for_provider()
         if tools:
+            # Filter out denied tools from the LLM tool list (first layer of defense)
+            if denied_tools:
+                tools = [
+                    t
+                    for t in tools
+                    if t.get("function", {}).get("name") not in denied_tools
+                ]
             kwargs["tools"] = tools
+
+        # Pass denied_tools for ToolExecutor enforcement (second layer of defense)
+        if denied_tools:
+            kwargs["denied_tools"] = denied_tools
 
         # Context window for compaction
         from .models import get_context_window
@@ -275,6 +290,10 @@ class HomeclawAgent:
                 _LOGGER.debug("RAG returned empty context, not adding to kwargs")
         else:
             _LOGGER.debug("RAG manager not configured, skipping context retrieval")
+
+        # System prompt override (for subagent/heartbeat contexts)
+        if system_prompt:
+            kwargs["system_prompt_override"] = system_prompt
 
         try:
             result = await self._agent.process_query(user_query, **kwargs)

@@ -64,6 +64,8 @@ from . import context7
 from . import ha_native
 from . import memory
 from . import identity
+from . import scheduler
+from . import subagent
 
 __all__ = [
     # Base classes
@@ -80,6 +82,8 @@ __all__ = [
     "ha_native",
     "memory",
     "identity",
+    "scheduler",
+    "subagent",
 ]
 
 

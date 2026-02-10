@@ -342,11 +342,28 @@ class QueryProcessor:
         # Extract RAG context from kwargs
         rag_context = kwargs.pop("rag_context", None)
 
+        # Extract denied tools (for subagent/heartbeat security restrictions)
+        denied_tools: frozenset[str] | None = kwargs.pop("denied_tools", None)
+
         # Extract compaction-related kwargs (don't pass to provider)
         context_window = kwargs.pop("context_window", DEFAULT_CONTEXT_WINDOW)
         memory_flush_fn = kwargs.pop("memory_flush_fn", None)
         user_id = kwargs.get("user_id", "")
         session_id = kwargs.get("session_id", "")
+
+        # Filter denied tools from the tools list sent to the LLM (two-layer defense)
+        effective_tools = tools
+        if denied_tools and tools:
+            effective_tools = [
+                t
+                for t in tools
+                if t.get("function", {}).get("name") not in denied_tools
+            ]
+            filtered_count = len(tools) - len(effective_tools)
+            if filtered_count:
+                _LOGGER.debug(
+                    "Filtered %d denied tools from LLM tool list", filtered_count
+                )
 
         # Build the message list with RAG context and compaction
         built_messages = await self._build_messages(
@@ -371,8 +388,8 @@ class QueryProcessor:
                     # Fall back to non-streaming
                     _LOGGER.debug("Provider doesn't support streaming, using fallback")
                     provider_kwargs: dict[str, Any] = {**kwargs}
-                    if tools is not None:
-                        provider_kwargs["tools"] = tools
+                    if effective_tools is not None:
+                        provider_kwargs["tools"] = effective_tools
 
                     response_text = await self.provider.get_response(
                         built_messages, **provider_kwargs
@@ -426,7 +443,11 @@ class QueryProcessor:
 
                     # Use ToolExecutor to execute tools and yield results
                     async for tool_event in ToolExecutor.execute_tool_calls(
-                        function_calls, hass, built_messages, yield_mode="result"
+                        function_calls,
+                        hass,
+                        built_messages,
+                        yield_mode="result",
+                        denied_tools=denied_tools,
                     ):
                         yield tool_event
 
@@ -440,8 +461,8 @@ class QueryProcessor:
 
                 # Provider supports streaming
                 provider_kwargs = {**kwargs}
-                if tools is not None:
-                    provider_kwargs["tools"] = tools
+                if effective_tools is not None:
+                    provider_kwargs["tools"] = effective_tools
 
                 accumulated_text = ""
                 accumulated_tool_calls = []
@@ -529,7 +550,11 @@ class QueryProcessor:
 
                     # Execute tools INTERNALLY using ToolExecutor
                     async for status_event in ToolExecutor.execute_tool_calls(
-                        function_calls, hass, built_messages, yield_mode="status"
+                        function_calls,
+                        hass,
+                        built_messages,
+                        yield_mode="status",
+                        denied_tools=denied_tools,
                     ):
                         yield status_event
 
@@ -623,11 +648,29 @@ class QueryProcessor:
         # Extract RAG context from kwargs
         rag_context = kwargs.pop("rag_context", None)
 
+        # Extract denied tools (for subagent/heartbeat security restrictions)
+        denied_tools_p: frozenset[str] | None = kwargs.pop("denied_tools", None)
+
         # Extract compaction-related kwargs (don't pass to provider)
         context_window_p = kwargs.pop("context_window", DEFAULT_CONTEXT_WINDOW)
         memory_flush_fn_p = kwargs.pop("memory_flush_fn", None)
         user_id_p = kwargs.get("user_id", "")
         session_id_p = kwargs.get("session_id", "")
+
+        # Filter denied tools from the tools list sent to the LLM (two-layer defense)
+        effective_tools_p = tools
+        if denied_tools_p and tools:
+            effective_tools_p = [
+                t
+                for t in tools
+                if t.get("function", {}).get("name") not in denied_tools_p
+            ]
+            filtered_count = len(tools) - len(effective_tools_p)
+            if filtered_count:
+                _LOGGER.debug(
+                    "Filtered %d denied tools from LLM tool list (non-stream)",
+                    filtered_count,
+                )
 
         # Build the message list with RAG context and compaction
         built_messages = await self._build_messages(
@@ -649,8 +692,8 @@ class QueryProcessor:
             while current_iteration < self.max_iterations:
                 # Call the provider
                 provider_kwargs: dict[str, Any] = {**kwargs}
-                if tools is not None:
-                    provider_kwargs["tools"] = tools
+                if effective_tools_p is not None:
+                    provider_kwargs["tools"] = effective_tools_p
 
                 response_text = await self.provider.get_response(
                     built_messages, **provider_kwargs
@@ -689,7 +732,11 @@ class QueryProcessor:
 
                 # Execute tools using ToolExecutor (no yields in non-streaming mode)
                 async for _ in ToolExecutor.execute_tool_calls(
-                    function_calls, hass, built_messages, yield_mode="none"
+                    function_calls,
+                    hass,
+                    built_messages,
+                    yield_mode="none",
+                    denied_tools=denied_tools_p,
                 ):
                     pass  # ToolExecutor with yield_mode="none" shouldn't yield anything
 

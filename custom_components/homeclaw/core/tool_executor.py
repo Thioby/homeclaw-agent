@@ -37,6 +37,7 @@ class ToolExecutor:
         hass: Any,  # HomeAssistant or None from kwargs.get()
         messages: list[dict[str, Any]],
         yield_mode: str = "none",
+        denied_tools: frozenset[str] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Execute a list of tool calls and add results to messages.
 
@@ -48,11 +49,45 @@ class ToolExecutor:
                 - "none": No yields (for non-streaming process())
                 - "status": Yield status messages (for streaming with internal tool execution)
                 - "result": Yield tool_result messages (for non-streaming fallback in process_stream)
+            denied_tools: Optional frozenset of tool IDs that are blocked from execution.
+                If a function call matches, a rejection error is returned instead of executing.
 
         Yields:
             Dict with type="status" or type="tool_result" depending on yield_mode.
         """
         for fc in function_calls:
+            # Enforce tool restrictions
+            if denied_tools and fc.name in denied_tools:
+                _LOGGER.warning(
+                    "Tool '%s' blocked by denied_tools restriction", fc.name
+                )
+                error_msg = json.dumps(
+                    {
+                        "error": f"Tool '{fc.name}' is not available in this context.",
+                        "tool": fc.name,
+                    }
+                )
+                messages.append(
+                    {
+                        "role": "function",
+                        "name": fc.name,
+                        "tool_use_id": fc.id,
+                        "content": error_msg,
+                    }
+                )
+                if yield_mode == "status":
+                    yield {
+                        "type": "status",
+                        "message": f"Tool {fc.name} blocked (restricted context)",
+                    }
+                elif yield_mode == "result":
+                    yield {
+                        "type": "tool_result",
+                        "name": fc.name,
+                        "result": error_msg,
+                    }
+                continue
+
             try:
                 _LOGGER.debug("Executing tool: %s with args: %s", fc.name, fc.arguments)
 

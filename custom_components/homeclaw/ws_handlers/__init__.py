@@ -24,6 +24,21 @@ from .models import (
     ws_get_providers_config,
     ws_set_preferences,
 )
+from .proactive import (
+    ws_proactive_alerts,
+    ws_proactive_config_get,
+    ws_proactive_config_set,
+    ws_proactive_run,
+    ws_scheduler_add,
+    ws_scheduler_enable,
+    ws_scheduler_history,
+    ws_scheduler_list,
+    ws_scheduler_remove,
+    ws_scheduler_run,
+    ws_subagent_cancel,
+    ws_subagent_get,
+    ws_subagent_list,
+)
 from .rag import (
     ws_rag_identity,
     ws_rag_identity_update,
@@ -84,3 +99,19 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     # RAG Optimizer
     websocket_api.async_register_command(hass, ws_rag_optimize_analyze)
     websocket_api.async_register_command(hass, ws_rag_optimize_run)
+    # Proactive: Heartbeat
+    websocket_api.async_register_command(hass, ws_proactive_config_get)
+    websocket_api.async_register_command(hass, ws_proactive_config_set)
+    websocket_api.async_register_command(hass, ws_proactive_alerts)
+    websocket_api.async_register_command(hass, ws_proactive_run)
+    # Proactive: Scheduler
+    websocket_api.async_register_command(hass, ws_scheduler_list)
+    websocket_api.async_register_command(hass, ws_scheduler_add)
+    websocket_api.async_register_command(hass, ws_scheduler_remove)
+    websocket_api.async_register_command(hass, ws_scheduler_enable)
+    websocket_api.async_register_command(hass, ws_scheduler_run)
+    websocket_api.async_register_command(hass, ws_scheduler_history)
+    # Proactive: Subagents
+    websocket_api.async_register_command(hass, ws_subagent_list)
+    websocket_api.async_register_command(hass, ws_subagent_get)
+    websocket_api.async_register_command(hass, ws_subagent_cancel)

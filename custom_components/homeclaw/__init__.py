@@ -393,6 +393,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.services.async_register(DOMAIN, "rag_reindex", async_handle_rag_reindex)
 
+    # --- Proactive subsystem: heartbeat + scheduler + subagent ---
+    await _initialize_proactive(hass)
+
     # Register WebSocket API commands (only once)
     if not hass.data[DOMAIN].get("_ws_registered"):
         async_register_websocket_commands(hass)
@@ -480,6 +483,92 @@ async def _initialize_rag(
         )
 
 
+async def _initialize_proactive(hass: HomeAssistant) -> None:
+    """Initialize the proactive subsystem (heartbeat + scheduler + subagent).
+
+    Uses graceful degradation — if initialization fails, the integration
+    continues to work without proactive features (logs a warning).
+    """
+    if hass.data.get(DOMAIN, {}).get("_proactive_initialized"):
+        _LOGGER.debug("Proactive subsystem already initialized, skipping")
+        return
+
+    try:
+        from .core.subagent import SubagentManager
+        from .proactive import HeartbeatService, SchedulerService
+
+        # 1. Heartbeat
+        heartbeat = HeartbeatService(hass)
+        await heartbeat.async_initialize()
+        await heartbeat.async_start()
+        hass.data[DOMAIN]["heartbeat"] = heartbeat
+
+        # 2. Scheduler
+        scheduler = SchedulerService(hass)
+        await scheduler.async_initialize()
+        await scheduler.async_start()
+        hass.data[DOMAIN]["scheduler"] = scheduler
+
+        # 3. Subagent manager (no async init needed)
+        subagent_manager = SubagentManager(hass)
+        hass.data[DOMAIN]["subagent_manager"] = subagent_manager
+
+        hass.data[DOMAIN]["_proactive_initialized"] = True
+
+        _LOGGER.info(
+            "Proactive subsystem initialized (heartbeat=%s, scheduler_jobs=%d)",
+            heartbeat.get_config().get("enabled", False),
+            scheduler.get_status().get("total_jobs", 0),
+        )
+
+    except ImportError as err:
+        _LOGGER.warning(
+            "Proactive subsystem unavailable (missing module: %s). "
+            "Agent will work without heartbeat/scheduler/subagent features.",
+            err,
+        )
+    except Exception as err:
+        _LOGGER.warning(
+            "Proactive subsystem initialization failed: %s. "
+            "Agent will work without heartbeat/scheduler/subagent features.",
+            err,
+        )
+
+
+async def _shutdown_proactive(hass: HomeAssistant) -> None:
+    """Shutdown the proactive subsystem gracefully."""
+    if DOMAIN not in hass.data:
+        return
+
+    domain_data = hass.data[DOMAIN]
+
+    # Stop heartbeat
+    heartbeat = domain_data.get("heartbeat")
+    if heartbeat:
+        try:
+            await heartbeat.async_stop()
+            _LOGGER.debug("Heartbeat service stopped")
+        except Exception as err:
+            _LOGGER.warning("Error stopping heartbeat: %s", err)
+        finally:
+            domain_data.pop("heartbeat", None)
+
+    # Stop scheduler
+    scheduler = domain_data.get("scheduler")
+    if scheduler:
+        try:
+            await scheduler.async_stop()
+            _LOGGER.debug("Scheduler service stopped")
+        except Exception as err:
+            _LOGGER.warning("Error stopping scheduler: %s", err)
+        finally:
+            domain_data.pop("scheduler", None)
+
+    # Clean up subagent manager
+    domain_data.pop("subagent_manager", None)
+    domain_data.pop("_proactive_initialized", None)
+
+
 async def _shutdown_rag(hass: HomeAssistant) -> None:
     """Shutdown the RAG system gracefully."""
     if DOMAIN not in hass.data:
@@ -498,7 +587,10 @@ async def _shutdown_rag(hass: HomeAssistant) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    # Shutdown RAG system first
+    # Shutdown proactive subsystem
+    await _shutdown_proactive(hass)
+
+    # Shutdown RAG system
     await _shutdown_rag(hass)
 
     if await _panel_exists(hass, "homeclaw"):

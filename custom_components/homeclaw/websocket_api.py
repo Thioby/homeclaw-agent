@@ -55,6 +55,21 @@ from .ws_handlers.rag import (  # noqa: F401
     ws_rag_sessions,
     ws_rag_stats,
 )
+from .ws_handlers.proactive import (  # noqa: F401
+    ws_proactive_alerts,
+    ws_proactive_config_get,
+    ws_proactive_config_set,
+    ws_proactive_run,
+    ws_scheduler_add,
+    ws_scheduler_enable,
+    ws_scheduler_history,
+    ws_scheduler_list,
+    ws_scheduler_remove,
+    ws_scheduler_run,
+    ws_subagent_cancel,
+    ws_subagent_get,
+    ws_subagent_list,
+)
 from .ws_handlers.sessions import (  # noqa: F401
     ws_create_session,
     ws_delete_session,

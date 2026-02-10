@@ -98,10 +98,15 @@ class Agent:
                 - response: The AI response text (on success).
                 - error: Error message (on failure).
         """
+        # Allow callers to override the system prompt (e.g. subagent/heartbeat)
+        effective_system_prompt = (
+            kwargs.pop("system_prompt_override", None) or self._system_prompt
+        )
+
         result = await self._query_processor.process(
             query=query,
             messages=self._conversation.get_messages(),
-            system_prompt=self._system_prompt,
+            system_prompt=effective_system_prompt,
             **kwargs,
         )
 
@@ -145,7 +150,9 @@ class Agent:
         )
 
         # Allow system_prompt override from kwargs (for identity/onboarding)
-        system_prompt = kwargs.pop("system_prompt", self._system_prompt)
+        system_prompt = kwargs.pop("system_prompt_override", None) or kwargs.pop(
+            "system_prompt", self._system_prompt
+        )
 
         async for chunk in self._query_processor.process_stream(
             query=query,
