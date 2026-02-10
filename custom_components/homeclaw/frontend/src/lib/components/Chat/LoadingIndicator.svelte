@@ -1,55 +1,76 @@
-<div class="loading">
-  <span>Homeclaw is thinking</span>
-  <div class="loading-dots">
-    <div class="dot"></div>
-    <div class="dot"></div>
-    <div class="dot"></div>
+<!-- Telegram-style typing indicator bubble -->
+<div class="typing-indicator">
+  <div class="typing-bubble">
+    <div class="typing-dot"></div>
+    <div class="typing-dot"></div>
+    <div class="typing-dot"></div>
   </div>
 </div>
 
 <style>
-  .loading {
+  .typing-indicator {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 3px;
+    animation: messageAppear 0.3s ease-out;
+  }
+
+  .typing-bubble {
+    background: var(--bubble-assistant, var(--card-background-color));
+    padding: 12px 16px;
+    border-radius: 12px 12px 12px 4px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    padding: 12px 16px;
-    border-radius: 12px;
-    background: var(--secondary-background-color);
-    margin-right: auto;
-    max-width: 80%;
-    animation: fadeIn 0.3s ease-out;
-  }
-
-  .loading-dots {
-    display: flex;
     gap: 4px;
+    position: relative;
   }
 
-  .dot {
-    width: 8px;
-    height: 8px;
-    background: var(--primary-color);
+  /* Tail on left side, matching assistant bubble */
+  .typing-bubble::after {
+    content: '';
+    position: absolute;
+    left: -8px;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border: 8px solid transparent;
+    border-right-color: var(--bubble-assistant-tail, var(--card-background-color));
+    border-bottom-color: var(--bubble-assistant-tail, var(--card-background-color));
+    border-left: 0;
+    border-bottom-left-radius: 4px;
+  }
+
+  .typing-dot {
+    width: 7px;
+    height: 7px;
+    background: var(--secondary-text-color);
     border-radius: 50%;
-    animation: bounce 1.4s infinite ease-in-out;
+    animation: typingBounce 1.4s infinite ease-in-out;
   }
 
-  .dot:nth-child(1) { animation-delay: -0.32s; }
-  .dot:nth-child(2) { animation-delay: -0.16s; }
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
 
-  @keyframes bounce {
-    0%, 80%, 100% {
-      transform: scale(0);
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes typingBounce {
+    0%, 60%, 100% {
+      transform: translateY(0);
+      opacity: 0.4;
     }
-    40% {
-      transform: scale(1.0);
+    30% {
+      transform: translateY(-5px);
+      opacity: 1;
     }
   }
 
-  @keyframes fadeIn {
+  @keyframes messageAppear {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(8px);
     }
     to {
       opacity: 1;

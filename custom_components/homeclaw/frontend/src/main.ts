@@ -7,6 +7,7 @@ import componentCss from '../homeclaw-panel.css?inline';
 import HomeclawApp from './lib/components/HomeclawPanel.svelte';
 import { mount, unmount } from 'svelte';
 import type { HomeAssistant } from './lib/types';
+import { setHostElement } from './lib/stores/ui';
 
 console.log('[HomeclawPanel] Imports completed successfully');
 console.log('[HomeclawPanel] App CSS length:', appCss?.length || 0);
@@ -35,6 +36,9 @@ class HomeclawPanel extends HTMLElement {
       // Attach Shadow DOM for style isolation
       const shadowRoot = this.attachShadow({ mode: 'open' });
       console.log('[HomeclawPanel] Shadow DOM attached');
+
+      // Store host element reference for theme switching
+      setHostElement(this);
       
       // Add global styles to shadow root
       const appStyle = document.createElement('style');

@@ -1,212 +1,713 @@
-const appCss = "/* Global styles for Homeclaw Panel */\n\n:host {\n  /* Home Assistant Theme Variables */\n  --primary-color: var(--ha-primary-color, #03a9f4);\n  --accent-color: var(--ha-accent-color, #ff9800);\n  --primary-background-color: var(--ha-primary-background-color, #fafafa);\n  --secondary-background-color: var(--ha-secondary-background-color, #e5e5e5);\n  --divider-color: var(--ha-divider-color, rgba(0, 0, 0, 0.12));\n  --primary-text-color: var(--ha-primary-text-color, #212121);\n  --secondary-text-color: var(--ha-secondary-text-color, #727272);\n  --disabled-text-color: var(--ha-disabled-text-color, #bdbdbd);\n  --sidebar-background-color: var(--ha-sidebar-background-color, #fafafa);\n  --sidebar-text-color: var(--ha-sidebar-text-color, #212121);\n  --card-background-color: var(--ha-card-background-color, #fff);\n  --mdc-theme-primary: var(--primary-color);\n  --mdc-theme-on-primary: white;\n  --error-color: #db4437;\n  --success-color: #0f9d58;\n  --warning-color: #f4b400;\n\n  /* Spacing */\n  --spacing-xs: 4px;\n  --spacing-sm: 8px;\n  --spacing-md: 16px;\n  --spacing-lg: 24px;\n  --spacing-xl: 32px;\n\n  /* Border Radius */\n  --border-radius-sm: 4px;\n  --border-radius-md: 8px;\n  --border-radius-lg: 12px;\n  --border-radius-xl: 16px;\n\n  /* Shadows */\n  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);\n  --shadow-md: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);\n  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.19), 0 6px 6px rgba(0, 0, 0, 0.23);\n\n  /* Transitions */\n  --transition-fast: 150ms ease-in-out;\n  --transition-medium: 250ms ease-in-out;\n  --transition-slow: 350ms ease-in-out;\n\n  /* Z-index layers */\n  --z-sidebar: 100;\n  --z-dropdown: 200;\n  --z-modal: 300;\n  --z-overlay: 400;\n  --z-toast: 500;\n}\n\n/* Reset & Base Styles */\n* {\n  box-sizing: border-box;\n  margin: 0;\n  padding: 0;\n}\n\n:host {\n  display: block;\n  width: 100%;\n  height: 100%;\n  font-family: var(--ha-font-family, Roboto, sans-serif);\n  font-size: 14px;\n  line-height: 1.5;\n  color: var(--primary-text-color);\n  background-color: var(--primary-background-color);\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n}\n\n/* Scrollbar Styling */\n::-webkit-scrollbar {\n  width: 8px;\n  height: 8px;\n}\n\n::-webkit-scrollbar-track {\n  background: var(--secondary-background-color);\n  border-radius: var(--border-radius-sm);\n}\n\n::-webkit-scrollbar-thumb {\n  background: var(--divider-color);\n  border-radius: var(--border-radius-sm);\n  transition: background var(--transition-fast);\n}\n\n::-webkit-scrollbar-thumb:hover {\n  background: var(--secondary-text-color);\n}\n\n/* Focus Styles */\n:focus-visible {\n  outline: 2px solid var(--primary-color);\n  outline-offset: 2px;\n}\n\nbutton:focus-visible,\na:focus-visible {\n  outline: 2px solid var(--primary-color);\n  outline-offset: 2px;\n}\n\n/* Animations */\n@keyframes fadeIn {\n  from {\n    opacity: 0;\n  }\n  to {\n    opacity: 1;\n  }\n}\n\n@keyframes slideInUp {\n  from {\n    transform: translateY(20px);\n    opacity: 0;\n  }\n  to {\n    transform: translateY(0);\n    opacity: 1;\n  }\n}\n\n@keyframes slideInLeft {\n  from {\n    transform: translateX(-20px);\n    opacity: 0;\n  }\n  to {\n    transform: translateX(0);\n    opacity: 1;\n  }\n}\n\n@keyframes slideInRight {\n  from {\n    transform: translateX(20px);\n    opacity: 0;\n  }\n  to {\n    transform: translateX(0);\n    opacity: 1;\n  }\n}\n\n@keyframes bounce {\n  0%,\n  100% {\n    transform: translateY(0);\n  }\n  50% {\n    transform: translateY(-10px);\n  }\n}\n\n@keyframes pulse {\n  0%,\n  100% {\n    opacity: 1;\n  }\n  50% {\n    opacity: 0.5;\n  }\n}\n\n@keyframes spin {\n  from {\n    transform: rotate(0deg);\n  }\n  to {\n    transform: rotate(360deg);\n  }\n}\n\n@keyframes shimmer {\n  0% {\n    background-position: -468px 0;\n  }\n  100% {\n    background-position: 468px 0;\n  }\n}\n\n/* Utility Classes */\n.fade-in {\n  animation: fadeIn var(--transition-medium);\n}\n\n.slide-in-up {\n  animation: slideInUp var(--transition-medium);\n}\n\n.slide-in-left {\n  animation: slideInLeft var(--transition-medium);\n}\n\n.slide-in-right {\n  animation: slideInRight var(--transition-medium);\n}\n\n/* Markdown Content Styling */\n.markdown-content {\n  line-height: 1.6;\n}\n\n.markdown-content h1,\n.markdown-content h2,\n.markdown-content h3,\n.markdown-content h4,\n.markdown-content h5,\n.markdown-content h6 {\n  margin-top: var(--spacing-md);\n  margin-bottom: var(--spacing-sm);\n  font-weight: 600;\n  color: var(--primary-text-color);\n}\n\n.markdown-content h1 {\n  font-size: 1.5em;\n}\n.markdown-content h2 {\n  font-size: 1.3em;\n}\n.markdown-content h3 {\n  font-size: 1.1em;\n}\n\n.markdown-content p {\n  margin-bottom: var(--spacing-sm);\n}\n\n.markdown-content ul,\n.markdown-content ol {\n  margin-left: var(--spacing-lg);\n  margin-bottom: var(--spacing-sm);\n}\n\n.markdown-content li {\n  margin-bottom: var(--spacing-xs);\n}\n\n.markdown-content code {\n  background: var(--secondary-background-color);\n  padding: 2px 6px;\n  border-radius: var(--border-radius-sm);\n  font-family: 'Courier New', Courier, monospace;\n  font-size: 0.9em;\n}\n\n.markdown-content pre {\n  background: var(--secondary-background-color);\n  padding: var(--spacing-md);\n  border-radius: var(--border-radius-md);\n  overflow-x: auto;\n  margin-bottom: var(--spacing-sm);\n}\n\n.markdown-content pre code {\n  background: none;\n  padding: 0;\n}\n\n.markdown-content blockquote {\n  border-left: 4px solid var(--primary-color);\n  padding-left: var(--spacing-md);\n  margin-left: 0;\n  margin-bottom: var(--spacing-sm);\n  color: var(--secondary-text-color);\n  font-style: italic;\n}\n\n.markdown-content a {\n  color: var(--primary-color);\n  text-decoration: none;\n  transition: opacity var(--transition-fast);\n}\n\n.markdown-content a:hover {\n  opacity: 0.8;\n  text-decoration: underline;\n}\n\n.markdown-content table {\n  width: 100%;\n  border-collapse: collapse;\n  margin-bottom: var(--spacing-sm);\n}\n\n.markdown-content th,\n.markdown-content td {\n  border: 1px solid var(--divider-color);\n  padding: var(--spacing-sm);\n  text-align: left;\n}\n\n.markdown-content th {\n  background: var(--secondary-background-color);\n  font-weight: 600;\n}\n\n.markdown-content img {\n  max-width: 100%;\n  height: auto;\n  border-radius: var(--border-radius-sm);\n  margin-bottom: var(--spacing-sm);\n}\n\n/* Responsive Breakpoints */\n@media (max-width: 768px) {\n  :host {\n    font-size: 13px;\n  }\n}\n\n@media (prefers-color-scheme: dark) {\n  /* Dark mode adjustments are handled by HA theme variables */\n}\n\n/* Accessibility */\n@media (prefers-reduced-motion: reduce) {\n  *,\n  *::before,\n  *::after {\n    animation-duration: 0.01ms !important;\n    animation-iteration-count: 1 !important;\n    transition-duration: 0.01ms !important;\n  }\n}\n\n/* Selection */\n::selection {\n  background-color: var(--primary-color);\n  color: white;\n}\n";
+const appCss = `/* Global styles for Homeclaw Panel */
+
+:host {
+  /* Home Assistant Theme Variables */
+  --primary-color: var(--ha-primary-color, #03a9f4);
+  --accent-color: var(--ha-accent-color, #ff9800);
+  --primary-background-color: var(--ha-primary-background-color, #fafafa);
+  --secondary-background-color: var(--ha-secondary-background-color, #e5e5e5);
+  --divider-color: var(--ha-divider-color, rgba(0, 0, 0, 0.12));
+  --primary-text-color: var(--ha-primary-text-color, #212121);
+  --secondary-text-color: var(--ha-secondary-text-color, #727272);
+  --disabled-text-color: var(--ha-disabled-text-color, #bdbdbd);
+  --sidebar-background-color: var(--ha-sidebar-background-color, #fafafa);
+  --sidebar-text-color: var(--ha-sidebar-text-color, #212121);
+  --card-background-color: var(--ha-card-background-color, #fff);
+  --mdc-theme-primary: var(--primary-color);
+  --mdc-theme-on-primary: white;
+  --error-color: #db4437;
+  --success-color: #0f9d58;
+  --warning-color: #f4b400;
+
+  /* Telegram-inspired Chat Variables (defaults for system/HA theme) */
+  --accent: var(--primary-color);
+  --accent-hover: color-mix(in srgb, var(--primary-color) 85%, black);
+  --accent-light: color-mix(in srgb, var(--primary-color) 12%, transparent);
+
+  --bg-chat: var(--primary-background-color);
+  --bg-chat-pattern: rgba(0, 0, 0, 0.02);
+  --bg-sidebar: var(--secondary-background-color);
+  --bg-input: var(--card-background-color);
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  --bg-overlay: rgba(0, 0, 0, 0.4);
+
+  --bubble-user: color-mix(in srgb, var(--primary-color) 15%, var(--card-background-color));
+  --bubble-user-tail: var(--bubble-user);
+  --bubble-assistant: var(--card-background-color);
+  --bubble-assistant-tail: var(--bubble-assistant);
+  --bubble-code-bg: var(--secondary-background-color);
+
+  --text-bubble-user: var(--primary-text-color);
+  --text-bubble-assistant: var(--primary-text-color);
+  --text-bubble-time: rgba(0, 0, 0, 0.35);
+  --text-bubble-time-user: rgba(0, 0, 0, 0.4);
+
+  --search-bg: var(--secondary-background-color);
+  --search-text: var(--secondary-text-color);
+
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-track: transparent;
+
+  --fab-shadow: 0 4px 16px color-mix(in srgb, var(--primary-color) 35%, transparent);
+
+  /* Sidebar width */
+  --sidebar-width: 320px;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Border Radius */
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.19), 0 6px 6px rgba(0, 0, 0, 0.23);
+
+  /* Transitions */
+  --transition-fast: 150ms ease-in-out;
+  --transition-medium: 250ms ease-in-out;
+  --transition-slow: 350ms ease-in-out;
+
+  /* Z-index layers */
+  --z-sidebar: 100;
+  --z-dropdown: 200;
+  --z-modal: 300;
+  --z-overlay: 400;
+  --z-toast: 500;
+}
+
+/* Reset & Base Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:host {
+  display: block;
+  width: 100%;
+  height: 100%;
+  font-family: var(--ha-font-family, Roboto, sans-serif);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--primary-text-color);
+  background-color: var(--primary-background-color);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =======================================================================
+   TELEGRAM-INSPIRED LIGHT THEME (forced override)
+   Applied when data-theme="light" is set on :host
+   ======================================================================= */
+:host([data-theme="light"]) {
+  --primary-background-color: #FFFFFF;
+  --secondary-background-color: #F4F4F5;
+  --card-background-color: #FFFFFF;
+  --divider-color: #E0E0E0;
+  --primary-text-color: #000000;
+  --secondary-text-color: #707579;
+  --disabled-text-color: #9E9E9E;
+
+  --accent: #2AABEE;
+  --accent-hover: #229ED9;
+  --accent-light: rgba(42, 171, 238, 0.12);
+
+  --bg-chat: #E6EBEE;
+  --bg-chat-pattern: rgba(0, 0, 0, 0.02);
+  --bg-sidebar: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(42, 171, 238, 0.12);
+  --bg-overlay: rgba(0, 0, 0, 0.4);
+
+  --bubble-user: #EFFDDE;
+  --bubble-user-tail: #EFFDDE;
+  --bubble-assistant: #FFFFFF;
+  --bubble-assistant-tail: #FFFFFF;
+  --bubble-code-bg: #F0F2F5;
+
+  --text-bubble-user: #000000;
+  --text-bubble-assistant: #000000;
+  --text-bubble-time: rgba(0, 0, 0, 0.35);
+  --text-bubble-time-user: rgba(0, 100, 0, 0.45);
+
+  --search-bg: #F0F2F5;
+  --search-text: #707579;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --fab-shadow: 0 4px 16px rgba(42, 171, 238, 0.35);
+}
+
+/* =======================================================================
+   TELEGRAM-INSPIRED DARK THEME (forced override)
+   Applied when data-theme="dark" is set on :host
+   ======================================================================= */
+:host([data-theme="dark"]) {
+  --primary-background-color: #0E1621;
+  --secondary-background-color: #17212B;
+  --card-background-color: #17212B;
+  --divider-color: #1F2F3F;
+  --primary-text-color: #F5F5F5;
+  --secondary-text-color: #8696A8;
+  --disabled-text-color: #5B6F82;
+
+  --accent: #2AABEE;
+  --accent-hover: #229ED9;
+  --accent-light: rgba(42, 171, 238, 0.15);
+
+  --bg-chat: #0E1621;
+  --bg-chat-pattern: rgba(255, 255, 255, 0.01);
+  --bg-sidebar: #17212B;
+  --bg-input: #17212B;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(42, 171, 238, 0.15);
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+
+  --bubble-user: #2B5278;
+  --bubble-user-tail: #2B5278;
+  --bubble-assistant: #182533;
+  --bubble-assistant-tail: #182533;
+  --bubble-code-bg: #0E1621;
+
+  --text-bubble-user: #F5F5F5;
+  --text-bubble-assistant: #F5F5F5;
+  --text-bubble-time: rgba(255, 255, 255, 0.4);
+  --text-bubble-time-user: rgba(255, 255, 255, 0.45);
+
+  --search-bg: #242F3D;
+  --search-text: #8696A8;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --fab-shadow: 0 4px 16px rgba(42, 171, 238, 0.25);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: var(--border-radius-sm);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--border-radius-sm);
+  transition: background var(--transition-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--secondary-text-color);
+}
+
+/* Focus Styles */
+:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -468px 0;
+  }
+  100% {
+    background-position: 468px 0;
+  }
+}
+
+@keyframes messageAppear {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes emptyPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 var(--accent-light);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 16px transparent;
+  }
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
+/* Theme transition smoothing */
+:host(.theme-transitioning),
+:host(.theme-transitioning) * {
+  transition-duration: 0.3s !important;
+}
+
+/* Utility Classes */
+.fade-in {
+  animation: fadeIn var(--transition-medium);
+}
+
+.slide-in-up {
+  animation: slideInUp var(--transition-medium);
+}
+
+.slide-in-left {
+  animation: slideInLeft var(--transition-medium);
+}
+
+.slide-in-right {
+  animation: slideInRight var(--transition-medium);
+}
+
+/* Markdown Content Styling */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  margin-top: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  font-weight: 600;
+  color: var(--primary-text-color);
+}
+
+.markdown-content h1 {
+  font-size: 1.5em;
+}
+.markdown-content h2 {
+  font-size: 1.3em;
+}
+.markdown-content h3 {
+  font-size: 1.1em;
+}
+
+.markdown-content p {
+  margin-bottom: var(--spacing-sm);
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin-left: var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
+}
+
+.markdown-content li {
+  margin-bottom: var(--spacing-xs);
+}
+
+.markdown-content code {
+  background: var(--secondary-background-color);
+  padding: 2px 6px;
+  border-radius: var(--border-radius-sm);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+}
+
+.markdown-content pre {
+  background: var(--secondary-background-color);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  overflow-x: auto;
+  margin-bottom: var(--spacing-sm);
+}
+
+.markdown-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid var(--primary-color);
+  padding-left: var(--spacing-md);
+  margin-left: 0;
+  margin-bottom: var(--spacing-sm);
+  color: var(--secondary-text-color);
+  font-style: italic;
+}
+
+.markdown-content a {
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: opacity var(--transition-fast);
+}
+
+.markdown-content a:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--spacing-sm);
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid var(--divider-color);
+  padding: var(--spacing-sm);
+  text-align: left;
+}
+
+.markdown-content th {
+  background: var(--secondary-background-color);
+  font-weight: 600;
+}
+
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--border-radius-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 768px) {
+  :host {
+    font-size: 13px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Dark mode adjustments are handled by HA theme variables */
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Selection */
+::selection {
+  background-color: var(--primary-color);
+  color: white;
+}
+`;
 const componentCss = `
   .header.svelte-1elxaub {
-    background: var(--app-header-background-color, var(--secondary-background-color));
-    color: var(--app-header-text-color, var(--primary-text-color));
-    padding: 16px 24px;
+    height: 54px;
+    min-height: 54px;
+    background: var(--bg-sidebar, var(--secondary-background-color));
+    color: var(--primary-text-color);
+    border-bottom: 1px solid var(--divider-color);
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 20px;
-    font-weight: 500;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 0 8px;
+    gap: 8px;
     position: relative;
     z-index: 100;
+    transition: background var(--transition-medium, 250ms), border-color var(--transition-medium, 250ms);
   }
 
-  .menu-toggle.svelte-1elxaub {
-    display: none;
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
+  .header-btn.svelte-1elxaub {
+    width: 40px;
+    height: 40px;
     border: none;
     background: transparent;
-    cursor: pointer;
     border-radius: 50%;
+    cursor: pointer;
+    display: flex;
     align-items: center;
     justify-content: center;
-    margin-right: 8px;
+    color: var(--secondary-text-color);
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
     padding: 0;
   }
 
-  .menu-toggle.svelte-1elxaub:hover {
-    background: var(--card-background-color);
+  .header-btn.svelte-1elxaub:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+    color: var(--primary-text-color);
   }
 
-  .icon.svelte-1elxaub {
-    width: 24px;
-    height: 24px;
-    fill: currentColor;
+  .header-btn.svelte-1elxaub svg:where(.svelte-1elxaub) {
+    width: 22px;
+    height: 22px;
   }
 
-  .robot-icon.svelte-1elxaub {
-    width: 24px;
-    height: 24px;
-    fill: var(--primary-color);
+  /* Back/hamburger button - hidden on desktop */
+  .back-btn.svelte-1elxaub {
+    display: none;
   }
 
-  .title.svelte-1elxaub {
-    flex: 1;
-  }
-
-  .settings-button.svelte-1elxaub {
-    width: 36px;
-    height: 36px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
+  .header-avatar.svelte-1elxaub {
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent, #2AABEE), var(--accent-hover, #229ED9));
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s;
+    color: white;
     flex-shrink: 0;
-    margin-left: auto;
   }
 
-  .settings-button.svelte-1elxaub:hover {
-    background: rgba(255, 255, 255, 0.1);
+  .header-avatar.svelte-1elxaub svg:where(.svelte-1elxaub) {
+    width: 22px;
+    height: 22px;
   }
 
-  .settings-button.svelte-1elxaub .icon:where(.svelte-1elxaub) {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
-    opacity: 0.8;
+  .header-info.svelte-1elxaub {
+    flex: 1;
+    min-width: 0;
   }
 
-  .settings-button.svelte-1elxaub:hover .icon:where(.svelte-1elxaub) {
-    opacity: 1;
+  .header-title.svelte-1elxaub {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
   }
 
-  .clear-button.svelte-1elxaub {
-    border: none;
-    border-radius: 16px;
-    background: var(--error-color);
-    color: #fff;
-    cursor: pointer;
-    transition: all 0.2s ease;
+  .header-subtitle.svelte-1elxaub {
+    font-size: 12.5px;
+    color: var(--accent, var(--primary-color));
+    line-height: 1.2;
+  }
+
+  .header-actions.svelte-1elxaub {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    font-weight: 500;
-    font-size: 13px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-    min-width: unset;
-    width: auto;
-    height: 36px;
+    gap: 2px;
     flex-shrink: 0;
-    font-family: inherit;
   }
 
-  .clear-button.svelte-1elxaub .icon:where(.svelte-1elxaub) {
-    width: 16px;
-    height: 16px;
-    margin-right: 2px;
-    fill: white;
+  .delete-btn.svelte-1elxaub:hover {
+    color: var(--error-color, #db4437);
   }
 
-  .clear-button.svelte-1elxaub span:where(.svelte-1elxaub) {
-    color: #fff;
-    font-weight: 500;
-  }
-
-  .clear-button.svelte-1elxaub:hover:not(:disabled) {
-    opacity: 0.92;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.13);
-  }
-
-  .clear-button.svelte-1elxaub:active:not(:disabled) {
-    transform: translateY(0);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  }
-
-  .clear-button.svelte-1elxaub:disabled {
-    opacity: 0.5;
+  .delete-btn.svelte-1elxaub:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
   @media (max-width: 768px) {
-    .menu-toggle.svelte-1elxaub {
+    .back-btn.svelte-1elxaub {
       display: flex;
     }
 
-    .robot-icon.svelte-1elxaub {
-      display: none;
+    .header-avatar.svelte-1elxaub {
+      width: 36px;
+      height: 36px;
+    }
+
+    .header-avatar.svelte-1elxaub svg:where(.svelte-1elxaub) {
+      width: 18px;
+      height: 18px;
+    }
+
+    .header-title.svelte-1elxaub {
+      font-size: 14px;
     }
   }
 
   .session-item.svelte-114uzds {
     display: flex;
-    flex-direction: column;
-    padding: 12px;
-    margin-bottom: 4px;
-    border-radius: 8px;
+    align-items: center;
+    padding: 9px 12px;
+    gap: 12px;
     cursor: pointer;
-    transition: background-color 0.2s, transform 0.2s;
+    transition: background 0.15s;
     position: relative;
-    animation: svelte-114uzds-slideIn 0.2s ease-out;
-  }
-
-  .session-item.svelte-114uzds:active {
-    transform: scale(0.98);
   }
 
   .session-item.svelte-114uzds:hover {
-    background: var(--card-background-color);
+    background: var(--bg-hover, rgba(0, 0, 0, 0.04));
   }
 
   .session-item.active.svelte-114uzds {
-    background: rgba(3, 169, 244, 0.15);
-    border-left: 3px solid var(--primary-color);
+    background: var(--bg-active, rgba(42, 171, 238, 0.12));
   }
 
-  .session-title.svelte-114uzds {
-    font-size: 14px;
+  .session-avatar.svelte-114uzds {
+    width: 50px;
+    height: 50px;
+    min-width: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .session-content.svelte-114uzds {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .session-top-row.svelte-114uzds {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .session-name.svelte-114uzds {
+    font-size: 15px;
     font-weight: 500;
     color: var(--primary-text-color);
-    margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding-right: 24px;
-  }
-
-  .session-preview.svelte-114uzds {
-    font-size: 12px;
-    color: var(--secondary-text-color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .session-time.svelte-114uzds {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--disabled-text-color);
-    margin-top: 4px;
+    flex-shrink: 0;
+  }
+
+  .session-item.active.svelte-114uzds .session-time:where(.svelte-114uzds) {
+    color: var(--accent, var(--primary-color));
+  }
+
+  .session-bottom-row.svelte-114uzds {
+    display: flex;
+    align-items: center;
+  }
+
+  .session-preview.svelte-114uzds {
+    font-size: 13.5px;
+    color: var(--secondary-text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .session-delete.svelte-114uzds {
     position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 32px;
-    height: 32px;
-    min-width: 44px;
-    min-height: 44px;
+    top: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
     border: none;
     background: transparent;
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.2s;
-    border-radius: 8px;
+    transition: opacity 0.15s, background 0.15s;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
+    color: var(--secondary-text-color);
   }
 
   .session-item.svelte-114uzds:hover .session-delete:where(.svelte-114uzds) {
@@ -214,34 +715,20 @@ const componentCss = `
   }
 
   .session-delete.svelte-114uzds:hover {
-    background: rgba(219, 68, 55, 0.2);
+    background: rgba(219, 68, 55, 0.12);
+    color: var(--error-color, #db4437);
   }
 
-  .icon.svelte-114uzds {
+  .session-delete.svelte-114uzds svg:where(.svelte-114uzds) {
     width: 16px;
     height: 16px;
-    fill: var(--secondary-text-color);
-  }
-
-  .session-delete.svelte-114uzds:hover .icon:where(.svelte-114uzds) {
-    fill: var(--error-color);
-  }
-
-  @keyframes svelte-114uzds-slideIn {
-    from {
-      opacity: 0;
-      transform: translateX(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
   }
 
   .session-list.svelte-1j5qstn {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
+    overflow-x: hidden;
+    padding: 0;
   }
 
   /* Scrollbar styling */
@@ -254,7 +741,7 @@ const componentCss = `
   }
 
   .session-list.svelte-1j5qstn::-webkit-scrollbar-thumb {
-    background-color: var(--divider-color);
+    background-color: var(--scrollbar-thumb, var(--divider-color));
     border-radius: 3px;
   }
 
@@ -283,8 +770,26 @@ const componentCss = `
 
   /* Loading skeleton */
   .session-skeleton.svelte-1j5qstn {
-    padding: 12px;
-    margin-bottom: 4px;
+    padding: 9px 12px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .session-skeleton.svelte-1j5qstn::before {
+    content: '';
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(
+      90deg,
+      var(--divider-color) 25%,
+      var(--card-background-color, #fff) 50%,
+      var(--divider-color) 75%
+    );
+    background-size: 200% 100%;
+    animation: svelte-1j5qstn-skeleton-shimmer 1.5s infinite;
+    flex-shrink: 0;
   }
 
   .skeleton-line.svelte-1j5qstn {
@@ -292,13 +797,13 @@ const componentCss = `
     background: linear-gradient(
       90deg,
       var(--divider-color) 25%,
-      var(--card-background-color) 50%,
+      var(--card-background-color, #fff) 50%,
       var(--divider-color) 75%
     );
     background-size: 200% 100%;
     animation: svelte-1j5qstn-skeleton-shimmer 1.5s infinite;
     border-radius: 4px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .skeleton-line.short.svelte-1j5qstn {
@@ -320,97 +825,105 @@ const componentCss = `
     }
   }
 
-  .new-chat-btn.svelte-19p7jpv {
+  .fab.svelte-19p7jpv {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background: var(--accent, var(--primary-color));
+    color: #fff;
+    border: none;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 14px 16px;
-    min-height: 48px;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
-    font-family: inherit;
-    width: 100%;
+    box-shadow: var(--fab-shadow, 0 4px 16px rgba(3, 169, 244, 0.35));
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    z-index: 5;
   }
 
-  .icon.svelte-19p7jpv {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
+  .fab.svelte-19p7jpv:hover:not(:disabled) {
+    transform: scale(1.05);
+    background: var(--accent-hover, var(--primary-color));
   }
 
-  .new-chat-btn.svelte-19p7jpv:hover {
-    filter: brightness(1.1);
+  .fab.svelte-19p7jpv:active:not(:disabled) {
+    transform: scale(0.95);
   }
 
-  .new-chat-btn.svelte-19p7jpv:active {
-    transform: scale(0.98);
+  .fab.svelte-19p7jpv:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
-  @media (max-width: 768px) {
-    .new-chat-btn.svelte-19p7jpv {
-      width: 44px;
-      height: 44px;
-      min-width: 44px;
-      min-height: 44px;
-      padding: 0;
-      font-size: 0;
-      gap: 0;
-    }
-
-    .new-chat-btn.svelte-19p7jpv span:where(.svelte-19p7jpv) {
-      display: none;
-    }
-
-    .icon.svelte-19p7jpv {
-      width: 24px;
-      height: 24px;
-    }
+  .fab.svelte-19p7jpv svg:where(.svelte-19p7jpv) {
+    width: 24px;
+    height: 24px;
   }
 
   .sidebar.svelte-ou1367 {
-    width: 280px;
-    background: var(--secondary-background-color);
+    width: var(--sidebar-width, 320px);
+    min-width: var(--sidebar-width, 320px);
+    height: 100%;
+    background: var(--bg-sidebar, var(--secondary-background-color));
     border-right: 1px solid var(--divider-color);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    transition: transform 0.3s ease, width 0.3s ease;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s ease;
+    position: relative;
+    z-index: 10;
   }
 
   .sidebar.hidden.svelte-ou1367 {
     transform: translateX(-100%);
     width: 0;
+    min-width: 0;
     border: none;
+    overflow: hidden;
   }
 
-  .sidebar-header.svelte-ou1367 {
-    padding: 16px;
-    border-bottom: 1px solid var(--divider-color);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+  .search-container.svelte-ou1367 {
+    padding: 10px 12px;
   }
 
-  .sidebar-title.svelte-ou1367 {
-    font-size: 16px;
-    font-weight: 500;
-    color: var(--primary-text-color);
+  .search-bar.svelte-ou1367 {
     display: flex;
     align-items: center;
-    gap: 8px;
+    background: var(--search-bg, var(--secondary-background-color));
+    border-radius: 24px;
+    padding: 8px 14px;
+    gap: 10px;
+    transition: background 0.2s, box-shadow 0.15s;
+    cursor: text;
   }
 
-  .icon.svelte-ou1367 {
-    width: 20px;
-    height: 20px;
-    fill: var(--primary-color);
+  .search-bar.svelte-ou1367:focus-within {
+    box-shadow: 0 0 0 2px var(--accent, var(--primary-color));
+    background: var(--card-background-color, #fff);
+  }
+
+  .search-bar.svelte-ou1367 svg:where(.svelte-ou1367) {
+    width: 18px;
+    height: 18px;
+    color: var(--search-text, var(--secondary-text-color));
+    flex-shrink: 0;
+  }
+
+  .search-bar.svelte-ou1367 input:where(.svelte-ou1367) {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    color: var(--primary-text-color);
+    width: 100%;
+    font-family: inherit;
+  }
+
+  .search-bar.svelte-ou1367 input:where(.svelte-ou1367)::placeholder {
+    color: var(--search-text, var(--secondary-text-color));
   }
 
   .sidebar-overlay.svelte-ou1367 {
@@ -420,8 +933,10 @@ const componentCss = `
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--bg-overlay, rgba(0, 0, 0, 0.4));
     z-index: 99;
+    opacity: 0;
+    transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   @media (max-width: 768px) {
@@ -432,12 +947,15 @@ const componentCss = `
       bottom: 0;
       z-index: 100;
       transform: translateX(-100%);
-      width: 280px;
+      width: 85vw;
+      min-width: 85vw;
+      max-width: 360px;
+      box-shadow: none;
     }
 
     .sidebar.open.svelte-ou1367 {
       transform: translateX(0);
-      box-shadow: 0 4px 5px 0 rgba(0, 0, 0, 0.14);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
     }
 
     .sidebar.hidden.svelte-ou1367 {
@@ -446,65 +964,150 @@ const componentCss = `
 
     .sidebar-overlay.svelte-ou1367 {
       display: block;
+      opacity: 1;
+    }
+  }
+
+  @media (max-width: 1024px) and (min-width: 769px) {
+    .sidebar.svelte-ou1367 {
+      width: 260px;
+      min-width: 260px;
     }
   }
 
   .message.svelte-cu3vo4 {
-    padding: 12px 16px;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    max-width: 80%;
-    word-wrap: break-word;
-    animation: svelte-cu3vo4-fadeIn 0.3s ease-out;
+    display: flex;
+    margin-bottom: 3px;
+    animation: messageAppear 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  /* Group spacing: different sender = more space */
+  .message.user + .message.assistant,
+  .message.assistant + .message.user {
+    margin-top: 10px;
   }
 
   .message.user.svelte-cu3vo4 {
-    background: var(--primary-color);
-    color: white;
-    align-self: flex-end;
-    margin-left: auto;
+    justify-content: flex-end;
   }
 
   .message.assistant.svelte-cu3vo4 {
-    background: var(--card-background-color);
-    color: var(--primary-text-color);
-    border: 1px solid var(--divider-color);
-    align-self: flex-start;
+    justify-content: flex-start;
   }
 
-  .message-content.svelte-cu3vo4 {
-    line-height: 1.6;
+  .bubble.svelte-cu3vo4 {
+    max-width: min(80%, 500px);
+    padding: 7px 11px;
+    position: relative;
+    line-height: 1.45;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
-  .message-time.svelte-cu3vo4 {
-    display: block;
-    margin-top: 4px;
-    font-size: 0.7rem;
-    color: #b0b0b0;
-    text-align: right;
+  /* User bubble — right side, Telegram-style */
+  .message.user.svelte-cu3vo4 .bubble:where(.svelte-cu3vo4) {
+    background: var(--bubble-user);
+    color: var(--text-bubble-user);
+    border-radius: 12px 12px 4px 12px;
   }
 
-  .message.user.svelte-cu3vo4 .message-time:where(.svelte-cu3vo4) {
-    color: rgba(255, 255, 255, 0.6);
+  /* User bubble tail (CSS triangle) */
+  .message.user.svelte-cu3vo4 .bubble:where(.svelte-cu3vo4)::after {
+    content: '';
+    position: absolute;
+    right: -8px;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border: 8px solid transparent;
+    border-left-color: var(--bubble-user-tail);
+    border-bottom-color: var(--bubble-user-tail);
+    border-right: 0;
+    border-bottom-right-radius: 4px;
   }
 
+  /* Hide tail on consecutive same-type messages */
+  .message.user + .message.user .bubble::after {
+    display: none;
+  }
+
+  /* Assistant bubble — left side */
+  .message.assistant.svelte-cu3vo4 .bubble:where(.svelte-cu3vo4) {
+    background: var(--bubble-assistant);
+    color: var(--text-bubble-assistant);
+    border-radius: 12px 12px 12px 4px;
+  }
+
+  /* Assistant bubble tail */
+  .message.assistant.svelte-cu3vo4 .bubble:where(.svelte-cu3vo4)::after {
+    content: '';
+    position: absolute;
+    left: -8px;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border: 8px solid transparent;
+    border-right-color: var(--bubble-assistant-tail);
+    border-bottom-color: var(--bubble-assistant-tail);
+    border-left: 0;
+    border-bottom-left-radius: 4px;
+  }
+
+  .message.assistant + .message.assistant .bubble::after {
+    display: none;
+  }
+
+  /* Timestamp INSIDE bubble — Telegram style */
+  .bubble-time.svelte-cu3vo4 {
+    float: right;
+    font-size: 11px;
+    margin: 4px -4px -2px 12px;
+    color: var(--text-bubble-time);
+    white-space: nowrap;
+  }
+
+  .message.user.svelte-cu3vo4 .bubble-time:where(.svelte-cu3vo4) {
+    color: var(--text-bubble-time-user);
+  }
+
+  /* Bubble content formatting (from markdown) */
+  .bubble.svelte-cu3vo4 p { margin-bottom: 6px; }
+  .bubble.svelte-cu3vo4 p:last-of-type { margin-bottom: 0; }
+  .bubble.svelte-cu3vo4 strong { font-weight: 600; }
+  .bubble.svelte-cu3vo4 code {
+    background: var(--bubble-code-bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  .bubble.svelte-cu3vo4 pre {
+    background: var(--bubble-code-bg);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 6px 0;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .bubble.svelte-cu3vo4 pre code {
+    background: none;
+    padding: 0;
+    font-size: 13px;
+  }
+  .bubble.svelte-cu3vo4 ul, .bubble.svelte-cu3vo4 ol {
+    padding-left: 18px;
+    margin: 4px 0;
+  }
+  .bubble.svelte-cu3vo4 li { margin: 2px 0; }
+
+  /* Streaming cursor */
   .streaming-cursor.svelte-cu3vo4 {
     display: inline-block;
     margin-left: 2px;
     animation: svelte-cu3vo4-blink 1s infinite;
-    color: var(--primary-color);
+    color: var(--accent, var(--primary-color));
     font-weight: bold;
-  }
-
-  @keyframes svelte-cu3vo4-fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 
   @keyframes svelte-cu3vo4-blink {
@@ -513,63 +1116,85 @@ const componentCss = `
   }
 
   .message.streaming.svelte-cu3vo4 {
-    /* Optional: add subtle pulsing effect while streaming */
-    animation: svelte-cu3vo4-fadeIn 0.3s ease-out, svelte-cu3vo4-pulse 2s infinite;
-  }
-
-  @keyframes svelte-cu3vo4-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.95; }
+    animation: messageAppear 0.3s ease-out;
   }
 
   @media (max-width: 768px) {
-    .message.svelte-cu3vo4 {
-      max-width: 90%;
+    .bubble.svelte-cu3vo4 {
+      max-width: min(88%, 500px);
     }
   }
 
-  .loading.svelte-174ds4q {
+  @media (max-width: 400px) {
+    .bubble.svelte-cu3vo4 {
+      max-width: 92%;
+      font-size: 13.5px;
+    }
+  }
+
+  .typing-indicator.svelte-174ds4q {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 3px;
+    animation: svelte-174ds4q-messageAppear 0.3s ease-out;
+  }
+
+  .typing-bubble.svelte-174ds4q {
+    background: var(--bubble-assistant, var(--card-background-color));
+    padding: 12px 16px;
+    border-radius: 12px 12px 12px 4px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    padding: 12px 16px;
-    border-radius: 12px;
-    background: var(--secondary-background-color);
-    margin-right: auto;
-    max-width: 80%;
-    animation: svelte-174ds4q-fadeIn 0.3s ease-out;
-  }
-
-  .loading-dots.svelte-174ds4q {
-    display: flex;
     gap: 4px;
+    position: relative;
   }
 
-  .dot.svelte-174ds4q {
-    width: 8px;
-    height: 8px;
-    background: var(--primary-color);
+  /* Tail on left side, matching assistant bubble */
+  .typing-bubble.svelte-174ds4q::after {
+    content: '';
+    position: absolute;
+    left: -8px;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border: 8px solid transparent;
+    border-right-color: var(--bubble-assistant-tail, var(--card-background-color));
+    border-bottom-color: var(--bubble-assistant-tail, var(--card-background-color));
+    border-left: 0;
+    border-bottom-left-radius: 4px;
+  }
+
+  .typing-dot.svelte-174ds4q {
+    width: 7px;
+    height: 7px;
+    background: var(--secondary-text-color);
     border-radius: 50%;
-    animation: svelte-174ds4q-bounce 1.4s infinite ease-in-out;
+    animation: svelte-174ds4q-typingBounce 1.4s infinite ease-in-out;
   }
 
-  .dot.svelte-174ds4q:nth-child(1) { animation-delay: -0.32s; }
-  .dot.svelte-174ds4q:nth-child(2) { animation-delay: -0.16s; }
+  .typing-dot.svelte-174ds4q:nth-child(2) {
+    animation-delay: 0.2s;
+  }
 
-  @keyframes svelte-174ds4q-bounce {
-    0%, 80%, 100% {
-      transform: scale(0);
+  .typing-dot.svelte-174ds4q:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes svelte-174ds4q-typingBounce {
+    0%, 60%, 100% {
+      transform: translateY(0);
+      opacity: 0.4;
     }
-    40% {
-      transform: scale(1.0);
+    30% {
+      transform: translateY(-5px);
+      opacity: 1;
     }
   }
 
-  @keyframes svelte-174ds4q-fadeIn {
+  @keyframes svelte-174ds4q-messageAppear {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(8px);
     }
     to {
       opacity: 1;
@@ -577,35 +1202,107 @@ const componentCss = `
     }
   }
 
-  .empty-chat.svelte-euh035 {
+  .empty-state.svelte-euh035 {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 32px;
-    color: var(--secondary-text-color);
+    padding: 24px;
+    z-index: 1;
   }
 
-  .icon.svelte-euh035 {
-    width: 64px;
-    height: 64px;
-    fill: var(--disabled-text-color);
-    margin-bottom: 16px;
+  .empty-icon.svelte-euh035 {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: var(--accent-light, rgba(3, 169, 244, 0.12));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    animation: svelte-euh035-emptyPulse 3s ease-in-out infinite;
   }
 
-  h3.svelte-euh035 {
-    font-size: 18px;
-    font-weight: 500;
+  .empty-icon.svelte-euh035 svg:where(.svelte-euh035) {
+    width: 48px;
+    height: 48px;
+    color: var(--accent, var(--primary-color));
+  }
+
+  @keyframes svelte-euh035-emptyPulse {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 var(--accent-light, rgba(3, 169, 244, 0.15));
+    }
+    50% {
+      transform: scale(1.03);
+      box-shadow: 0 0 0 16px transparent;
+    }
+  }
+
+  h2.svelte-euh035 {
+    font-size: 22px;
+    font-weight: 600;
     color: var(--primary-text-color);
     margin-bottom: 8px;
   }
 
   p.svelte-euh035 {
-    font-size: 14px;
-    margin-bottom: 24px;
-    max-width: 300px;
+    color: var(--secondary-text-color);
+    font-size: 15px;
+    max-width: 360px;
+    line-height: 1.5;
+    margin-bottom: 0;
+  }
+
+  .suggestions.svelte-euh035 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 24px;
+    justify-content: center;
+    max-width: 480px;
+  }
+
+  .suggestion-chip.svelte-euh035 {
+    padding: 8px 16px;
+    background: var(--card-background-color, #fff);
+    border: 1px solid var(--divider-color);
+    border-radius: 9999px;
+    font-size: 13.5px;
+    color: var(--primary-text-color);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+
+  .suggestion-chip.svelte-euh035:hover {
+    border-color: var(--accent, var(--primary-color));
+    color: var(--accent, var(--primary-color));
+    background: var(--accent-light, rgba(3, 169, 244, 0.08));
+  }
+
+  @media (max-width: 768px) {
+    .suggestions.svelte-euh035 {
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .empty-icon.svelte-euh035 {
+      width: 80px;
+      height: 80px;
+    }
+
+    .empty-icon.svelte-euh035 svg:where(.svelte-euh035) {
+      width: 40px;
+      height: 40px;
+    }
+
+    h2.svelte-euh035 {
+      font-size: 20px;
+    }
   }
 
   .error.svelte-sualbq {
@@ -665,23 +1362,51 @@ const componentCss = `
     }
   }
 
+  .chat-wrapper.svelte-hiq0w4 {
+    position: relative;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
   .messages.svelte-hiq0w4 {
     overflow-y: auto;
-    border: 1px solid var(--divider-color);
-    border-radius: 12px;
-    margin-bottom: 24px;
-    padding: 16px;
-    background: var(--primary-background-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    padding: 8px 0;
+    background: var(--bg-chat, var(--primary-background-color));
     flex-grow: 1;
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transition: background var(--transition-medium, 250ms ease-in-out);
+  }
+
+  /* Subtle Telegram-style wallpaper pattern */
+  .messages.svelte-hiq0w4::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.5;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .messages-inner.svelte-hiq0w4 {
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 12px;
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
   }
 
   /* Scrollbar styling */
   .messages.svelte-hiq0w4::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
   }
 
   .messages.svelte-hiq0w4::-webkit-scrollbar-track {
@@ -689,12 +1414,59 @@ const componentCss = `
   }
 
   .messages.svelte-hiq0w4::-webkit-scrollbar-thumb {
-    background-color: var(--divider-color);
-    border-radius: 4px;
+    background-color: var(--scrollbar-thumb, var(--divider-color));
+    border-radius: 3px;
   }
 
   .messages.svelte-hiq0w4::-webkit-scrollbar-thumb:hover {
     background-color: var(--secondary-text-color);
+  }
+
+  /* Scroll to bottom button */
+  .scroll-bottom-btn.svelte-hiq0w4 {
+    position: absolute;
+    bottom: 16px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--card-background-color, #fff);
+    border: 1px solid var(--divider-color);
+    color: var(--secondary-text-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: transform 0.15s, opacity 0.15s;
+    animation: svelte-hiq0w4-fadeIn 0.2s ease-out;
+  }
+
+  .scroll-bottom-btn.svelte-hiq0w4:hover {
+    transform: scale(1.1);
+  }
+
+  .scroll-bottom-btn.svelte-hiq0w4 svg:where(.svelte-hiq0w4) {
+    width: 20px;
+    height: 20px;
+  }
+
+  @keyframes svelte-hiq0w4-fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @media (max-width: 768px) {
+    .messages-inner.svelte-hiq0w4 {
+      padding: 0 8px;
+    }
+  }
+
+  @media (min-width: 1400px) {
+    .messages-inner.svelte-hiq0w4 {
+      max-width: 820px;
+    }
   }
 
   .input-wrapper.svelte-5grvz8 {
@@ -705,24 +1477,24 @@ const componentCss = `
   textarea.svelte-5grvz8 {
     width: 100%;
     min-height: 24px;
-    max-height: 200px;
-    padding: 12px 16px;
+    max-height: 160px;
+    padding: 8px 12px;
     border: none;
     outline: none;
     resize: none;
-    font-size: 16px;
-    line-height: 1.5;
+    font-size: 14px;
+    line-height: 1.45;
     background: transparent;
     color: var(--primary-text-color);
     font-family: inherit;
   }
 
   textarea.svelte-5grvz8::placeholder {
-    color: var(--secondary-text-color);
+    color: var(--search-text, var(--secondary-text-color));
   }
 
   textarea.svelte-5grvz8:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
   }
 
@@ -851,21 +1623,22 @@ const componentCss = `
   }
 
   .send-button.svelte-1lpj1oh {
-    --mdc-theme-primary: var(--primary-color);
+    --mdc-theme-primary: var(--accent, var(--primary-color));
     --mdc-theme-on-primary: var(--text-primary-color);
-    min-width: 80px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
     border: none;
-    border-radius: 8px;
-    background: var(--primary-color);
+    border-radius: 50%;
+    background: var(--accent, var(--primary-color));
     color: white;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 16px;
-    font-weight: 500;
+    padding: 0;
+    flex-shrink: 0;
   }
 
   .icon.svelte-1lpj1oh {
@@ -875,23 +1648,24 @@ const componentCss = `
   }
 
   .send-button.svelte-1lpj1oh:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: scale(1.08);
+    background: var(--accent-hover, var(--primary-color));
   }
 
   .send-button.svelte-1lpj1oh:active:not(:disabled) {
-    transform: translateY(0);
+    transform: scale(0.92);
   }
 
   .send-button.svelte-1lpj1oh:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
   @media (max-width: 768px) {
     .send-button.svelte-1lpj1oh {
-      min-width: 44px;
-      height: 44px;
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
     }
   }
 
@@ -924,45 +1698,53 @@ const componentCss = `
   .input-container.svelte-f7ebxa {
     position: relative;
     width: 100%;
-    background: var(--card-background-color);
+    background: var(--bg-input, var(--card-background-color));
     border: 1px solid var(--divider-color);
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    margin-bottom: 24px;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 24px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+    margin: 0 auto 12px;
+    max-width: 720px;
+    transition: border-color var(--transition-fast, 150ms ease-in-out), box-shadow var(--transition-fast, 150ms ease-in-out);
   }
 
   .input-container.svelte-f7ebxa:focus-within {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.1);
+    border-color: var(--accent, var(--primary-color));
+    box-shadow: 0 0 0 2px var(--accent-light, rgba(3, 169, 244, 0.1));
   }
 
   .input-main.svelte-f7ebxa {
     display: flex;
     align-items: flex-end;
-    padding: 12px;
-    gap: 12px;
+    padding: 8px 12px;
+    gap: 8px;
   }
 
   .input-footer.svelte-f7ebxa {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 16px 12px 16px;
+    padding: 6px 14px 10px;
     border-top: 1px solid var(--divider-color);
-    background: var(--card-background-color);
-    border-radius: 0 0 12px 12px;
-    gap: 12px;
+    gap: 8px;
   }
 
   @media (max-width: 768px) {
     .input-container.svelte-f7ebxa {
-      padding: 12px;
-      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      border-radius: 20px;
+      margin-bottom: 8px;
+      margin-left: 6px;
+      margin-right: 6px;
     }
 
     .input-footer.svelte-f7ebxa {
-      gap: 8px;
+      gap: 6px;
+      padding: 4px 10px 8px;
+    }
+  }
+
+  @media (min-width: 1400px) {
+    .input-container.svelte-f7ebxa {
+      max-width: 820px;
     }
   }
 
@@ -2588,10 +3370,13 @@ const componentCss = `
     flex: 1;
     overflow: hidden;
     position: relative;
+    background: var(--bg-chat, var(--primary-background-color));
+    transition: background var(--transition-medium, 250ms ease-in-out);
   }
 
   .chat-container.svelte-j6syiu {
     display: flex;
+    flex-direction: column;
     flex: 1;
     overflow: hidden;
     position: relative;
@@ -2740,11 +3525,6 @@ function effect_orphan(rune) {
 function effect_update_depth_exceeded() {
   {
     throw new Error(`https://svelte.dev/e/effect_update_depth_exceeded`);
-  }
-}
-function lifecycle_legacy_only(name) {
-  {
-    throw new Error(`https://svelte.dev/e/lifecycle_legacy_only`);
   }
 }
 function state_descriptors_fixed() {
@@ -4434,8 +5214,8 @@ function without_reactive_context(fn) {
     set_active_effect(previous_effect);
   }
 }
-function listen_to_event_and_reset_event(element, event, handler, on_reset = handler) {
-  element.addEventListener(event, () => without_reactive_context(handler));
+function listen_to_event_and_reset_event(element, event2, handler, on_reset = handler) {
+  element.addEventListener(event2, () => without_reactive_context(handler));
   const prev = element.__on_r;
   if (prev) {
     element.__on_r = () => {
@@ -5183,6 +5963,38 @@ function deep_read(value, visited = /* @__PURE__ */ new Set()) {
 }
 const all_registered_events = /* @__PURE__ */ new Set();
 const root_event_handles = /* @__PURE__ */ new Set();
+function create_event(event_name, dom, handler, options = {}) {
+  function target_handler(event2) {
+    if (!options.capture) {
+      handle_event_propagation.call(dom, event2);
+    }
+    if (!event2.cancelBubble) {
+      return without_reactive_context(() => {
+        return handler?.call(this, event2);
+      });
+    }
+  }
+  if (event_name.startsWith("pointer") || event_name.startsWith("touch") || event_name === "wheel") {
+    queue_micro_task(() => {
+      dom.addEventListener(event_name, target_handler, options);
+    });
+  } else {
+    dom.addEventListener(event_name, target_handler, options);
+  }
+  return target_handler;
+}
+function event(event_name, dom, handler, capture2, passive) {
+  var options = { capture: capture2, passive };
+  var target_handler = create_event(event_name, dom, handler, options);
+  if (dom === document.body || // @ts-ignore
+  dom === window || // @ts-ignore
+  dom === document || // Firefox has quirky behavior, it can happen that we still get "canplay" events when the element is already removed
+  dom instanceof HTMLMediaElement) {
+    teardown(() => {
+      dom.removeEventListener(event_name, target_handler, options);
+    });
+  }
+}
 function delegate(events) {
   for (var i2 = 0; i2 < events.length; i2++) {
     all_registered_events.add(events[i2]);
@@ -5192,26 +6004,26 @@ function delegate(events) {
   }
 }
 let last_propagated_event = null;
-function handle_event_propagation(event) {
+function handle_event_propagation(event2) {
   var handler_element = this;
   var owner_document = (
     /** @type {Node} */
     handler_element.ownerDocument
   );
-  var event_name = event.type;
-  var path = event.composedPath?.() || [];
+  var event_name = event2.type;
+  var path = event2.composedPath?.() || [];
   var current_target = (
     /** @type {null | Element} */
-    path[0] || event.target
+    path[0] || event2.target
   );
-  last_propagated_event = event;
+  last_propagated_event = event2;
   var path_idx = 0;
-  var handled_at = last_propagated_event === event && event.__root;
+  var handled_at = last_propagated_event === event2 && event2.__root;
   if (handled_at) {
     var at_idx = path.indexOf(handled_at);
     if (at_idx !== -1 && (handler_element === document || handler_element === /** @type {any} */
     window)) {
-      event.__root = handler_element;
+      event2.__root = handler_element;
       return;
     }
     var handler_idx = path.indexOf(handler_element);
@@ -5223,9 +6035,9 @@ function handle_event_propagation(event) {
     }
   }
   current_target = /** @type {Element} */
-  path[path_idx] || event.target;
+  path[path_idx] || event2.target;
   if (current_target === handler_element) return;
-  define_property(event, "currentTarget", {
+  define_property(event2, "currentTarget", {
     configurable: true,
     get() {
       return current_target || owner_document;
@@ -5246,8 +6058,8 @@ function handle_event_propagation(event) {
         if (delegated != null && (!/** @type {any} */
         current_target.disabled || // DOM could've been updated already by the time this is reached, so we check this as well
         // -> the target could not have been disabled because it emits the event in the first place
-        event.target === current_target)) {
-          delegated.call(current_target, event);
+        event2.target === current_target)) {
+          delegated.call(current_target, event2);
         }
       } catch (error) {
         if (throw_error) {
@@ -5256,7 +6068,7 @@ function handle_event_propagation(event) {
           throw_error = error;
         }
       }
-      if (event.cancelBubble || parent_element === handler_element || parent_element === null) {
+      if (event2.cancelBubble || parent_element === handler_element || parent_element === null) {
         break;
       }
       current_target = parent_element;
@@ -5270,8 +6082,8 @@ function handle_event_propagation(event) {
       throw throw_error;
     }
   } finally {
-    event.__root = handler_element;
-    delete event.currentTarget;
+    event2.__root = handler_element;
+    delete event2.currentTarget;
     set_active_reaction(previous_reaction);
     set_active_effect(previous_effect);
   }
@@ -5656,15 +6468,6 @@ function onMount(fn) {
       );
     });
   }
-}
-function afterUpdate(fn) {
-  if (component_context === null) {
-    lifecycle_outside_component();
-  }
-  if (component_context.l === null) {
-    lifecycle_legacy_only();
-  }
-  init_update_callbacks(component_context).a.push(fn);
 }
 function init_update_callbacks(context) {
   var l2 = (
@@ -6723,15 +7526,22 @@ const initialState$3 = {
   error: null,
   debugInfo: null,
   showThinking: false,
-  thinkingExpanded: false
+  thinkingExpanded: false,
+  agentName: "Homeclaw",
+  agentEmoji: ""
 };
 const appState = writable(initialState$3);
 const hasMessages = derived(appState, ($state) => $state.messages.length > 0);
 derived(appState, ($state) => $state.error !== null);
+let _hostElement = null;
+function setHostElement(el) {
+  _hostElement = el;
+}
 const initialState$2 = {
   sidebarOpen: typeof window !== "undefined" ? window.innerWidth > 768 : false,
   showProviderDropdown: false,
-  settingsOpen: false
+  settingsOpen: false,
+  theme: "system"
 };
 const uiState = writable(initialState$2);
 function toggleSidebar() {
@@ -6755,13 +7565,54 @@ function closeSettings() {
 function toggleSettings() {
   uiState.update((state2) => ({ ...state2, settingsOpen: !state2.settingsOpen }));
 }
+function setTheme(theme) {
+  uiState.update((s2) => ({ ...s2, theme }));
+  applyThemeToHost(theme);
+  try {
+    localStorage.setItem("homeclaw-theme", theme);
+  } catch {
+  }
+}
+function cycleTheme() {
+  const current = get(uiState).theme;
+  const next = current === "system" ? "light" : current === "light" ? "dark" : "system";
+  setTheme(next);
+}
+function applyThemeToHost(theme) {
+  const host = _hostElement || document.querySelector("homeclaw-panel");
+  if (!host) {
+    console.warn("[Theme] Could not find homeclaw-panel host element");
+    return;
+  }
+  if (theme === "system") {
+    host.removeAttribute("data-theme");
+  } else {
+    host.setAttribute("data-theme", theme);
+  }
+  host.classList.add("theme-transitioning");
+  setTimeout(() => host.classList.remove("theme-transitioning"), 350);
+}
+function initTheme() {
+  try {
+    const saved = localStorage.getItem("homeclaw-theme");
+    if (saved === "light" || saved === "dark" || saved === "system") {
+      uiState.update((s2) => ({ ...s2, theme: saved }));
+      setTimeout(() => applyThemeToHost(saved), 0);
+    }
+  } catch {
+  }
+}
+initTheme();
 const ui = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   closeDropdowns,
   closeSettings,
   closeSidebar,
+  cycleTheme,
   openSettings,
   openSidebar,
+  setHostElement,
+  setTheme,
   toggleSettings,
   toggleSidebar,
   uiState
@@ -6985,7 +7836,7 @@ const initialState = {
 };
 const sessionState = writable(initialState);
 const hasSessions = derived(sessionState, ($state) => $state.sessions.length > 0);
-derived(
+const activeSession = derived(
   sessionState,
   ($state) => $state.sessions.find((s2) => s2.session_id === $state.activeSessionId) || null
 );
@@ -12971,12 +13822,43 @@ function updateSessionInList(sessionId, preview, title) {
     );
     return { ...s2, sessions: sortedSessions };
   });
+  if (title) {
+    const hass = get(appState).hass;
+    if (hass) {
+      generateSessionEmoji(hass, sessionId, title);
+    }
+  }
+}
+async function generateSessionEmoji(hass, sessionId, title) {
+  try {
+    const result = await hass.callWS({
+      type: "homeclaw/sessions/generate_emoji",
+      session_id: sessionId,
+      title
+    });
+    const emoji = result?.emoji;
+    if (emoji) {
+      sessionState.update((s2) => ({
+        ...s2,
+        sessions: s2.sessions.map(
+          (session) => session.session_id === sessionId ? { ...session, emoji } : session
+        )
+      }));
+    }
+  } catch (error) {
+    console.warn("Emoji generation failed:", error);
+  }
 }
 enable_legacy_mode_flag();
-var root$m = /* @__PURE__ */ from_html(`<div class="header svelte-1elxaub"><button class="menu-toggle svelte-1elxaub" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24" class="icon svelte-1elxaub"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"></path></svg></button> <svg viewBox="0 0 24 24" class="robot-icon svelte-1elxaub"><path d="M12 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 16.5V22h-3v-3.5h3zM5.5 22h3v-3.5h-3V22zM19 9h-1.5V7.5c0-1.93-1.57-3.5-3.5-3.5S10.5 5.57 10.5 7.5V9H9c-.55 0-1 .45-1 1v9c0 .55.45 1 1 1h10c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1zm-7.5-1.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5V9h-3V7.5z"></path></svg> <span class="title svelte-1elxaub">Homeclaw</span> <button class="settings-button svelte-1elxaub" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" class="icon svelte-1elxaub"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"></path></svg></button> <button class="clear-button svelte-1elxaub"><svg viewBox="0 0 24 24" class="icon svelte-1elxaub"><path d="M15 16h4v2h-4zm0-8h7v2h-7zm0 4h6v2h-6zM3 18c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2V8H3v10zM14 5h-3l-1-1H6L5 5H2v2h12z"></path></svg> <span class="svelte-1elxaub">Clear Chat</span></button></div>`);
+var root_1$h = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`);
+var root_3$a = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`);
+var root_4$a = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`);
+var root$m = /* @__PURE__ */ from_html(`<div class="header svelte-1elxaub"><button class="header-btn back-btn svelte-1elxaub" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button> <div class="header-avatar svelte-1elxaub"><svg viewBox="0 0 24 24" fill="currentColor" class="svelte-1elxaub"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.07A7.001 7.001 0 0 1 7.07 19H6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h-1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zm-3 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm6 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"></path></svg></div> <div class="header-info svelte-1elxaub"><div class="header-title svelte-1elxaub"> </div> <div class="header-subtitle svelte-1elxaub">online</div></div> <div class="header-actions svelte-1elxaub"><button class="header-btn svelte-1elxaub" aria-label="Toggle theme"><!></button> <button class="header-btn svelte-1elxaub" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></button> <button class="header-btn delete-btn svelte-1elxaub" title="Clear chat" aria-label="Clear chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div></div>`);
 function Header($$anchor, $$props) {
   push($$props, false);
+  const $activeSession = () => store_get(activeSession, "$activeSession", $$stores);
   const $appState = () => store_get(appState, "$appState", $$stores);
+  const $uiState = () => store_get(uiState, "$uiState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   async function clearChat() {
     const currentAppState = get(appState);
@@ -12994,13 +13876,59 @@ function Header($$anchor, $$props) {
   button.__click = function(...$$args) {
     toggleSidebar?.apply(this, $$args);
   };
-  var button_1 = sibling(button, 6);
+  var div_1 = sibling(button, 4);
+  var div_2 = child(div_1);
+  var text2 = child(div_2);
+  var div_3 = sibling(div_1, 2);
+  var button_1 = child(div_3);
   button_1.__click = function(...$$args) {
+    cycleTheme?.apply(this, $$args);
+  };
+  var node = child(button_1);
+  {
+    var consequent = ($$anchor2) => {
+      var svg2 = root_1$h();
+      append($$anchor2, svg2);
+    };
+    var alternate_1 = ($$anchor2) => {
+      var fragment = comment();
+      var node_1 = first_child(fragment);
+      {
+        var consequent_1 = ($$anchor3) => {
+          var svg_1 = root_3$a();
+          append($$anchor3, svg_1);
+        };
+        var alternate = ($$anchor3) => {
+          var svg_2 = root_4$a();
+          append($$anchor3, svg_2);
+        };
+        if_block(
+          node_1,
+          ($$render) => {
+            if ($uiState().theme === "dark") $$render(consequent_1);
+            else $$render(alternate, false);
+          },
+          true
+        );
+      }
+      append($$anchor2, fragment);
+    };
+    if_block(node, ($$render) => {
+      if ($uiState().theme === "light") $$render(consequent);
+      else $$render(alternate_1, false);
+    });
+  }
+  var button_2 = sibling(button_1, 2);
+  button_2.__click = function(...$$args) {
     toggleSettings?.apply(this, $$args);
   };
-  var button_2 = sibling(button_1, 2);
-  button_2.__click = clearChat;
-  template_effect(() => button_2.disabled = $appState().isLoading);
+  var button_3 = sibling(button_2, 2);
+  button_3.__click = clearChat;
+  template_effect(() => {
+    set_text(text2, $activeSession()?.title || $appState().agentName);
+    set_attribute(button_1, "title", `Toggle theme (${$uiState().theme ?? ""})`);
+    button_3.disabled = $appState().isLoading;
+  });
   append($$anchor, div);
   pop();
   $$cleanup();
@@ -13038,12 +13966,31 @@ function formatSessionTime(timestamp) {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
 }
-var root$l = /* @__PURE__ */ from_html(`<div role="button" tabindex="0"><span class="session-title svelte-114uzds"> </span> <span class="session-preview svelte-114uzds"> </span> <span class="session-time svelte-114uzds"> </span> <button class="session-delete svelte-114uzds" aria-label="Delete session"><svg viewBox="0 0 24 24" class="icon svelte-114uzds"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path></svg></button></div>`);
+var root$l = /* @__PURE__ */ from_html(`<div role="button" tabindex="0"><div class="session-avatar svelte-114uzds"><span> </span></div> <div class="session-content svelte-114uzds"><div class="session-top-row svelte-114uzds"><span class="session-name svelte-114uzds"> </span> <span class="session-time svelte-114uzds"> </span></div> <div class="session-bottom-row svelte-114uzds"><span class="session-preview svelte-114uzds"> </span></div></div> <button class="session-delete svelte-114uzds" aria-label="Delete session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-114uzds"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div>`);
 function SessionItem($$anchor, $$props) {
   push($$props, true);
   const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   const isActive = /* @__PURE__ */ user_derived(() => $$props.session.session_id === $sessionState().activeSessionId);
+  const avatarColor = /* @__PURE__ */ user_derived(() => {
+    const title = $$props.session.title || "New";
+    let hash = 0;
+    for (let i2 = 0; i2 < title.length; i2++) {
+      hash = title.charCodeAt(i2) + ((hash << 5) - hash);
+    }
+    const colors = [
+      "#2AABEE",
+      "#F5A623",
+      "#E74C3C",
+      "#27AE60",
+      "#9B59B6",
+      "#1ABC9C",
+      "#E67E22",
+      "#3498DB"
+    ];
+    return colors[Math.abs(hash) % colors.length];
+  });
+  const avatarText = /* @__PURE__ */ user_derived(() => $$props.session.emoji || ($$props.session.title || "N")[0].toUpperCase());
   async function handleClick() {
     const hass = get(appState).hass;
     if (hass && !get$1(isActive)) {
@@ -13061,20 +14008,28 @@ function SessionItem($$anchor, $$props) {
   var div = root$l();
   let classes;
   div.__click = handleClick;
-  var span = child(div);
+  var div_1 = child(div);
+  var span = child(div_1);
   var text2 = child(span);
-  var span_1 = sibling(span, 2);
+  var div_2 = sibling(div_1, 2);
+  var div_3 = child(div_2);
+  var span_1 = child(div_3);
   var text_1 = child(span_1);
   var span_2 = sibling(span_1, 2);
   var text_2 = child(span_2);
-  var button = sibling(span_2, 2);
+  var div_4 = sibling(div_3, 2);
+  var span_3 = child(div_4);
+  var text_3 = child(span_3);
+  var button = sibling(div_2, 2);
   button.__click = handleDelete;
   template_effect(
     ($0) => {
       classes = set_class(div, 1, "session-item svelte-114uzds", null, classes, { active: get$1(isActive) });
-      set_text(text2, $$props.session.title || "New Conversation");
-      set_text(text_1, $$props.session.preview || "Start typing...");
+      set_style(div_1, `background: ${get$1(avatarColor) ?? ""}`);
+      set_text(text2, get$1(avatarText));
+      set_text(text_1, $$props.session.title || "New Conversation");
       set_text(text_2, $0);
+      set_text(text_3, $$props.session.preview || "Start typing...");
     },
     [() => formatSessionTime($$props.session.updated_at)]
   );
@@ -13083,53 +14038,81 @@ function SessionItem($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root_2$9 = /* @__PURE__ */ from_html(`<div class="session-skeleton svelte-1j5qstn"><div class="skeleton-line svelte-1j5qstn"></div> <div class="skeleton-line short svelte-1j5qstn"></div> <div class="skeleton-line tiny svelte-1j5qstn"></div></div>`);
-var root_4$8 = /* @__PURE__ */ from_html(`<div class="empty-sessions svelte-1j5qstn"><svg viewBox="0 0 24 24" class="icon svelte-1j5qstn"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" class="svelte-1j5qstn"></path></svg> <p class="svelte-1j5qstn">No conversations yet</p></div>`);
+var root_2$a = /* @__PURE__ */ from_html(`<div class="session-skeleton svelte-1j5qstn"><div class="skeleton-line svelte-1j5qstn"></div> <div class="skeleton-line short svelte-1j5qstn"></div> <div class="skeleton-line tiny svelte-1j5qstn"></div></div>`);
+var root_4$9 = /* @__PURE__ */ from_html(`<div class="empty-sessions svelte-1j5qstn"><svg viewBox="0 0 24 24" class="icon svelte-1j5qstn"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" class="svelte-1j5qstn"></path></svg> <p class="svelte-1j5qstn">No conversations yet</p></div>`);
+var root_6$7 = /* @__PURE__ */ from_html(`<div class="empty-sessions svelte-1j5qstn"><p class="svelte-1j5qstn"> </p></div>`);
 var root$k = /* @__PURE__ */ from_html(`<div class="session-list svelte-1j5qstn"><!></div>`);
 function SessionList($$anchor, $$props) {
-  push($$props, false);
+  push($$props, true);
   const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
   const $hasSessions = () => store_get(hasSessions, "$hasSessions", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
+  let searchQuery = prop($$props, "searchQuery", 3, "");
+  const filteredSessions = /* @__PURE__ */ user_derived(() => {
+    const q2 = searchQuery().toLowerCase().trim();
+    if (!q2) return $sessionState().sessions;
+    return $sessionState().sessions.filter((s2) => s2.title.toLowerCase().includes(q2) || s2.preview.toLowerCase().includes(q2));
+  });
   const skeletonCount = 3;
-  init();
   var div = root$k();
   var node = child(div);
   {
     var consequent = ($$anchor2) => {
       var fragment = comment();
       var node_1 = first_child(fragment);
-      each(node_1, 1, () => Array(skeletonCount), index, ($$anchor3, _2) => {
-        var div_1 = root_2$9();
+      each(node_1, 17, () => Array(skeletonCount), index, ($$anchor3, _2) => {
+        var div_1 = root_2$a();
         append($$anchor3, div_1);
       });
       append($$anchor2, fragment);
     };
-    var alternate_1 = ($$anchor2) => {
+    var alternate_2 = ($$anchor2) => {
       var fragment_1 = comment();
       var node_2 = first_child(fragment_1);
       {
         var consequent_1 = ($$anchor3) => {
-          var div_2 = root_4$8();
+          var div_2 = root_4$9();
           append($$anchor3, div_2);
         };
-        var alternate = ($$anchor3) => {
+        var alternate_1 = ($$anchor3) => {
           var fragment_2 = comment();
           var node_3 = first_child(fragment_2);
-          each(node_3, 1, () => $sessionState().sessions, (session) => session.session_id, ($$anchor4, session) => {
-            SessionItem($$anchor4, {
-              get session() {
-                return get$1(session);
-              }
-            });
-          });
+          {
+            var consequent_2 = ($$anchor4) => {
+              var div_3 = root_6$7();
+              var p2 = child(div_3);
+              var text2 = child(p2);
+              template_effect(() => set_text(text2, `No results for "${searchQuery() ?? ""}"`));
+              append($$anchor4, div_3);
+            };
+            var alternate = ($$anchor4) => {
+              var fragment_3 = comment();
+              var node_4 = first_child(fragment_3);
+              each(node_4, 17, () => get$1(filteredSessions), (session) => session.session_id, ($$anchor5, session) => {
+                SessionItem($$anchor5, {
+                  get session() {
+                    return get$1(session);
+                  }
+                });
+              });
+              append($$anchor4, fragment_3);
+            };
+            if_block(
+              node_3,
+              ($$render) => {
+                if (get$1(filteredSessions).length === 0) $$render(consequent_2);
+                else $$render(alternate, false);
+              },
+              true
+            );
+          }
           append($$anchor3, fragment_2);
         };
         if_block(
           node_2,
           ($$render) => {
             if (!$hasSessions()) $$render(consequent_1);
-            else $$render(alternate, false);
+            else $$render(alternate_1, false);
           },
           true
         );
@@ -13138,14 +14121,14 @@ function SessionList($$anchor, $$props) {
     };
     if_block(node, ($$render) => {
       if ($sessionState().sessionsLoading) $$render(consequent);
-      else $$render(alternate_1, false);
+      else $$render(alternate_2, false);
     });
   }
   append($$anchor, div);
   pop();
   $$cleanup();
 }
-var root$j = /* @__PURE__ */ from_html(`<button class="new-chat-btn svelte-19p7jpv"><svg viewBox="0 0 24 24" class="icon svelte-19p7jpv"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg> <span class="svelte-19p7jpv">New Chat</span></button>`);
+var root$j = /* @__PURE__ */ from_html(`<button class="fab svelte-19p7jpv" title="New chat" aria-label="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="svelte-19p7jpv"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>`);
 function NewChatButton($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -13165,24 +14148,26 @@ function NewChatButton($$anchor, $$props) {
   init();
   var button = root$j();
   button.__click = handleNewChat;
+  template_effect(() => button.disabled = !$appState().hass);
   append($$anchor, button);
   pop();
   $$cleanup();
 }
 delegate(["click"]);
-var root_1$f = /* @__PURE__ */ from_html(`<div class="sidebar-overlay svelte-ou1367"></div>`);
-var root$i = /* @__PURE__ */ from_html(`<!> <aside><div class="sidebar-header svelte-ou1367"><div class="sidebar-title svelte-ou1367"><svg viewBox="0 0 24 24" class="icon svelte-ou1367"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"></path></svg> Conversations</div> <!></div> <!></aside>`, 1);
+var root_1$g = /* @__PURE__ */ from_html(`<div class="sidebar-overlay svelte-ou1367"></div>`);
+var root$i = /* @__PURE__ */ from_html(`<!> <aside><div class="search-container svelte-ou1367"><div class="search-bar svelte-ou1367"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-ou1367"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> <input type="text" placeholder="Search conversations..." aria-label="Search conversations" class="svelte-ou1367"/></div></div> <!> <!></aside>`, 1);
 function Sidebar($$anchor, $$props) {
   push($$props, true);
   const $uiState = () => store_get(uiState, "$uiState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
+  let searchQuery = /* @__PURE__ */ state("");
   const sidebarClass = /* @__PURE__ */ user_derived(() => isMobile() ? $uiState().sidebarOpen ? "sidebar open" : "sidebar hidden" : $uiState().sidebarOpen ? "sidebar" : "sidebar hidden");
   const showOverlay = /* @__PURE__ */ user_derived(() => $uiState().sidebarOpen && isMobile());
   var fragment = root$i();
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var div = root_1$f();
+      var div = root_1$g();
       div.__click = function(...$$args) {
         closeSidebar?.apply(this, $$args);
       };
@@ -13194,20 +14179,27 @@ function Sidebar($$anchor, $$props) {
   }
   var aside = sibling(node, 2);
   var div_1 = child(aside);
-  var node_1 = sibling(child(div_1), 2);
-  NewChatButton(node_1, {});
-  var node_2 = sibling(div_1, 2);
-  SessionList(node_2, {});
+  var div_2 = child(div_1);
+  var input = sibling(child(div_2), 2);
+  var node_1 = sibling(div_1, 2);
+  SessionList(node_1, {
+    get searchQuery() {
+      return get$1(searchQuery);
+    }
+  });
+  var node_2 = sibling(node_1, 2);
+  NewChatButton(node_2, {});
   template_effect(() => set_class(aside, 1, clsx(get$1(sidebarClass)), "svelte-ou1367"));
+  bind_value(input, () => get$1(searchQuery), ($$value) => set(searchQuery, $$value));
   append($$anchor, fragment);
   pop();
   $$cleanup();
 }
 delegate(["click"]);
-var root_2$8 = /* @__PURE__ */ from_html(`<span class="streaming-cursor svelte-cu3vo4">▋</span>`);
-var root_1$e = /* @__PURE__ */ from_html(`<!> <!>`, 1);
-var root_4$7 = /* @__PURE__ */ from_html(`<span class="message-time svelte-cu3vo4"> </span>`);
-var root$h = /* @__PURE__ */ from_html(`<div><div class="message-content svelte-cu3vo4"><!></div> <!></div>`);
+var root_2$9 = /* @__PURE__ */ from_html(`<span class="streaming-cursor svelte-cu3vo4">▋</span>`);
+var root_1$f = /* @__PURE__ */ from_html(`<!> <!>`, 1);
+var root_4$8 = /* @__PURE__ */ from_html(`<span class="bubble-time svelte-cu3vo4"> </span>`);
+var root$h = /* @__PURE__ */ from_html(`<div><div class="bubble svelte-cu3vo4"><!> <!></div></div>`);
 function MessageBubble($$anchor, $$props) {
   push($$props, true);
   const renderedContent = /* @__PURE__ */ user_derived(() => $$props.message.type === "assistant" ? renderMarkdown($$props.message.text, get(sessionState).activeSessionId || void 0) : $$props.message.text);
@@ -13232,13 +14224,13 @@ function MessageBubble($$anchor, $$props) {
   var node = child(div_1);
   {
     var consequent_1 = ($$anchor2) => {
-      var fragment = root_1$e();
+      var fragment = root_1$f();
       var node_1 = first_child(fragment);
       html$2(node_1, () => get$1(renderedContent));
       var node_2 = sibling(node_1, 2);
       {
         var consequent = ($$anchor3) => {
-          var span = root_2$8();
+          var span = root_2$9();
           append($$anchor3, span);
         };
         if_block(node_2, ($$render) => {
@@ -13257,10 +14249,10 @@ function MessageBubble($$anchor, $$props) {
       else $$render(alternate, false);
     });
   }
-  var node_3 = sibling(div_1, 2);
+  var node_3 = sibling(node, 2);
   {
     var consequent_2 = ($$anchor2) => {
-      var span_1 = root_4$7();
+      var span_1 = root_4$8();
       var text_1 = child(span_1);
       template_effect(() => set_text(text_1, get$1(formattedTime)));
       append($$anchor2, span_1);
@@ -13277,16 +14269,64 @@ function MessageBubble($$anchor, $$props) {
   append($$anchor, div);
   pop();
 }
-var root$g = /* @__PURE__ */ from_html(`<div class="loading svelte-174ds4q"><span class="svelte-174ds4q">Homeclaw is thinking</span> <div class="loading-dots svelte-174ds4q"><div class="dot svelte-174ds4q"></div> <div class="dot svelte-174ds4q"></div> <div class="dot svelte-174ds4q"></div></div></div>`);
+var root$g = /* @__PURE__ */ from_html(`<div class="typing-indicator svelte-174ds4q"><div class="typing-bubble svelte-174ds4q"><div class="typing-dot svelte-174ds4q"></div> <div class="typing-dot svelte-174ds4q"></div> <div class="typing-dot svelte-174ds4q"></div></div></div>`);
 function LoadingIndicator($$anchor) {
   var div = root$g();
   append($$anchor, div);
 }
-var root$f = /* @__PURE__ */ from_html(`<div class="empty-chat svelte-euh035"><svg viewBox="0 0 24 24" class="icon svelte-euh035"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"></path></svg> <h3 class="svelte-euh035">Start a conversation</h3> <p class="svelte-euh035">Ask your AI assistant about your Home Assistant setup, automations, or devices.</p></div>`);
-function EmptyState($$anchor) {
+var root_1$e = /* @__PURE__ */ from_html(`<span class="emoji-icon svelte-euh035"> </span>`);
+var root_2$8 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="currentColor" class="svelte-euh035"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.07A7.001 7.001 0 0 1 7.07 19H6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h-1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zm-3 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm6 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" class="svelte-euh035"></path></svg>`);
+var root_3$9 = /* @__PURE__ */ from_html(`<button class="suggestion-chip svelte-euh035"> </button>`);
+var root$f = /* @__PURE__ */ from_html(`<div class="empty-state svelte-euh035"><div class="empty-icon svelte-euh035"><!></div> <h2 class="svelte-euh035"> </h2> <p class="svelte-euh035">Your AI-powered Home Assistant companion. Ask me anything about your smart home.</p> <div class="suggestions svelte-euh035"></div></div>`);
+function EmptyState($$anchor, $$props) {
+  push($$props, false);
+  const $appState = () => store_get(appState, "$appState", $$stores);
+  const [$$stores, $$cleanup] = setup_stores();
+  const suggestions = [
+    "Turn off all lights",
+    "Create a morning routine",
+    "Show energy usage",
+    "Set up motion sensors"
+  ];
+  function handleSuggestion(text2) {
+    appState.update((s2) => ({ ...s2, pendingSuggestion: text2 }));
+  }
+  init();
   var div = root$f();
+  var div_1 = child(div);
+  var node = child(div_1);
+  {
+    var consequent = ($$anchor2) => {
+      var span = root_1$e();
+      var text_1 = child(span);
+      template_effect(() => set_text(text_1, $appState().agentEmoji));
+      append($$anchor2, span);
+    };
+    var alternate = ($$anchor2) => {
+      var svg2 = root_2$8();
+      append($$anchor2, svg2);
+    };
+    if_block(node, ($$render) => {
+      if ($appState().agentEmoji) $$render(consequent);
+      else $$render(alternate, false);
+    });
+  }
+  var h2 = sibling(div_1, 2);
+  var text_2 = child(h2);
+  var div_2 = sibling(h2, 4);
+  each(div_2, 5, () => suggestions, index, ($$anchor2, text2) => {
+    var button = root_3$9();
+    button.__click = () => handleSuggestion(get$1(text2));
+    var text_3 = child(button);
+    template_effect(() => set_text(text_3, get$1(text2)));
+    append($$anchor2, button);
+  });
+  template_effect(() => set_text(text_2, `Welcome to ${$appState().agentName ?? ""}`));
   append($$anchor, div);
+  pop();
+  $$cleanup();
 }
+delegate(["click"]);
 var root_1$d = /* @__PURE__ */ from_html(`<div class="error svelte-sualbq"><svg viewBox="0 0 24 24" class="icon svelte-sualbq"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg> <span class="error-message svelte-sualbq"> </span> <button class="error-dismiss svelte-sualbq" aria-label="Dismiss error"><svg viewBox="0 0 24 24" class="close-icon svelte-sualbq"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button></div>`);
 function ErrorMessage($$anchor, $$props) {
   push($$props, false);
@@ -13317,31 +14357,46 @@ function ErrorMessage($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root$e = /* @__PURE__ */ from_html(`<div class="messages svelte-hiq0w4"><!> <!> <!> <!></div>`);
+var root_4$7 = /* @__PURE__ */ from_html(`<button class="scroll-bottom-btn svelte-hiq0w4" aria-label="Scroll to bottom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-hiq0w4"><polyline points="6 9 12 15 18 9"></polyline></svg></button>`);
+var root$e = /* @__PURE__ */ from_html(`<div class="chat-wrapper svelte-hiq0w4"><div class="messages svelte-hiq0w4"><!> <div class="messages-inner svelte-hiq0w4"><!> <!></div> <!></div> <!></div>`);
 function ChatArea($$anchor, $$props) {
-  push($$props, false);
-  const $hasMessages = () => store_get(hasMessages, "$hasMessages", $$stores);
+  push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
+  const $hasMessages = () => store_get(hasMessages, "$hasMessages", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
-  let messagesContainer = /* @__PURE__ */ mutable_source();
-  afterUpdate(() => {
-    scrollToBottom(get$1(messagesContainer));
+  let messagesContainer;
+  let showScrollBtn = /* @__PURE__ */ state(false);
+  user_effect(() => {
+    $appState().messages;
+    $appState().isLoading;
+    if (messagesContainer) {
+      scrollToBottom(messagesContainer);
+    }
   });
   onMount(() => {
-    scrollToBottom(get$1(messagesContainer));
+    scrollToBottom(messagesContainer);
   });
-  init();
+  function handleScroll() {
+    if (!messagesContainer) return;
+    const threshold = messagesContainer.scrollHeight - messagesContainer.clientHeight - 100;
+    set(showScrollBtn, messagesContainer.scrollTop < threshold);
+  }
+  function scrollDown() {
+    scrollToBottom(messagesContainer);
+  }
   var div = root$e();
-  var node = child(div);
+  var div_1 = child(div);
+  var node = child(div_1);
   {
     var consequent = ($$anchor2) => {
-      EmptyState($$anchor2);
+      EmptyState($$anchor2, {});
     };
     if_block(node, ($$render) => {
       if (!$hasMessages() && !$appState().isLoading) $$render(consequent);
     });
   }
-  var node_1 = sibling(node, 2);
+  var div_2 = sibling(node, 2);
+  var node_1 = child(div_2);
   each(node_1, 1, () => $appState().messages, (message) => message.id, ($$anchor2, message) => {
     MessageBubble($$anchor2, {
       get message() {
@@ -13358,13 +14413,26 @@ function ChatArea($$anchor, $$props) {
       if ($appState().isLoading) $$render(consequent_1);
     });
   }
-  var node_3 = sibling(node_2, 2);
+  var node_3 = sibling(div_2, 2);
   ErrorMessage(node_3, {});
-  bind_this(div, ($$value) => set(messagesContainer, $$value), () => get$1(messagesContainer));
+  bind_this(div_1, ($$value) => messagesContainer = $$value, () => messagesContainer);
+  var node_4 = sibling(div_1, 2);
+  {
+    var consequent_2 = ($$anchor2) => {
+      var button = root_4$7();
+      button.__click = scrollDown;
+      append($$anchor2, button);
+    };
+    if_block(node_4, ($$render) => {
+      if (get$1(showScrollBtn)) $$render(consequent_2);
+    });
+  }
+  event("scroll", div_1, handleScroll);
   append($$anchor, div);
   pop();
   $$cleanup();
 }
+delegate(["click"]);
 async function sendMessage(hass, message) {
   const session = get(sessionState);
   if (!session.activeSessionId) {
@@ -13404,40 +14472,40 @@ async function sendMessageStream(hass, message, callbacks) {
   console.log("[WebSocket] Sending STREAMING message with params:", wsParams);
   let unsubscribe;
   unsubscribe = await hass.connection.subscribeMessage(
-    (event) => {
-      console.log("[WebSocket] Received streaming event:", event);
-      console.log("[WebSocket] Event type:", event.type);
-      switch (event.type) {
+    (event2) => {
+      console.log("[WebSocket] Received streaming event:", event2);
+      console.log("[WebSocket] Event type:", event2.type);
+      switch (event2.type) {
         case "user_message":
           console.log("[WebSocket] User message received");
           break;
         case "stream_start":
-          console.log("[WebSocket] Stream started, message_id:", event.message_id);
-          callbacks.onStart?.(event.message_id);
+          console.log("[WebSocket] Stream started, message_id:", event2.message_id);
+          callbacks.onStart?.(event2.message_id);
           break;
         case "stream_chunk":
-          console.log("[WebSocket] Stream chunk:", event.chunk?.substring(0, 50));
-          callbacks.onChunk?.(event.chunk);
+          console.log("[WebSocket] Stream chunk:", event2.chunk?.substring(0, 50));
+          callbacks.onChunk?.(event2.chunk);
           break;
         case "status":
-          console.log("[WebSocket] Status update:", event.message);
-          callbacks.onStatus?.(event.message);
+          console.log("[WebSocket] Status update:", event2.message);
+          callbacks.onStatus?.(event2.message);
           break;
         case "tool_call":
-          console.log("[WebSocket] Tool call:", event.name);
-          callbacks.onToolCall?.(event.name, event.args);
+          console.log("[WebSocket] Tool call:", event2.name);
+          callbacks.onToolCall?.(event2.name, event2.args);
           break;
         case "tool_result":
-          console.log("[WebSocket] Tool result:", event.name);
-          callbacks.onToolResult?.(event.name, event.result);
+          console.log("[WebSocket] Tool result:", event2.name);
+          callbacks.onToolResult?.(event2.name, event2.result);
           break;
         case "stream_end":
-          console.log("[WebSocket] Stream ended, success:", event.success);
-          if (event.success) {
+          console.log("[WebSocket] Stream ended, success:", event2.success);
+          if (event2.success) {
             console.log("[WebSocket] Calling onComplete");
             callbacks.onComplete?.({});
           } else {
-            callbacks.onError?.(event.error || "Unknown error");
+            callbacks.onError?.(event2.error || "Unknown error");
           }
           if (unsubscribe) {
             unsubscribe();
@@ -13447,7 +14515,7 @@ async function sendMessageStream(hass, message, callbacks) {
           console.log("[WebSocket] Unexpected result event in subscription");
           break;
         default:
-          console.log("[WebSocket] Unknown event type:", event.type);
+          console.log("[WebSocket] Unknown event type:", event2.type);
       }
     },
     wsParams,
@@ -15183,14 +16251,14 @@ function RagOptimize($$anchor, $$props) {
     try {
       let unsub;
       unsub = await hass.connection.subscribeMessage(
-        (event) => {
-          const progressEvent = event;
+        (event2) => {
+          const progressEvent = event2;
           set(optimizeProgress, [...get$1(optimizeProgress), progressEvent], true);
           if (progressEvent.progress !== void 0) {
             set(optimizeProgressPct, progressEvent.progress, true);
           }
           if (progressEvent.type === "result") {
-            set(optimizeResult, event.data, true);
+            set(optimizeResult, event2.data, true);
             set(optimizing, false);
             if (get$1(optimizeResult) && get$1(optimizeResult).errors && get$1(optimizeResult).errors.length > 0) {
               $$props.onMessage(`Completed with ${get$1(optimizeResult).errors.length} error(s)`, "error");
@@ -15410,18 +16478,18 @@ function RagOptimize($$anchor, $$props) {
                 });
               }
               var div_15 = sibling(node_11, 2);
-              each(div_15, 21, () => get$1(optimizeProgress), index, ($$anchor5, event) => {
+              each(div_15, 21, () => get$1(optimizeProgress), index, ($$anchor5, event2) => {
                 var div_16 = root_18$1();
                 let classes;
                 var text_11 = child(div_16);
                 template_effect(() => {
                   classes = set_class(div_16, 1, "progress-line svelte-10ewjma", null, classes, {
-                    phase: get$1(event).type === "phase",
-                    done: get$1(event).type === "session_done" || get$1(event).type === "category_done",
-                    "error-line": get$1(event).type === "session_error" || get$1(event).type === "category_error",
-                    complete: get$1(event).type === "complete"
+                    phase: get$1(event2).type === "phase",
+                    done: get$1(event2).type === "session_done" || get$1(event2).type === "category_done",
+                    "error-line": get$1(event2).type === "session_error" || get$1(event2).type === "category_error",
+                    complete: get$1(event2).type === "complete"
                   });
-                  set_text(text_11, get$1(event).message);
+                  set_text(text_11, get$1(event2).message);
                 });
                 append($$anchor5, div_16);
               });
@@ -16339,6 +17407,20 @@ function HomeclawPanel$1($$anchor, $$props) {
   const $appState = () => store_get(appState, "$appState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   let narrow = prop($$props, "narrow", 3, false);
+  async function loadIdentity(ha) {
+    try {
+      const result = await ha.callWS({ type: "homeclaw/rag/identity" });
+      const identity = result?.identity;
+      if (identity) {
+        appState.update((s2) => ({
+          ...s2,
+          agentName: identity.agent_name || "Homeclaw",
+          agentEmoji: identity.agent_emoji || ""
+        }));
+      }
+    } catch {
+    }
+  }
   user_effect(() => {
     appState.update((s2) => ({ ...s2, hass: $$props.hass }));
   });
@@ -16346,7 +17428,11 @@ function HomeclawPanel$1($$anchor, $$props) {
     console.log("[HomeclawPanel] Mounting...");
     (async () => {
       try {
-        await Promise.all([loadProviders($$props.hass), loadSessions($$props.hass)]);
+        await Promise.all([
+          loadProviders($$props.hass),
+          loadSessions($$props.hass),
+          loadIdentity($$props.hass)
+        ]);
         console.log("[HomeclawPanel] Initialization complete");
       } catch (error) {
         console.error("[HomeclawPanel] Initialization error:", error);
@@ -16416,6 +17502,7 @@ class HomeclawPanel extends HTMLElement {
     try {
       const shadowRoot = this.attachShadow({ mode: "open" });
       console.log("[HomeclawPanel] Shadow DOM attached");
+      setHostElement(this);
       const appStyle = document.createElement("style");
       appStyle.textContent = appCss;
       shadowRoot.appendChild(appStyle);

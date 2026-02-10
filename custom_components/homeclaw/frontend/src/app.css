@@ -19,6 +19,41 @@
   --success-color: #0f9d58;
   --warning-color: #f4b400;
 
+  /* Telegram-inspired Chat Variables (defaults for system/HA theme) */
+  --accent: var(--primary-color);
+  --accent-hover: color-mix(in srgb, var(--primary-color) 85%, black);
+  --accent-light: color-mix(in srgb, var(--primary-color) 12%, transparent);
+
+  --bg-chat: var(--primary-background-color);
+  --bg-chat-pattern: rgba(0, 0, 0, 0.02);
+  --bg-sidebar: var(--secondary-background-color);
+  --bg-input: var(--card-background-color);
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  --bg-overlay: rgba(0, 0, 0, 0.4);
+
+  --bubble-user: color-mix(in srgb, var(--primary-color) 15%, var(--card-background-color));
+  --bubble-user-tail: var(--bubble-user);
+  --bubble-assistant: var(--card-background-color);
+  --bubble-assistant-tail: var(--bubble-assistant);
+  --bubble-code-bg: var(--secondary-background-color);
+
+  --text-bubble-user: var(--primary-text-color);
+  --text-bubble-assistant: var(--primary-text-color);
+  --text-bubble-time: rgba(0, 0, 0, 0.35);
+  --text-bubble-time-user: rgba(0, 0, 0, 0.4);
+
+  --search-bg: var(--secondary-background-color);
+  --search-text: var(--secondary-text-color);
+
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-track: transparent;
+
+  --fab-shadow: 0 4px 16px color-mix(in srgb, var(--primary-color) 35%, transparent);
+
+  /* Sidebar width */
+  --sidebar-width: 320px;
+
   /* Spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -70,6 +105,90 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* =======================================================================
+   TELEGRAM-INSPIRED LIGHT THEME (forced override)
+   Applied when data-theme="light" is set on :host
+   ======================================================================= */
+:host([data-theme="light"]) {
+  --primary-background-color: #FFFFFF;
+  --secondary-background-color: #F4F4F5;
+  --card-background-color: #FFFFFF;
+  --divider-color: #E0E0E0;
+  --primary-text-color: #000000;
+  --secondary-text-color: #707579;
+  --disabled-text-color: #9E9E9E;
+
+  --accent: #2AABEE;
+  --accent-hover: #229ED9;
+  --accent-light: rgba(42, 171, 238, 0.12);
+
+  --bg-chat: #E6EBEE;
+  --bg-chat-pattern: rgba(0, 0, 0, 0.02);
+  --bg-sidebar: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(42, 171, 238, 0.12);
+  --bg-overlay: rgba(0, 0, 0, 0.4);
+
+  --bubble-user: #EFFDDE;
+  --bubble-user-tail: #EFFDDE;
+  --bubble-assistant: #FFFFFF;
+  --bubble-assistant-tail: #FFFFFF;
+  --bubble-code-bg: #F0F2F5;
+
+  --text-bubble-user: #000000;
+  --text-bubble-assistant: #000000;
+  --text-bubble-time: rgba(0, 0, 0, 0.35);
+  --text-bubble-time-user: rgba(0, 100, 0, 0.45);
+
+  --search-bg: #F0F2F5;
+  --search-text: #707579;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --fab-shadow: 0 4px 16px rgba(42, 171, 238, 0.35);
+}
+
+/* =======================================================================
+   TELEGRAM-INSPIRED DARK THEME (forced override)
+   Applied when data-theme="dark" is set on :host
+   ======================================================================= */
+:host([data-theme="dark"]) {
+  --primary-background-color: #0E1621;
+  --secondary-background-color: #17212B;
+  --card-background-color: #17212B;
+  --divider-color: #1F2F3F;
+  --primary-text-color: #F5F5F5;
+  --secondary-text-color: #8696A8;
+  --disabled-text-color: #5B6F82;
+
+  --accent: #2AABEE;
+  --accent-hover: #229ED9;
+  --accent-light: rgba(42, 171, 238, 0.15);
+
+  --bg-chat: #0E1621;
+  --bg-chat-pattern: rgba(255, 255, 255, 0.01);
+  --bg-sidebar: #17212B;
+  --bg-input: #17212B;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(42, 171, 238, 0.15);
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+
+  --bubble-user: #2B5278;
+  --bubble-user-tail: #2B5278;
+  --bubble-assistant: #182533;
+  --bubble-assistant-tail: #182533;
+  --bubble-code-bg: #0E1621;
+
+  --text-bubble-user: #F5F5F5;
+  --text-bubble-assistant: #F5F5F5;
+  --text-bubble-time: rgba(255, 255, 255, 0.4);
+  --text-bubble-time-user: rgba(255, 255, 255, 0.45);
+
+  --search-bg: #242F3D;
+  --search-text: #8696A8;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --fab-shadow: 0 4px 16px rgba(42, 171, 238, 0.25);
+}
+
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 8px;
@@ -77,12 +196,12 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--secondary-background-color);
+  background: var(--scrollbar-track);
   border-radius: var(--border-radius-sm);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--divider-color);
+  background: var(--scrollbar-thumb);
   border-radius: var(--border-radius-sm);
   transition: background var(--transition-fast);
 }
@@ -182,6 +301,45 @@ a:focus-visible {
   100% {
     background-position: 468px 0;
   }
+}
+
+@keyframes messageAppear {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes emptyPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 var(--accent-light);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 16px transparent;
+  }
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
+/* Theme transition smoothing */
+:host(.theme-transitioning),
+:host(.theme-transitioning) * {
+  transition-duration: 0.3s !important;
 }
 
 /* Utility Classes */

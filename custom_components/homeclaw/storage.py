@@ -72,6 +72,7 @@ class Session:
     provider: str
     message_count: int = 0
     preview: str = ""
+    emoji: str = ""
 
 
 class SessionStorage:
@@ -463,6 +464,24 @@ class SessionStorage:
             _LOGGER.debug("Deleted session %s", session_id)
 
         return True
+
+    async def update_session_emoji(self, session_id: str, emoji: str) -> bool:
+        """Set the emoji for a session.
+
+        Args:
+            session_id: The session ID
+            emoji: A single emoji character
+
+        Returns:
+            True if session was found and updated, False otherwise
+        """
+        data = await self._load()
+        for session in data["sessions"]:
+            if session["session_id"] == session_id:
+                session["emoji"] = emoji
+                await self._save()
+                return True
+        return False
 
     async def rename_session(self, session_id: str, title: str) -> bool:
         """Rename a session.

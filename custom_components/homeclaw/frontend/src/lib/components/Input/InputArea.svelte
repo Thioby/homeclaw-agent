@@ -244,45 +244,53 @@
   .input-container {
     position: relative;
     width: 100%;
-    background: var(--card-background-color);
+    background: var(--bg-input, var(--card-background-color));
     border: 1px solid var(--divider-color);
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    margin-bottom: 24px;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 24px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+    margin: 0 auto 12px;
+    max-width: 720px;
+    transition: border-color var(--transition-fast, 150ms ease-in-out), box-shadow var(--transition-fast, 150ms ease-in-out);
   }
 
   .input-container:focus-within {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.1);
+    border-color: var(--accent, var(--primary-color));
+    box-shadow: 0 0 0 2px var(--accent-light, rgba(3, 169, 244, 0.1));
   }
 
   .input-main {
     display: flex;
     align-items: flex-end;
-    padding: 12px;
-    gap: 12px;
+    padding: 8px 12px;
+    gap: 8px;
   }
 
   .input-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 16px 12px 16px;
+    padding: 6px 14px 10px;
     border-top: 1px solid var(--divider-color);
-    background: var(--card-background-color);
-    border-radius: 0 0 12px 12px;
-    gap: 12px;
+    gap: 8px;
   }
 
   @media (max-width: 768px) {
     .input-container {
-      padding: 12px;
-      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      border-radius: 20px;
+      margin-bottom: 8px;
+      margin-left: 6px;
+      margin-right: 6px;
     }
 
     .input-footer {
-      gap: 8px;
+      gap: 6px;
+      padding: 4px 10px 8px;
+    }
+  }
+
+  @media (min-width: 1400px) {
+    .input-container {
+      max-width: 820px;
     }
   }
 </style>

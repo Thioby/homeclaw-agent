@@ -401,7 +401,10 @@ class SchedulerService:
         notify: bool = True,
         user_id: str = "",
     ) -> dict[str, Any]:
-        """Run an ad-hoc prompt.
+        """Run an ad-hoc prompt through the AI agent.
+
+        Loads the user's identity-aware system prompt so the agent responds
+        with the same personality as in normal chat.
 
         Args:
             prompt: The AI prompt to execute.
@@ -419,13 +422,23 @@ class SchedulerService:
             return {"success": False, "error": "No AI agent available"}
 
         try:
+            # Load identity-aware system prompt (same personality as chat)
+            system_prompt = None
+            if user_id and hasattr(agent, "_get_system_prompt"):
+                try:
+                    system_prompt = await agent._get_system_prompt(user_id)
+                except Exception as e:
+                    _LOGGER.warning("Failed to load system prompt for scheduler: %s", e)
+
             result = await agent.process_query(
                 user_query=prompt,
                 conversation_history=[],
                 user_id=user_id,
+                system_prompt=system_prompt,
             )
 
-            response = result.get("response", "")
+            # HomeclawAgent.process_query returns "answer", not "response"
+            response = result.get("answer", "") or result.get("response", "")
             duration_ms = int((time.monotonic() - start_time) * 1000)
 
             if notify:
@@ -597,20 +610,9 @@ class SchedulerService:
             now = datetime.now().isoformat()
             run_id = str(uuid.uuid4())[:8]
 
-            # Save user message (the prompt)
-            await storage.add_message(
-                job.session_id,
-                Message(
-                    message_id=f"sched-{job.job_id}-{run_id}-prompt",
-                    session_id=job.session_id,
-                    role="user",
-                    content=job.prompt,
-                    timestamp=now,
-                    metadata={"source": "scheduler", "job_id": job.job_id},
-                ),
-            )
-
-            # Save assistant message (the response or error)
+            # Only save the assistant response — the scheduler prompt is an
+            # internal instruction, not a user message.  The session should
+            # start with the agent's reply so it reads naturally.
             content = run.response if run.status == "ok" else f"Error: {run.error}"
             await storage.add_message(
                 job.session_id,

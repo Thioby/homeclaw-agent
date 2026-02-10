@@ -178,4 +178,43 @@ export function updateSessionInList(sessionId: string, preview?: string, title?:
 
     return { ...s, sessions: sortedSessions };
   });
+
+  // Fire-and-forget emoji generation when a new title is set
+  if (title) {
+    const hass = get(appState).hass;
+    if (hass) {
+      generateSessionEmoji(hass, sessionId, title);
+    }
+  }
+}
+
+/**
+ * Generate an emoji for a session title via AI (fire-and-forget)
+ */
+async function generateSessionEmoji(
+  hass: HomeAssistant,
+  sessionId: string,
+  title: string
+): Promise<void> {
+  try {
+    const result = await hass.callWS({
+      type: 'homeclaw/sessions/generate_emoji',
+      session_id: sessionId,
+      title: title,
+    });
+
+    const emoji = result?.emoji;
+    if (emoji) {
+      // Update the session in the store with the generated emoji
+      sessionState.update(s => ({
+        ...s,
+        sessions: s.sessions.map(session =>
+          session.session_id === sessionId ? { ...session, emoji } : session
+        ),
+      }));
+    }
+  } catch (error) {
+    // Non-critical — silently ignore emoji generation failures
+    console.warn('Emoji generation failed:', error);
+  }
 }

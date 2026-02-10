@@ -36,7 +36,7 @@
 </script>
 
 <div class="message" class:user={message.type === 'user'} class:assistant={message.type === 'assistant'} class:streaming={message.isStreaming}>
-  <div class="message-content">
+  <div class="bubble">
     {#if message.type === 'assistant'}
       {@html renderedContent}
       {#if message.isStreaming}
@@ -45,70 +45,146 @@
     {:else}
       {message.text}
     {/if}
+    {#if formattedTime}
+      <span class="bubble-time">{formattedTime}</span>
+    {/if}
   </div>
-
-  {#if formattedTime}
-    <span class="message-time">{formattedTime}</span>
-  {/if}
 </div>
 
 <style>
   .message {
-    padding: 12px 16px;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    max-width: 80%;
-    word-wrap: break-word;
-    animation: fadeIn 0.3s ease-out;
+    display: flex;
+    margin-bottom: 3px;
+    animation: messageAppear 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  /* Group spacing: different sender = more space */
+  :global(.message.user + .message.assistant),
+  :global(.message.assistant + .message.user) {
+    margin-top: 10px;
   }
 
   .message.user {
-    background: var(--primary-color);
-    color: white;
-    align-self: flex-end;
-    margin-left: auto;
+    justify-content: flex-end;
   }
 
   .message.assistant {
-    background: var(--card-background-color);
-    color: var(--primary-text-color);
-    border: 1px solid var(--divider-color);
-    align-self: flex-start;
+    justify-content: flex-start;
   }
 
-  .message-content {
-    line-height: 1.6;
+  .bubble {
+    max-width: min(80%, 500px);
+    padding: 7px 11px;
+    position: relative;
+    line-height: 1.45;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
-  .message-time {
-    display: block;
-    margin-top: 4px;
-    font-size: 0.7rem;
-    color: #b0b0b0;
-    text-align: right;
+  /* User bubble — right side, Telegram-style */
+  .message.user .bubble {
+    background: var(--bubble-user);
+    color: var(--text-bubble-user);
+    border-radius: 12px 12px 4px 12px;
   }
 
-  .message.user .message-time {
-    color: rgba(255, 255, 255, 0.6);
+  /* User bubble tail (CSS triangle) */
+  .message.user .bubble::after {
+    content: '';
+    position: absolute;
+    right: -8px;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border: 8px solid transparent;
+    border-left-color: var(--bubble-user-tail);
+    border-bottom-color: var(--bubble-user-tail);
+    border-right: 0;
+    border-bottom-right-radius: 4px;
   }
 
+  /* Hide tail on consecutive same-type messages */
+  :global(.message.user + .message.user .bubble)::after {
+    display: none;
+  }
+
+  /* Assistant bubble — left side */
+  .message.assistant .bubble {
+    background: var(--bubble-assistant);
+    color: var(--text-bubble-assistant);
+    border-radius: 12px 12px 12px 4px;
+  }
+
+  /* Assistant bubble tail */
+  .message.assistant .bubble::after {
+    content: '';
+    position: absolute;
+    left: -8px;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border: 8px solid transparent;
+    border-right-color: var(--bubble-assistant-tail);
+    border-bottom-color: var(--bubble-assistant-tail);
+    border-left: 0;
+    border-bottom-left-radius: 4px;
+  }
+
+  :global(.message.assistant + .message.assistant .bubble)::after {
+    display: none;
+  }
+
+  /* Timestamp INSIDE bubble — Telegram style */
+  .bubble-time {
+    float: right;
+    font-size: 11px;
+    margin: 4px -4px -2px 12px;
+    color: var(--text-bubble-time);
+    white-space: nowrap;
+  }
+
+  .message.user .bubble-time {
+    color: var(--text-bubble-time-user);
+  }
+
+  /* Bubble content formatting (from markdown) */
+  .bubble :global(p) { margin-bottom: 6px; }
+  .bubble :global(p:last-of-type) { margin-bottom: 0; }
+  .bubble :global(strong) { font-weight: 600; }
+  .bubble :global(code) {
+    background: var(--bubble-code-bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  .bubble :global(pre) {
+    background: var(--bubble-code-bg);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 6px 0;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .bubble :global(pre code) {
+    background: none;
+    padding: 0;
+    font-size: 13px;
+  }
+  .bubble :global(ul), .bubble :global(ol) {
+    padding-left: 18px;
+    margin: 4px 0;
+  }
+  .bubble :global(li) { margin: 2px 0; }
+
+  /* Streaming cursor */
   .streaming-cursor {
     display: inline-block;
     margin-left: 2px;
     animation: blink 1s infinite;
-    color: var(--primary-color);
+    color: var(--accent, var(--primary-color));
     font-weight: bold;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 
   @keyframes blink {
@@ -117,18 +193,19 @@
   }
 
   .message.streaming {
-    /* Optional: add subtle pulsing effect while streaming */
-    animation: fadeIn 0.3s ease-out, pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.95; }
+    animation: messageAppear 0.3s ease-out;
   }
 
   @media (max-width: 768px) {
-    .message {
-      max-width: 90%;
+    .bubble {
+      max-width: min(88%, 500px);
+    }
+  }
+
+  @media (max-width: 400px) {
+    .bubble {
+      max-width: 92%;
+      font-size: 13.5px;
     }
   }
 </style>

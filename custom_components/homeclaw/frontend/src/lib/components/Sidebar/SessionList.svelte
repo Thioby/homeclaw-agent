@@ -2,6 +2,16 @@
   import { sessionState, hasSessions } from "$lib/stores/sessions"
   import SessionItem from './SessionItem.svelte';
 
+  let { searchQuery = '' }: { searchQuery?: string } = $props();
+
+  const filteredSessions = $derived.by(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return $sessionState.sessions;
+    return $sessionState.sessions.filter(s =>
+      s.title.toLowerCase().includes(q) || s.preview.toLowerCase().includes(q)
+    );
+  });
+
   // Loading skeleton count
   const skeletonCount = 3;
 </script>
@@ -24,9 +34,14 @@
       </svg>
       <p>No conversations yet</p>
     </div>
+  {:else if filteredSessions.length === 0}
+    <!-- No search results -->
+    <div class="empty-sessions">
+      <p>No results for "{searchQuery}"</p>
+    </div>
   {:else}
     <!-- Session list -->
-    {#each $sessionState.sessions as session (session.session_id)}
+    {#each filteredSessions as session (session.session_id)}
       <SessionItem {session} />
     {/each}
   {/if}
@@ -36,7 +51,8 @@
   .session-list {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
+    overflow-x: hidden;
+    padding: 0;
   }
 
   /* Scrollbar styling */
@@ -49,7 +65,7 @@
   }
 
   .session-list::-webkit-scrollbar-thumb {
-    background-color: var(--divider-color);
+    background-color: var(--scrollbar-thumb, var(--divider-color));
     border-radius: 3px;
   }
 
@@ -78,8 +94,26 @@
 
   /* Loading skeleton */
   .session-skeleton {
-    padding: 12px;
-    margin-bottom: 4px;
+    padding: 9px 12px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .session-skeleton::before {
+    content: '';
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(
+      90deg,
+      var(--divider-color) 25%,
+      var(--card-background-color, #fff) 50%,
+      var(--divider-color) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite;
+    flex-shrink: 0;
   }
 
   .skeleton-line {
@@ -87,13 +121,13 @@
     background: linear-gradient(
       90deg,
       var(--divider-color) 25%,
-      var(--card-background-color) 50%,
+      var(--card-background-color, #fff) 50%,
       var(--divider-color) 75%
     );
     background-size: 200% 100%;
     animation: skeleton-shimmer 1.5s infinite;
     border-radius: 4px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .skeleton-line.short {

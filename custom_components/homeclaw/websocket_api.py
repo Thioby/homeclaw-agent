@@ -73,6 +73,7 @@ from .ws_handlers.proactive import (  # noqa: F401
 from .ws_handlers.sessions import (  # noqa: F401
     ws_create_session,
     ws_delete_session,
+    ws_generate_emoji,
     ws_get_session,
     ws_list_sessions,
     ws_rename_session,

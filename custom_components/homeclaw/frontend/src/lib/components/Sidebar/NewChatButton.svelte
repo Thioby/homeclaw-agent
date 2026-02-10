@@ -18,65 +18,49 @@
   }
 </script>
 
-<button class="new-chat-btn" onclick={handleNewChat}>
-  <svg viewBox="0 0 24 24" class="icon">
-    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+<button class="fab" onclick={handleNewChat} title="New chat" aria-label="New chat" disabled={!$appState.hass}>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 20h9"/>
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
   </svg>
-  <span>New Chat</span>
 </button>
 
 <style>
-  .new-chat-btn {
+  .fab {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background: var(--accent, var(--primary-color));
+    color: #fff;
+    border: none;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 14px 16px;
-    min-height: 48px;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
-    font-family: inherit;
-    width: 100%;
+    box-shadow: var(--fab-shadow, 0 4px 16px rgba(3, 169, 244, 0.35));
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    z-index: 5;
   }
 
-  .icon {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
+  .fab:hover:not(:disabled) {
+    transform: scale(1.05);
+    background: var(--accent-hover, var(--primary-color));
   }
 
-  .new-chat-btn:hover {
-    filter: brightness(1.1);
+  .fab:active:not(:disabled) {
+    transform: scale(0.95);
   }
 
-  .new-chat-btn:active {
-    transform: scale(0.98);
+  .fab:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
-  @media (max-width: 768px) {
-    .new-chat-btn {
-      width: 44px;
-      height: 44px;
-      min-width: 44px;
-      min-height: 44px;
-      padding: 0;
-      font-size: 0;
-      gap: 0;
-    }
-
-    .new-chat-btn span {
-      display: none;
-    }
-
-    .icon {
-      width: 24px;
-      height: 24px;
-    }
+  .fab svg {
+    width: 24px;
+    height: 24px;
   }
 </style>

@@ -12,6 +12,8 @@ export interface AppStateType {
   debugInfo: any;
   showThinking: boolean;
   thinkingExpanded: boolean;
+  agentName: string;
+  agentEmoji: string;
 }
 
 const initialState: AppStateType = {
@@ -22,6 +24,8 @@ const initialState: AppStateType = {
   debugInfo: null,
   showThinking: false,
   thinkingExpanded: false,
+  agentName: 'Homeclaw',
+  agentEmoji: '',
 };
 
 export const appState = writable<AppStateType>(initialState);

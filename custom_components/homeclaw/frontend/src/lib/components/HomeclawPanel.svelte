@@ -18,6 +18,22 @@
   // Props
   let { hass, narrow = false }: { hass: HomeAssistant; narrow?: boolean; panel?: boolean } = $props();
 
+  async function loadIdentity(ha: HomeAssistant) {
+    try {
+      const result = await ha.callWS({ type: 'homeclaw/rag/identity' });
+      const identity = result?.identity;
+      if (identity) {
+        appState.update(s => ({
+          ...s,
+          agentName: identity.agent_name || 'Homeclaw',
+          agentEmoji: identity.agent_emoji || '',
+        }));
+      }
+    } catch {
+      // Non-critical — keep defaults
+    }
+  }
+
   // Update appState when hass changes
   $effect(() => {
     appState.update(s => ({ ...s, hass }));
@@ -27,12 +43,13 @@
   onMount(() => {
     console.log('[HomeclawPanel] Mounting...');
     
-    // Load providers and sessions in parallel
+    // Load providers, sessions, and identity in parallel
     (async () => {
       try {
         await Promise.all([
           loadProviders(hass),
-          loadSessions(hass)
+          loadSessions(hass),
+          loadIdentity(hass),
         ]);
         console.log('[HomeclawPanel] Initialization complete');
       } catch (error) {
@@ -111,10 +128,13 @@
     flex: 1;
     overflow: hidden;
     position: relative;
+    background: var(--bg-chat, var(--primary-background-color));
+    transition: background var(--transition-medium, 250ms ease-in-out);
   }
 
   .chat-container {
     display: flex;
+    flex-direction: column;
     flex: 1;
     overflow: hidden;
     position: relative;

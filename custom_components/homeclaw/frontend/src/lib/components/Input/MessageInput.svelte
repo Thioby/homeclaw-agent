@@ -54,24 +54,24 @@
   textarea {
     width: 100%;
     min-height: 24px;
-    max-height: 200px;
-    padding: 12px 16px;
+    max-height: 160px;
+    padding: 8px 12px;
     border: none;
     outline: none;
     resize: none;
-    font-size: 16px;
-    line-height: 1.5;
+    font-size: 14px;
+    line-height: 1.45;
     background: transparent;
     color: var(--primary-text-color);
     font-family: inherit;
   }
 
   textarea::placeholder {
-    color: var(--secondary-text-color);
+    color: var(--search-text, var(--secondary-text-color));
   }
 
   textarea:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
   }
 </style>

@@ -19,21 +19,22 @@
 
 <style>
   .send-button {
-    --mdc-theme-primary: var(--primary-color);
+    --mdc-theme-primary: var(--accent, var(--primary-color));
     --mdc-theme-on-primary: var(--text-primary-color);
-    min-width: 80px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
     border: none;
-    border-radius: 8px;
-    background: var(--primary-color);
+    border-radius: 50%;
+    background: var(--accent, var(--primary-color));
     color: white;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 16px;
-    font-weight: 500;
+    padding: 0;
+    flex-shrink: 0;
   }
 
   .icon {
@@ -43,23 +44,24 @@
   }
 
   .send-button:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: scale(1.08);
+    background: var(--accent-hover, var(--primary-color));
   }
 
   .send-button:active:not(:disabled) {
-    transform: translateY(0);
+    transform: scale(0.92);
   }
 
   .send-button:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
   @media (max-width: 768px) {
     .send-button {
-      min-width: 44px;
-      height: 44px;
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
     }
   }
 </style>

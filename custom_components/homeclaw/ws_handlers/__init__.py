@@ -53,6 +53,7 @@ from .rag import (
 from .sessions import (
     ws_create_session,
     ws_delete_session,
+    ws_generate_emoji,
     ws_get_session,
     ws_list_sessions,
     ws_rename_session,
@@ -74,6 +75,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_create_session)
     websocket_api.async_register_command(hass, ws_delete_session)
     websocket_api.async_register_command(hass, ws_rename_session)
+    websocket_api.async_register_command(hass, ws_generate_emoji)
     # Chat / messaging
     websocket_api.async_register_command(hass, ws_send_message)
     websocket_api.async_register_command(hass, ws_send_message_stream)
