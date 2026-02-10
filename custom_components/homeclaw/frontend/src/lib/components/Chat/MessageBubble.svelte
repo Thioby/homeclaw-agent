@@ -13,6 +13,26 @@
       ? renderMarkdown(message.text, get(sessionState).activeSessionId || undefined)
       : message.text
   );
+
+  // Format timestamp for display
+  const formattedTime = $derived.by(() => {
+    if (!message.timestamp) return '';
+    try {
+      const d = new Date(message.timestamp);
+      if (isNaN(d.getTime())) return '';
+      const now = new Date();
+      const isToday =
+        d.getDate() === now.getDate() &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear();
+      const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (isToday) return time;
+      const date = d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+      return `${date}, ${time}`;
+    } catch {
+      return '';
+    }
+  });
 </script>
 
 <div class="message" class:user={message.type === 'user'} class:assistant={message.type === 'assistant'} class:streaming={message.isStreaming}>
@@ -27,6 +47,9 @@
     {/if}
   </div>
 
+  {#if formattedTime}
+    <span class="message-time">{formattedTime}</span>
+  {/if}
 </div>
 
 <style>
@@ -55,6 +78,18 @@
 
   .message-content {
     line-height: 1.6;
+  }
+
+  .message-time {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.7rem;
+    color: #b0b0b0;
+    text-align: right;
+  }
+
+  .message.user .message-time {
+    color: rgba(255, 255, 255, 0.6);
   }
 
   .streaming-cursor {

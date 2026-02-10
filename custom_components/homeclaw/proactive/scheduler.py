@@ -1,12 +1,14 @@
 """Scheduled task service for Homeclaw.
 
-Manages user- and agent-created scheduled prompts. Uses HA native
-scheduling primitives (``async_track_time_interval``,
-``async_track_point_in_time``) for execution, and HA ``Store`` for
-persistence across restarts.
+Manages user- and agent-created scheduled prompts using **cron expressions**
+for all scheduling.  Every job stores a standard 5-field cron string
+(minute hour day-of-month month day-of-week) and uses ``croniter`` to
+compute the next fire time.  Under the hood a single
+``async_track_point_in_time`` per job chains one-shot HA timers so that
+jobs fire at the exact wall-clock times implied by the cron expression.
 
 The agent can create jobs via the ``scheduler`` tool.  Users can also
-create HA automations that call ``homeclaw.run_scheduled_prompt``.
+manage jobs via WebSocket commands (``homeclaw/scheduler/*``).
 """
 
 from __future__ import annotations
@@ -15,14 +17,11 @@ import logging
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.helpers.event import (
-    async_call_later,
-    async_track_point_in_time,
-    async_track_time_interval,
-)
+from croniter import croniter
+from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -35,11 +34,84 @@ _LOGGER = logging.getLogger(__name__)
 
 # --- Storage ---
 SCHEDULER_STORAGE_KEY = f"{DOMAIN}_scheduler"
-SCHEDULER_STORAGE_VERSION = 1
+SCHEDULER_STORAGE_VERSION = 2
 
 # --- Limits ---
 MAX_JOBS = 50
 MAX_JOB_HISTORY = 100
+MIN_INTERVAL_SECONDS = 60
+
+
+def _validate_cron(expression: str) -> str:
+    """Validate a cron expression and return it normalised.
+
+    Raises ValueError on invalid input.
+    """
+    if not croniter.is_valid(expression):
+        raise ValueError(f"Invalid cron expression: {expression!r}")
+    return expression
+
+
+def _next_fire(cron: str, after: datetime | None = None) -> datetime:
+    """Return the next fire time for *cron* after *after* (default: now, local TZ).
+
+    Uses HA's configured timezone so that cron expressions like
+    ``0 8 * * *`` fire at 08:00 *local* time, not UTC.
+    """
+    base = after or dt_util.now()
+    return croniter(cron, base).get_next(datetime)
+
+
+# --- Migration helpers ---
+
+
+def _migrate_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
+    """Migrate storage from v1 (interval/at) to v2 (cron).
+
+    * ``interval`` jobs  -> ``*/N * * * *`` (or closest minute granularity).
+    * ``at`` (one-shot)  -> preserved as ``cron`` with ``one_shot=True``.
+    """
+    jobs = data.get("jobs", [])
+    migrated: list[dict[str, Any]] = []
+    for j in jobs:
+        stype = j.get("schedule_type", "")
+        cron_expr = j.get("cron", "")
+
+        if cron_expr:
+            # Already has cron — keep as-is
+            migrated.append(j)
+            continue
+
+        if stype == "interval":
+            seconds = j.get("interval_seconds") or 300
+            minutes = max(1, seconds // 60)
+            if minutes < 60:
+                cron_expr = f"*/{minutes} * * * *"
+            elif minutes < 1440:
+                hours = minutes // 60
+                cron_expr = f"0 */{hours} * * *"
+            else:
+                cron_expr = "0 0 * * *"  # daily fallback
+
+        elif stype == "at" and j.get("run_at"):
+            # Try to parse the one-shot datetime and create a one-shot cron
+            try:
+                dt = dt_util.parse_datetime(j["run_at"])
+                if dt:
+                    cron_expr = f"{dt.minute} {dt.hour} {dt.day} {dt.month} *"
+                else:
+                    cron_expr = "0 0 * * *"
+            except (ValueError, TypeError):
+                cron_expr = "0 0 * * *"
+        else:
+            cron_expr = "0 0 * * *"
+
+        j["cron"] = cron_expr
+        # Clean up legacy fields (keep them for reference but they're ignored)
+        migrated.append(j)
+
+    data["jobs"] = migrated
+    return data
 
 
 @dataclass
@@ -49,13 +121,11 @@ class ScheduledJob:
     job_id: str
     name: str
     enabled: bool
-    schedule_type: str  # "interval" | "at"
-    interval_seconds: int | None = None  # for "interval"
-    run_at: str | None = None  # ISO datetime, for "at" (one-shot)
+    cron: str  # 5-field cron expression
     prompt: str = ""
     provider: str | None = None  # None = use default
     notify: bool = True
-    delete_after_run: bool = False  # One-shot jobs
+    one_shot: bool = False  # If True, disable after first run
     created_by: str = "user"  # "user" | "agent"
     user_id: str = ""
     # State
@@ -80,11 +150,15 @@ class JobRun:
 
 
 class SchedulerService:
-    """Manages scheduled prompts with HA native scheduling.
+    """Manages scheduled prompts with cron-based scheduling.
+
+    Every enabled job gets a single ``async_track_point_in_time`` callback
+    targeting its next fire time.  After each execution the service computes
+    the *next* fire time and re-registers the timer (chain of one-shots).
 
     Lifecycle:
         1. ``async_initialize()`` — loads persisted jobs from HA Store.
-        2. ``async_start()`` — re-registers timers for all enabled jobs.
+        2. ``async_start()`` — registers timers for all enabled jobs.
         3. ``async_stop()`` — cancels all timers and persists state.
     """
 
@@ -101,18 +175,26 @@ class SchedulerService:
     # === Lifecycle ===
 
     async def async_initialize(self) -> None:
-        """Load persisted jobs."""
+        """Load persisted jobs (with v1->v2 migration if needed)."""
         data = await self._store.async_load()
         if data:
+            # Detect v1 data: if any job lacks "cron" field, migrate
+            jobs_raw = data.get("jobs", [])
+            needs_migration = any(not j.get("cron") for j in jobs_raw)
+            if needs_migration:
+                _LOGGER.info(
+                    "Migrating scheduler storage from v1 (interval/at) to v2 (cron)"
+                )
+                data = _migrate_v1_to_v2(data)
+                # Persist migrated data immediately
+                await self._store.async_save(data)
+
             for job_data in data.get("jobs", []):
                 try:
-                    job = ScheduledJob(
-                        **{
-                            k: v
-                            for k, v in job_data.items()
-                            if k in ScheduledJob.__dataclass_fields__
-                        }
-                    )
+                    # Filter to only known fields
+                    known = {k for k in ScheduledJob.__dataclass_fields__}
+                    filtered = {k: v for k, v in job_data.items() if k in known}
+                    job = ScheduledJob(**filtered)
                     self._jobs[job.job_id] = job
                 except (TypeError, ValueError) as e:
                     _LOGGER.warning("Skipping invalid job: %s", e)
@@ -151,12 +233,10 @@ class SchedulerService:
         name: str,
         prompt: str,
         *,
-        schedule_type: str = "at",
-        interval_seconds: int | None = None,
-        run_at: str | None = None,
+        cron: str,
         provider: str | None = None,
         notify: bool = True,
-        delete_after_run: bool = False,
+        one_shot: bool = False,
         created_by: str = "user",
         user_id: str = "",
     ) -> ScheduledJob:
@@ -165,12 +245,10 @@ class SchedulerService:
         Args:
             name: Human-readable job name.
             prompt: The AI prompt to execute when the job runs.
-            schedule_type: "interval" (recurring) or "at" (one-shot).
-            interval_seconds: Interval in seconds (for "interval" type).
-            run_at: ISO datetime string (for "at" type).
+            cron: 5-field cron expression (minute hour dom month dow).
             provider: AI provider to use (None for default).
             notify: Whether to notify the user.
-            delete_after_run: Auto-delete after first run (for "at" type).
+            one_shot: If True, disable after first execution.
             created_by: "user" or "agent".
             user_id: Owner user ID.
 
@@ -178,51 +256,40 @@ class SchedulerService:
             The created ScheduledJob.
 
         Raises:
-            ValueError: If max jobs reached or invalid parameters.
+            ValueError: If max jobs reached or invalid cron expression.
         """
         if len(self._jobs) >= MAX_JOBS:
             raise ValueError(f"Maximum number of scheduled jobs reached ({MAX_JOBS})")
 
-        if schedule_type == "interval" and (
-            not interval_seconds or interval_seconds < 60
-        ):
-            raise ValueError("Interval must be at least 60 seconds")
-
-        if schedule_type == "at" and not run_at:
-            raise ValueError("run_at is required for 'at' schedule type")
+        cron = _validate_cron(cron)
 
         job = ScheduledJob(
             job_id=str(uuid.uuid4())[:8],
             name=name,
             enabled=True,
-            schedule_type=schedule_type,
-            interval_seconds=interval_seconds,
-            run_at=run_at,
+            cron=cron,
             prompt=prompt,
             provider=provider,
             notify=notify,
-            delete_after_run=delete_after_run if schedule_type == "at" else False,
+            one_shot=one_shot,
             created_by=created_by,
             user_id=user_id,
         )
 
         # Compute next_run
-        if schedule_type == "interval" and interval_seconds:
-            next_dt = dt_util.utcnow() + timedelta(seconds=interval_seconds)
-            job.next_run = next_dt.isoformat()
-        elif schedule_type == "at" and run_at:
-            job.next_run = run_at
+        job.next_run = _next_fire(cron).isoformat()
 
         self._jobs[job.job_id] = job
         self._register_job_timer(job)
         await self._async_save()
 
         _LOGGER.info(
-            "Scheduled job added: '%s' (type=%s, id=%s, by=%s)",
+            "Scheduled job added: '%s' (cron=%s, id=%s, by=%s, next=%s)",
             name,
-            schedule_type,
+            cron,
             job.job_id,
             created_by,
+            job.next_run,
         )
         return job
 
@@ -265,6 +332,8 @@ class SchedulerService:
         job.enabled = enabled
 
         if enabled:
+            # Recompute next_run and register timer
+            job.next_run = _next_fire(job.cron).isoformat()
             self._register_job_timer(job)
         else:
             cancel = self._cancel_callbacks.pop(job_id, None)
@@ -331,7 +400,7 @@ class SchedulerService:
         notify: bool = True,
         user_id: str = "",
     ) -> dict[str, Any]:
-        """Run an ad-hoc prompt (called by homeclaw.run_scheduled_prompt service).
+        """Run an ad-hoc prompt.
 
         Args:
             prompt: The AI prompt to execute.
@@ -382,52 +451,49 @@ class SchedulerService:
     # === Internal Helpers ===
 
     def _register_job_timer(self, job: ScheduledJob) -> None:
-        """Register an HA timer for a job."""
+        """Register an HA point-in-time timer for the job's next fire time.
+
+        Uses ``croniter`` to compute the next fire time and
+        ``async_track_point_in_time`` for a one-shot callback.
+        After each fire, the callback re-registers for the next time.
+        """
         # Cancel existing timer for this job
         existing = self._cancel_callbacks.pop(job.job_id, None)
         if existing:
             existing()
 
-        if job.schedule_type == "interval" and job.interval_seconds:
-            cancel = async_track_time_interval(
-                self._hass,
-                lambda now, j=job: self._hass.async_create_task(self._on_job_tick(j)),
-                timedelta(seconds=job.interval_seconds),
-                name=f"{DOMAIN}_job_{job.job_id}",
-                cancel_on_shutdown=True,
-            )
-            self._cancel_callbacks[job.job_id] = cancel
+        try:
+            target = _next_fire(job.cron)
+        except (ValueError, KeyError) as e:
+            _LOGGER.warning("Cannot compute next fire for job '%s': %s", job.name, e)
+            return
 
-        elif job.schedule_type == "at" and job.run_at:
-            try:
-                target = dt_util.parse_datetime(job.run_at)
-                if target and target > dt_util.utcnow():
-                    cancel = async_track_point_in_time(
-                        self._hass,
-                        lambda now, j=job: self._hass.async_create_task(
-                            self._on_job_tick(j)
-                        ),
-                        target,
-                    )
-                    self._cancel_callbacks[job.job_id] = cancel
-                else:
-                    _LOGGER.debug("Job '%s' has past run_at, skipping timer", job.name)
-            except (ValueError, TypeError) as e:
-                _LOGGER.warning("Invalid run_at for job '%s': %s", job.name, e)
+        job.next_run = target.isoformat()
+
+        async def _tick_callback(_now: datetime, _job: ScheduledJob = job) -> None:
+            await self._on_job_tick(_job)
+
+        cancel = async_track_point_in_time(
+            self._hass,
+            _tick_callback,
+            target,
+        )
+        self._cancel_callbacks[job.job_id] = cancel
 
     async def _on_job_tick(self, job: ScheduledJob) -> None:
         """Called when a job timer fires."""
         _LOGGER.info("Scheduler: executing job '%s' (id=%s)", job.name, job.job_id)
-        run = await self._execute_job(job)
+        await self._execute_job(job)
 
-        # For one-shot jobs, clean up after execution
-        if job.schedule_type == "at":
-            self._cancel_callbacks.pop(job.job_id, None)
-            if job.delete_after_run:
-                del self._jobs[job.job_id]
-                _LOGGER.info("One-shot job '%s' deleted after run", job.name)
-            else:
-                job.enabled = False
+        # Remove from cancel_callbacks (the one-shot already fired)
+        self._cancel_callbacks.pop(job.job_id, None)
+
+        if job.one_shot:
+            job.enabled = False
+            _LOGGER.info("One-shot job '%s' disabled after run", job.name)
+        elif job.enabled:
+            # Chain: register the next timer
+            self._register_job_timer(job)
 
         await self._async_save()
 
@@ -459,18 +525,15 @@ class SchedulerService:
             job.last_status = run.status
             job.last_error = run.error
 
-            # Compute next_run for interval jobs
-            if job.schedule_type == "interval" and job.interval_seconds:
-                next_dt = dt_util.utcnow() + timedelta(seconds=job.interval_seconds)
-                job.next_run = next_dt.isoformat()
-
-        except Exception as e:
+        except BaseException as e:
             run.status = "error"
             run.error = str(e)
             run.duration_ms = int((time.monotonic() - start_time) * 1000)
             job.last_status = "error"
             job.last_error = str(e)
             _LOGGER.error("Job '%s' execution failed: %s", job.name, e)
+            if isinstance(e, (KeyboardInterrupt, SystemExit)):
+                raise
 
         # Store run in history
         self._run_history.append(asdict(run))

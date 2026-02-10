@@ -476,6 +476,18 @@ const componentCss = `
     line-height: 1.6;
   }
 
+  .message-time.svelte-cu3vo4 {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.7rem;
+    color: #b0b0b0;
+    text-align: right;
+  }
+
+  .message.user.svelte-cu3vo4 .message-time:where(.svelte-cu3vo4) {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
   .streaming-cursor.svelte-cu3vo4 {
     display: inline-block;
     margin-left: 2px;
@@ -12745,7 +12757,7 @@ function SessionItem($$anchor, $$props) {
 }
 delegate(["click"]);
 var root_2$8 = /* @__PURE__ */ from_html(`<div class="session-skeleton svelte-1j5qstn"><div class="skeleton-line svelte-1j5qstn"></div> <div class="skeleton-line short svelte-1j5qstn"></div> <div class="skeleton-line tiny svelte-1j5qstn"></div></div>`);
-var root_4$6 = /* @__PURE__ */ from_html(`<div class="empty-sessions svelte-1j5qstn"><svg viewBox="0 0 24 24" class="icon svelte-1j5qstn"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" class="svelte-1j5qstn"></path></svg> <p class="svelte-1j5qstn">No conversations yet</p></div>`);
+var root_4$7 = /* @__PURE__ */ from_html(`<div class="empty-sessions svelte-1j5qstn"><svg viewBox="0 0 24 24" class="icon svelte-1j5qstn"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" class="svelte-1j5qstn"></path></svg> <p class="svelte-1j5qstn">No conversations yet</p></div>`);
 var root$j = /* @__PURE__ */ from_html(`<div class="session-list svelte-1j5qstn"><!></div>`);
 function SessionList($$anchor, $$props) {
   push($$props, false);
@@ -12771,7 +12783,7 @@ function SessionList($$anchor, $$props) {
       var node_2 = first_child(fragment_1);
       {
         var consequent_1 = ($$anchor3) => {
-          var div_2 = root_4$6();
+          var div_2 = root_4$7();
           append($$anchor3, div_2);
         };
         var alternate = ($$anchor3) => {
@@ -12867,10 +12879,26 @@ function Sidebar($$anchor, $$props) {
 delegate(["click"]);
 var root_2$7 = /* @__PURE__ */ from_html(`<span class="streaming-cursor svelte-cu3vo4">▋</span>`);
 var root_1$d = /* @__PURE__ */ from_html(`<!> <!>`, 1);
-var root$g = /* @__PURE__ */ from_html(`<div><div class="message-content svelte-cu3vo4"><!></div></div>`);
+var root_4$6 = /* @__PURE__ */ from_html(`<span class="message-time svelte-cu3vo4"> </span>`);
+var root$g = /* @__PURE__ */ from_html(`<div><div class="message-content svelte-cu3vo4"><!></div> <!></div>`);
 function MessageBubble($$anchor, $$props) {
   push($$props, true);
   const renderedContent = /* @__PURE__ */ user_derived(() => $$props.message.type === "assistant" ? renderMarkdown($$props.message.text, get(sessionState).activeSessionId || void 0) : $$props.message.text);
+  const formattedTime = /* @__PURE__ */ user_derived(() => {
+    if (!$$props.message.timestamp) return "";
+    try {
+      const d2 = new Date($$props.message.timestamp);
+      if (isNaN(d2.getTime())) return "";
+      const now = /* @__PURE__ */ new Date();
+      const isToday = d2.getDate() === now.getDate() && d2.getMonth() === now.getMonth() && d2.getFullYear() === now.getFullYear();
+      const time = d2.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      if (isToday) return time;
+      const date = d2.toLocaleDateString([], { day: "numeric", month: "short" });
+      return `${date}, ${time}`;
+    } catch {
+      return "";
+    }
+  });
   var div = root$g();
   let classes;
   var div_1 = child(div);
@@ -12900,6 +12928,18 @@ function MessageBubble($$anchor, $$props) {
     if_block(node, ($$render) => {
       if ($$props.message.type === "assistant") $$render(consequent_1);
       else $$render(alternate, false);
+    });
+  }
+  var node_3 = sibling(div_1, 2);
+  {
+    var consequent_2 = ($$anchor2) => {
+      var span_1 = root_4$6();
+      var text_1 = child(span_1);
+      template_effect(() => set_text(text_1, get$1(formattedTime)));
+      append($$anchor2, span_1);
+    };
+    if_block(node_3, ($$render) => {
+      if (get$1(formattedTime)) $$render(consequent_2);
     });
   }
   template_effect(() => classes = set_class(div, 1, "message svelte-cu3vo4", null, classes, {
@@ -13083,7 +13123,8 @@ async function sendMessageStream(hass, message, callbacks) {
           console.log("[WebSocket] Unknown event type:", event.type);
       }
     },
-    wsParams
+    wsParams,
+    { resubscribe: false }
   );
 }
 function parseAIResponse(content) {

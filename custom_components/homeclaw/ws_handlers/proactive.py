@@ -222,10 +222,8 @@ async def ws_scheduler_list(
         vol.Required("type"): "homeclaw/scheduler/add",
         vol.Required("name"): vol.All(str, vol.Length(min=1, max=100)),
         vol.Required("prompt"): vol.All(str, vol.Length(min=1, max=2000)),
-        vol.Optional("interval_minutes"): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=10080)
-        ),
-        vol.Optional("run_at"): str,
+        vol.Required("cron"): vol.All(str, vol.Length(min=5, max=100)),
+        vol.Optional("one_shot"): bool,
         vol.Optional("notify"): bool,
         vol.Optional("provider"): str,
     }
@@ -243,34 +241,17 @@ async def ws_scheduler_add(
         return
 
     user_id = _get_user_id(connection)
-    interval_min = msg.get("interval_minutes")
-    run_at = msg.get("run_at")
-
-    if not interval_min and not run_at:
-        connection.send_error(
-            msg["id"], "invalid_input", "Provide interval_minutes or run_at"
-        )
-        return
 
     try:
-        if interval_min:
-            schedule_type = "interval"
-            interval_seconds = max(60, int(interval_min) * 60)
-        else:
-            schedule_type = "at"
-            interval_seconds = None
-
         from dataclasses import asdict
 
         job = await scheduler.add_job(
             name=msg["name"],
             prompt=msg["prompt"],
-            schedule_type=schedule_type,
-            interval_seconds=interval_seconds,
-            run_at=run_at,
+            cron=msg["cron"],
             provider=msg.get("provider"),
             notify=msg.get("notify", True),
-            delete_after_run=(schedule_type == "at"),
+            one_shot=msg.get("one_shot", False),
             created_by="user",
             user_id=user_id,
         )

@@ -475,6 +475,18 @@
     line-height: 1.6;
   }
 
+  .message-time.svelte-cu3vo4 {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.7rem;
+    color: #b0b0b0;
+    text-align: right;
+  }
+
+  .message.user.svelte-cu3vo4 .message-time:where(.svelte-cu3vo4) {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
   .streaming-cursor.svelte-cu3vo4 {
     display: inline-block;
     margin-left: 2px;

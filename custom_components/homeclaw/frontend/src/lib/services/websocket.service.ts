@@ -78,7 +78,11 @@ export async function sendMessageStream(
 
   console.log('[WebSocket] Sending STREAMING message with params:', wsParams);
 
-  // Subscribe to events for this request
+  // Subscribe to events for this request.
+  // CRITICAL: resubscribe must be false — this is a one-shot command that
+  // mutates state (saves messages). If the WS reconnects, HA's default
+  // behavior is to re-send the subscription message, which would re-send
+  // the chat message to the backend and create duplicate messages.
   let unsubscribe: (() => void) | undefined;
   unsubscribe = await hass.connection.subscribeMessage(
     (event: any) => {
@@ -141,7 +145,8 @@ export async function sendMessageStream(
           console.log('[WebSocket] Unknown event type:', event.type);
       }
     },
-    wsParams
+    wsParams,
+    { resubscribe: false }
   );
 }
 
