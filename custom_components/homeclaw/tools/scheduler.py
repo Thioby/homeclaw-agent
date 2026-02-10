@@ -31,8 +31,11 @@ class SchedulerTool(Tool):
         "Create, list, or remove scheduled tasks. Use this to set reminders, "
         "periodic monitoring checks, or scheduled prompts. "
         "All schedules use cron expressions (minute hour day-of-month month day-of-week). "
-        "Common patterns: '0 20 * * *' = daily at 20:00, '*/30 * * * *' = every 30 min, "
-        "'0 8 * * 1' = Mondays at 08:00, '0 9 1 * *' = 1st of month at 09:00. "
+        "IMPORTANT: For one-shot tasks ('in 5 min', 'at 3pm today'), use FULL date cron "
+        "with specific day and month (e.g. '35 14 10 2 *' for 14:35 on Feb 10) and one_shot=true. "
+        "Do NOT use wildcard day/month for one-shot tasks or they will fire on the wrong day. "
+        "Recurring patterns: '0 20 * * *' = daily 20:00, '*/30 * * * *' = every 30 min, "
+        "'0 8 * * 1' = Mondays 08:00. "
         "Actions: list (show all jobs), add (create new), remove (delete by ID), status (summary)."
     )
     category: ClassVar[ToolCategory] = ToolCategory.HOME_ASSISTANT

@@ -598,11 +598,36 @@ class QueryProcessor:
                 }
                 return
 
-            # Max iterations reached
-            yield {
-                "type": "error",
-                "message": "Maximum iterations reached without final response",
-            }
+            # Max iterations reached — force a final response without tools
+            _LOGGER.warning(
+                "Max iterations (%d) reached. Forcing final text response (no tools).",
+                self.max_iterations,
+            )
+            try:
+                # One last call WITHOUT tools so the model MUST produce text
+                provider_kwargs_final = {**kwargs}
+                provider_kwargs_final.pop("tools", None)
+
+                if hasattr(self.provider, "get_response_stream"):
+                    async for chunk in self.provider.get_response_stream(
+                        built_messages, **provider_kwargs_final
+                    ):
+                        if chunk.get("type") == "text":
+                            yield chunk
+                else:
+                    final_text = await self.provider.get_response(
+                        built_messages, **provider_kwargs_final
+                    )
+                    if final_text:
+                        yield {"type": "text", "content": final_text}
+
+                yield {"type": "complete", "messages": list(built_messages)}
+            except Exception as final_err:
+                _LOGGER.error("Final forced response also failed: %s", final_err)
+                yield {
+                    "type": "error",
+                    "message": "Maximum iterations reached without final response",
+                }
 
         except Exception as e:
             _LOGGER.error("Error processing streaming query: %s", str(e))

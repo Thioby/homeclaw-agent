@@ -3,8 +3,9 @@
   import ModelsEditor from './ModelsEditor.svelte';
   import DefaultsEditor from './DefaultsEditor.svelte';
   import RagViewer from './RagViewer.svelte';
+  import SchedulerPanel from './SchedulerPanel.svelte';
 
-  let activeTab = $state<'defaults' | 'models' | 'rag'>('defaults');
+  let activeTab = $state<'defaults' | 'models' | 'rag' | 'scheduler'>('defaults');
 </script>
 
 {#if $uiState.settingsOpen}
@@ -45,6 +46,13 @@
       >
         RAG
       </button>
+      <button
+        class="tab"
+        class:active={activeTab === 'scheduler'}
+        onclick={() => (activeTab = 'scheduler')}
+      >
+        Scheduler
+      </button>
     </div>
 
     <!-- Tab content -->
@@ -55,6 +63,8 @@
         <ModelsEditor />
       {:else if activeTab === 'rag'}
         <RagViewer />
+      {:else if activeTab === 'scheduler'}
+        <SchedulerPanel />
       {/if}
     </div>
   </div>

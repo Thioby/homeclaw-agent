@@ -128,6 +128,7 @@ class ScheduledJob:
     one_shot: bool = False  # If True, disable after first run
     created_by: str = "user"  # "user" | "agent"
     user_id: str = ""
+    session_id: str = ""  # Dedicated chat session for this job's runs
     # State
     last_run: str | None = None
     next_run: str | None = None
@@ -498,7 +499,11 @@ class SchedulerService:
         await self._async_save()
 
     async def _execute_job(self, job: ScheduledJob) -> JobRun:
-        """Execute a scheduled job and record the result."""
+        """Execute a scheduled job and record the result.
+
+        Each job gets a dedicated chat session. The prompt and response are
+        saved as messages so the user can review them in the sidebar.
+        """
         start_time = time.monotonic()
         run = JobRun(
             job_id=job.job_id,
@@ -525,6 +530,9 @@ class SchedulerService:
             job.last_status = run.status
             job.last_error = run.error
 
+            # Save prompt + response to a dedicated session
+            await self._save_to_session(job, run)
+
         except BaseException as e:
             run.status = "error"
             run.error = str(e)
@@ -541,6 +549,93 @@ class SchedulerService:
             self._run_history = self._run_history[-MAX_JOB_HISTORY:]
 
         return run
+
+    async def _save_to_session(self, job: ScheduledJob, run: JobRun) -> None:
+        """Save the job run as messages in a dedicated chat session.
+
+        Creates the session on first run, reuses it for subsequent runs.
+        The session appears in the user's sidebar with a scheduler prefix.
+        """
+        from ..storage import Message, SessionStorage
+
+        user_id = job.user_id or "default"
+        cache_key = f"{DOMAIN}_storage_{user_id}"
+
+        # Get or create SessionStorage for this user
+        if cache_key not in self._hass.data:
+            self._hass.data[cache_key] = SessionStorage(self._hass, user_id)
+        storage: SessionStorage = self._hass.data[cache_key]
+
+        try:
+            # Create session on first run
+            if not job.session_id:
+                provider_name = job.provider or "default"
+                session = await storage.create_session(
+                    provider=provider_name,
+                    title=f"[Scheduler] {job.name}",
+                )
+                job.session_id = session.session_id
+                _LOGGER.info(
+                    "Created scheduler session '%s' for job '%s'",
+                    session.session_id,
+                    job.name,
+                )
+            else:
+                # Verify session still exists (could have been deleted by user)
+                existing = await storage.get_session(job.session_id)
+                if not existing:
+                    session = await storage.create_session(
+                        provider=job.provider or "default",
+                        title=f"[Scheduler] {job.name}",
+                    )
+                    job.session_id = session.session_id
+                    _LOGGER.info(
+                        "Re-created scheduler session for job '%s' (old session was deleted)",
+                        job.name,
+                    )
+
+            now = datetime.now().isoformat()
+            run_id = str(uuid.uuid4())[:8]
+
+            # Save user message (the prompt)
+            await storage.add_message(
+                job.session_id,
+                Message(
+                    message_id=f"sched-{job.job_id}-{run_id}-prompt",
+                    session_id=job.session_id,
+                    role="user",
+                    content=job.prompt,
+                    timestamp=now,
+                    metadata={"source": "scheduler", "job_id": job.job_id},
+                ),
+            )
+
+            # Save assistant message (the response or error)
+            content = run.response if run.status == "ok" else f"Error: {run.error}"
+            await storage.add_message(
+                job.session_id,
+                Message(
+                    message_id=f"sched-{job.job_id}-{run_id}-response",
+                    session_id=job.session_id,
+                    role="assistant",
+                    content=content or "(no response)",
+                    timestamp=now,
+                    status="completed" if run.status == "ok" else "error",
+                    error_message=run.error,
+                    metadata={
+                        "source": "scheduler",
+                        "job_id": job.job_id,
+                        "duration_ms": run.duration_ms,
+                    },
+                ),
+            )
+
+        except Exception as err:
+            _LOGGER.warning(
+                "Failed to save scheduler run to session for job '%s': %s",
+                job.name,
+                err,
+            )
 
     def _get_agent(self, provider: str | None = None) -> Any:
         """Get an AI agent instance."""

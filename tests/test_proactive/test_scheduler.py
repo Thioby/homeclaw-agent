@@ -543,7 +543,8 @@ class TestSchedulerExecution:
                 cron="0 20 * * *",
             )
 
-        run = await svc.run_job(job.job_id)
+        with patch.object(svc, "_save_to_session", new_callable=AsyncMock):
+            run = await svc.run_job(job.job_id)
         assert run is not None
         assert run.status == "ok"
         assert run.response == "Done."
@@ -576,7 +577,10 @@ class TestSchedulerExecution:
             )
 
         # Simulate the timer firing by calling _on_job_tick directly
-        with patch.object(svc, "_register_job_timer") as mock_register:
+        with (
+            patch.object(svc, "_register_job_timer") as mock_register,
+            patch.object(svc, "_save_to_session", new_callable=AsyncMock),
+        ):
             await svc._on_job_tick(job)
 
         # Must re-register for the next fire
@@ -610,7 +614,10 @@ class TestSchedulerExecution:
         assert job.enabled is True
 
         # Simulate the timer firing
-        with patch.object(svc, "_register_job_timer") as mock_register:
+        with (
+            patch.object(svc, "_register_job_timer") as mock_register,
+            patch.object(svc, "_save_to_session", new_callable=AsyncMock),
+        ):
             await svc._on_job_tick(job)
 
         # One-shot: must be disabled, must NOT re-register
@@ -638,7 +645,10 @@ class TestSchedulerExecution:
 
         assert len(svc._run_history) == 0
 
-        with patch.object(svc, "_register_job_timer"):
+        with (
+            patch.object(svc, "_register_job_timer"),
+            patch.object(svc, "_save_to_session", new_callable=AsyncMock),
+        ):
             await svc._on_job_tick(job)
 
         assert len(svc._run_history) == 1
@@ -662,7 +672,8 @@ class TestSchedulerExecution:
                 cron="0 12 * * *",
             )
 
-        run = await svc._execute_job(job)
+        with patch.object(svc, "_save_to_session", new_callable=AsyncMock):
+            run = await svc._execute_job(job)
         assert run.status == "error"
         assert "boom" in run.error
         assert job.last_status == "error"

@@ -406,7 +406,7 @@ class HomeclawAgent:
         # Check if identity manager is available
         if not self._rag_manager or not self._rag_manager.identity_manager:
             _LOGGER.debug("Identity manager not available, using BASE_SYSTEM_PROMPT")
-            return BASE_SYSTEM_PROMPT
+            return self._inject_current_time(BASE_SYSTEM_PROMPT)
 
         try:
             identity_manager = self._rag_manager.identity_manager
@@ -421,11 +421,28 @@ class HomeclawAgent:
             else:
                 _LOGGER.debug("User not onboarded, using onboarding prompt")
 
-            return system_prompt
+            return self._inject_current_time(system_prompt)
 
         except Exception as e:
             _LOGGER.warning("Failed to build system prompt with identity: %s", e)
-            return BASE_SYSTEM_PROMPT
+            return self._inject_current_time(BASE_SYSTEM_PROMPT)
+
+    @staticmethod
+    def _inject_current_time(prompt: str) -> str:
+        """Append current date/time to the system prompt.
+
+        This is critical for scheduling — the agent needs the real current
+        time to compute correct cron expressions for 'in 5 minutes' etc.
+        """
+        from homeassistant.util import dt as dt_util
+
+        now = dt_util.now()
+        time_block = (
+            f"\n\n[CURRENT TIME]\n"
+            f"Now: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} "
+            f"(weekday: {now.strftime('%A')}, month: {now.month}, day: {now.day})"
+        )
+        return prompt + time_block
 
     # === ENTITY OPERATIONS (delegate to EntityManager) ===
 

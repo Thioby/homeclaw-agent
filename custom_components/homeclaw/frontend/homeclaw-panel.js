@@ -2130,6 +2130,333 @@ const componentCss = `
     border-color: #ff9800;
   }
 
+  .scheduler-panel.svelte-7zsr1v {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .msg.svelte-7zsr1v {
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    background: rgba(76, 175, 80, 0.1);
+    color: #4caf50;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+  }
+  .msg.error.svelte-7zsr1v {
+    background: rgba(244, 67, 54, 0.1);
+    color: var(--error-color);
+    border-color: rgba(244, 67, 54, 0.3);
+  }
+
+  .section-nav.svelte-7zsr1v {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .pill.svelte-7zsr1v {
+    padding: 6px 14px;
+    border: 1px solid var(--divider-color);
+    border-radius: 20px;
+    background: var(--secondary-background-color);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    color: var(--primary-text-color);
+  }
+  .pill.active.svelte-7zsr1v {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+  }
+  .pill.svelte-7zsr1v:hover:not(.active) {
+    background: var(--card-background-color);
+  }
+  .pill.refresh-pill.svelte-7zsr1v {
+    margin-left: auto;
+    border-color: rgba(33, 150, 243, 0.4);
+  }
+
+  .loading.svelte-7zsr1v,
+  .not-available.svelte-7zsr1v,
+  .empty.svelte-7zsr1v {
+    text-align: center;
+    padding: 24px;
+    color: var(--secondary-text-color);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .empty.svelte-7zsr1v em:where(.svelte-7zsr1v) {
+    display: block;
+    margin-top: 8px;
+    opacity: 0.7;
+    font-size: 13px;
+  }
+
+  .status-bar.svelte-7zsr1v {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--secondary-text-color);
+    padding: 4px 0;
+  }
+  .dot.svelte-7zsr1v {
+    font-size: 16px;
+  }
+
+  .jobs-list.svelte-7zsr1v {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .job-card.svelte-7zsr1v {
+    background: var(--card-background-color);
+    border: 1px solid var(--divider-color);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: opacity 0.2s;
+  }
+  .job-card.disabled.svelte-7zsr1v {
+    opacity: 0.55;
+  }
+
+  .job-header.svelte-7zsr1v {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .job-title-row.svelte-7zsr1v {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .job-name.svelte-7zsr1v {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--primary-text-color);
+  }
+
+  .badge.svelte-7zsr1v {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: var(--secondary-background-color);
+    color: var(--secondary-text-color);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .badge.agent.svelte-7zsr1v {
+    background: rgba(33, 150, 243, 0.15);
+    color: #2196f3;
+  }
+  .badge.one-shot.svelte-7zsr1v {
+    background: rgba(255, 152, 0, 0.15);
+    color: #ff9800;
+  }
+
+  .job-meta.svelte-7zsr1v {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--secondary-text-color);
+  }
+  .cron.svelte-7zsr1v {
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    background: var(--secondary-background-color);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .next-run.svelte-7zsr1v {
+    color: var(--primary-color);
+  }
+
+  .job-prompt.svelte-7zsr1v {
+    font-size: 13px;
+    color: var(--secondary-text-color);
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .job-last-run.svelte-7zsr1v {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--secondary-text-color);
+  }
+  .last-error.svelte-7zsr1v {
+    color: var(--error-color);
+    font-weight: 500;
+  }
+
+  .status-dot.svelte-7zsr1v {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--secondary-text-color);
+    flex-shrink: 0;
+  }
+  .status-dot.ok.svelte-7zsr1v {
+    background: #4caf50;
+  }
+  .status-dot.error.svelte-7zsr1v {
+    background: #f44336;
+  }
+
+  .job-actions.svelte-7zsr1v {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .action-btn.svelte-7zsr1v {
+    padding: 5px 12px;
+    border: 1px solid var(--divider-color);
+    border-radius: 6px;
+    background: var(--secondary-background-color);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    color: var(--primary-text-color);
+  }
+  .action-btn.svelte-7zsr1v:hover {
+    background: var(--card-background-color);
+  }
+  .action-btn.svelte-7zsr1v:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .action-btn.run.svelte-7zsr1v {
+    border-color: rgba(33, 150, 243, 0.4);
+    color: #2196f3;
+  }
+  .action-btn.run.svelte-7zsr1v:hover {
+    background: rgba(33, 150, 243, 0.1);
+  }
+  .action-btn.delete.svelte-7zsr1v {
+    border-color: rgba(244, 67, 54, 0.3);
+    color: #f44336;
+  }
+  .action-btn.delete.svelte-7zsr1v:hover {
+    background: rgba(244, 67, 54, 0.1);
+  }
+
+  /* Toggle switch */
+  .toggle.svelte-7zsr1v {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .toggle.svelte-7zsr1v input:where(.svelte-7zsr1v) {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .slider.svelte-7zsr1v {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--divider-color);
+    border-radius: 20px;
+    transition: 0.2s;
+  }
+  .slider.svelte-7zsr1v::before {
+    content: '';
+    position: absolute;
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+  .toggle.svelte-7zsr1v input:where(.svelte-7zsr1v):checked + .slider:where(.svelte-7zsr1v) {
+    background: var(--primary-color);
+  }
+  .toggle.svelte-7zsr1v input:where(.svelte-7zsr1v):checked + .slider:where(.svelte-7zsr1v)::before {
+    transform: translateX(16px);
+  }
+
+  /* History */
+  .history-list.svelte-7zsr1v {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .history-item.svelte-7zsr1v {
+    background: var(--card-background-color);
+    border: 1px solid var(--divider-color);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .history-item.error.svelte-7zsr1v {
+    border-color: rgba(244, 67, 54, 0.3);
+  }
+  .history-header.svelte-7zsr1v {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .history-name.svelte-7zsr1v {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--primary-text-color);
+  }
+  .history-time.svelte-7zsr1v {
+    font-size: 11px;
+    color: var(--secondary-text-color);
+  }
+  .history-detail.svelte-7zsr1v {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--secondary-text-color);
+  }
+  .history-status.svelte-7zsr1v {
+    text-transform: uppercase;
+    font-weight: 500;
+    font-size: 11px;
+  }
+  .history-duration.svelte-7zsr1v {
+    opacity: 0.7;
+  }
+  .history-error.svelte-7zsr1v {
+    font-size: 12px;
+    color: var(--error-color);
+    margin-top: 2px;
+  }
+  .history-response.svelte-7zsr1v {
+    font-size: 12px;
+    color: var(--secondary-text-color);
+    line-height: 1.4;
+    opacity: 0.8;
+    margin-top: 2px;
+  }
+
   .settings-backdrop.svelte-nsapwt {
     position: fixed;
     inset: 0;
@@ -12646,7 +12973,7 @@ function updateSessionInList(sessionId, preview, title) {
   });
 }
 enable_legacy_mode_flag();
-var root$l = /* @__PURE__ */ from_html(`<div class="header svelte-1elxaub"><button class="menu-toggle svelte-1elxaub" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24" class="icon svelte-1elxaub"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"></path></svg></button> <svg viewBox="0 0 24 24" class="robot-icon svelte-1elxaub"><path d="M12 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 16.5V22h-3v-3.5h3zM5.5 22h3v-3.5h-3V22zM19 9h-1.5V7.5c0-1.93-1.57-3.5-3.5-3.5S10.5 5.57 10.5 7.5V9H9c-.55 0-1 .45-1 1v9c0 .55.45 1 1 1h10c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1zm-7.5-1.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5V9h-3V7.5z"></path></svg> <span class="title svelte-1elxaub">Homeclaw</span> <button class="settings-button svelte-1elxaub" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" class="icon svelte-1elxaub"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"></path></svg></button> <button class="clear-button svelte-1elxaub"><svg viewBox="0 0 24 24" class="icon svelte-1elxaub"><path d="M15 16h4v2h-4zm0-8h7v2h-7zm0 4h6v2h-6zM3 18c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2V8H3v10zM14 5h-3l-1-1H6L5 5H2v2h12z"></path></svg> <span class="svelte-1elxaub">Clear Chat</span></button></div>`);
+var root$m = /* @__PURE__ */ from_html(`<div class="header svelte-1elxaub"><button class="menu-toggle svelte-1elxaub" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24" class="icon svelte-1elxaub"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"></path></svg></button> <svg viewBox="0 0 24 24" class="robot-icon svelte-1elxaub"><path d="M12 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 16.5V22h-3v-3.5h3zM5.5 22h3v-3.5h-3V22zM19 9h-1.5V7.5c0-1.93-1.57-3.5-3.5-3.5S10.5 5.57 10.5 7.5V9H9c-.55 0-1 .45-1 1v9c0 .55.45 1 1 1h10c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1zm-7.5-1.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5V9h-3V7.5z"></path></svg> <span class="title svelte-1elxaub">Homeclaw</span> <button class="settings-button svelte-1elxaub" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" class="icon svelte-1elxaub"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"></path></svg></button> <button class="clear-button svelte-1elxaub"><svg viewBox="0 0 24 24" class="icon svelte-1elxaub"><path d="M15 16h4v2h-4zm0-8h7v2h-7zm0 4h6v2h-6zM3 18c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2V8H3v10zM14 5h-3l-1-1H6L5 5H2v2h12z"></path></svg> <span class="svelte-1elxaub">Clear Chat</span></button></div>`);
 function Header($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -12662,7 +12989,7 @@ function Header($$anchor, $$props) {
     }
   }
   init();
-  var div = root$l();
+  var div = root$m();
   var button = child(div);
   button.__click = function(...$$args) {
     toggleSidebar?.apply(this, $$args);
@@ -12711,7 +13038,7 @@ function formatSessionTime(timestamp) {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
 }
-var root$k = /* @__PURE__ */ from_html(`<div role="button" tabindex="0"><span class="session-title svelte-114uzds"> </span> <span class="session-preview svelte-114uzds"> </span> <span class="session-time svelte-114uzds"> </span> <button class="session-delete svelte-114uzds" aria-label="Delete session"><svg viewBox="0 0 24 24" class="icon svelte-114uzds"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path></svg></button></div>`);
+var root$l = /* @__PURE__ */ from_html(`<div role="button" tabindex="0"><span class="session-title svelte-114uzds"> </span> <span class="session-preview svelte-114uzds"> </span> <span class="session-time svelte-114uzds"> </span> <button class="session-delete svelte-114uzds" aria-label="Delete session"><svg viewBox="0 0 24 24" class="icon svelte-114uzds"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path></svg></button></div>`);
 function SessionItem($$anchor, $$props) {
   push($$props, true);
   const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
@@ -12731,7 +13058,7 @@ function SessionItem($$anchor, $$props) {
       await deleteSession(hass, $$props.session.session_id);
     }
   }
-  var div = root$k();
+  var div = root$l();
   let classes;
   div.__click = handleClick;
   var span = child(div);
@@ -12756,9 +13083,9 @@ function SessionItem($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root_2$8 = /* @__PURE__ */ from_html(`<div class="session-skeleton svelte-1j5qstn"><div class="skeleton-line svelte-1j5qstn"></div> <div class="skeleton-line short svelte-1j5qstn"></div> <div class="skeleton-line tiny svelte-1j5qstn"></div></div>`);
-var root_4$7 = /* @__PURE__ */ from_html(`<div class="empty-sessions svelte-1j5qstn"><svg viewBox="0 0 24 24" class="icon svelte-1j5qstn"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" class="svelte-1j5qstn"></path></svg> <p class="svelte-1j5qstn">No conversations yet</p></div>`);
-var root$j = /* @__PURE__ */ from_html(`<div class="session-list svelte-1j5qstn"><!></div>`);
+var root_2$9 = /* @__PURE__ */ from_html(`<div class="session-skeleton svelte-1j5qstn"><div class="skeleton-line svelte-1j5qstn"></div> <div class="skeleton-line short svelte-1j5qstn"></div> <div class="skeleton-line tiny svelte-1j5qstn"></div></div>`);
+var root_4$8 = /* @__PURE__ */ from_html(`<div class="empty-sessions svelte-1j5qstn"><svg viewBox="0 0 24 24" class="icon svelte-1j5qstn"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" class="svelte-1j5qstn"></path></svg> <p class="svelte-1j5qstn">No conversations yet</p></div>`);
+var root$k = /* @__PURE__ */ from_html(`<div class="session-list svelte-1j5qstn"><!></div>`);
 function SessionList($$anchor, $$props) {
   push($$props, false);
   const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
@@ -12766,14 +13093,14 @@ function SessionList($$anchor, $$props) {
   const [$$stores, $$cleanup] = setup_stores();
   const skeletonCount = 3;
   init();
-  var div = root$j();
+  var div = root$k();
   var node = child(div);
   {
     var consequent = ($$anchor2) => {
       var fragment = comment();
       var node_1 = first_child(fragment);
       each(node_1, 1, () => Array(skeletonCount), index, ($$anchor3, _2) => {
-        var div_1 = root_2$8();
+        var div_1 = root_2$9();
         append($$anchor3, div_1);
       });
       append($$anchor2, fragment);
@@ -12783,7 +13110,7 @@ function SessionList($$anchor, $$props) {
       var node_2 = first_child(fragment_1);
       {
         var consequent_1 = ($$anchor3) => {
-          var div_2 = root_4$7();
+          var div_2 = root_4$8();
           append($$anchor3, div_2);
         };
         var alternate = ($$anchor3) => {
@@ -12818,7 +13145,7 @@ function SessionList($$anchor, $$props) {
   pop();
   $$cleanup();
 }
-var root$i = /* @__PURE__ */ from_html(`<button class="new-chat-btn svelte-19p7jpv"><svg viewBox="0 0 24 24" class="icon svelte-19p7jpv"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg> <span class="svelte-19p7jpv">New Chat</span></button>`);
+var root$j = /* @__PURE__ */ from_html(`<button class="new-chat-btn svelte-19p7jpv"><svg viewBox="0 0 24 24" class="icon svelte-19p7jpv"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg> <span class="svelte-19p7jpv">New Chat</span></button>`);
 function NewChatButton($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -12836,26 +13163,26 @@ function NewChatButton($$anchor, $$props) {
     await createSession($appState().hass, $providerState().selectedProvider);
   }
   init();
-  var button = root$i();
+  var button = root$j();
   button.__click = handleNewChat;
   append($$anchor, button);
   pop();
   $$cleanup();
 }
 delegate(["click"]);
-var root_1$e = /* @__PURE__ */ from_html(`<div class="sidebar-overlay svelte-ou1367"></div>`);
-var root$h = /* @__PURE__ */ from_html(`<!> <aside><div class="sidebar-header svelte-ou1367"><div class="sidebar-title svelte-ou1367"><svg viewBox="0 0 24 24" class="icon svelte-ou1367"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"></path></svg> Conversations</div> <!></div> <!></aside>`, 1);
+var root_1$f = /* @__PURE__ */ from_html(`<div class="sidebar-overlay svelte-ou1367"></div>`);
+var root$i = /* @__PURE__ */ from_html(`<!> <aside><div class="sidebar-header svelte-ou1367"><div class="sidebar-title svelte-ou1367"><svg viewBox="0 0 24 24" class="icon svelte-ou1367"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"></path></svg> Conversations</div> <!></div> <!></aside>`, 1);
 function Sidebar($$anchor, $$props) {
   push($$props, true);
   const $uiState = () => store_get(uiState, "$uiState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   const sidebarClass = /* @__PURE__ */ user_derived(() => isMobile() ? $uiState().sidebarOpen ? "sidebar open" : "sidebar hidden" : $uiState().sidebarOpen ? "sidebar" : "sidebar hidden");
   const showOverlay = /* @__PURE__ */ user_derived(() => $uiState().sidebarOpen && isMobile());
-  var fragment = root$h();
+  var fragment = root$i();
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var div = root_1$e();
+      var div = root_1$f();
       div.__click = function(...$$args) {
         closeSidebar?.apply(this, $$args);
       };
@@ -12877,10 +13204,10 @@ function Sidebar($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root_2$7 = /* @__PURE__ */ from_html(`<span class="streaming-cursor svelte-cu3vo4">▋</span>`);
-var root_1$d = /* @__PURE__ */ from_html(`<!> <!>`, 1);
-var root_4$6 = /* @__PURE__ */ from_html(`<span class="message-time svelte-cu3vo4"> </span>`);
-var root$g = /* @__PURE__ */ from_html(`<div><div class="message-content svelte-cu3vo4"><!></div> <!></div>`);
+var root_2$8 = /* @__PURE__ */ from_html(`<span class="streaming-cursor svelte-cu3vo4">▋</span>`);
+var root_1$e = /* @__PURE__ */ from_html(`<!> <!>`, 1);
+var root_4$7 = /* @__PURE__ */ from_html(`<span class="message-time svelte-cu3vo4"> </span>`);
+var root$h = /* @__PURE__ */ from_html(`<div><div class="message-content svelte-cu3vo4"><!></div> <!></div>`);
 function MessageBubble($$anchor, $$props) {
   push($$props, true);
   const renderedContent = /* @__PURE__ */ user_derived(() => $$props.message.type === "assistant" ? renderMarkdown($$props.message.text, get(sessionState).activeSessionId || void 0) : $$props.message.text);
@@ -12899,19 +13226,19 @@ function MessageBubble($$anchor, $$props) {
       return "";
     }
   });
-  var div = root$g();
+  var div = root$h();
   let classes;
   var div_1 = child(div);
   var node = child(div_1);
   {
     var consequent_1 = ($$anchor2) => {
-      var fragment = root_1$d();
+      var fragment = root_1$e();
       var node_1 = first_child(fragment);
       html$2(node_1, () => get$1(renderedContent));
       var node_2 = sibling(node_1, 2);
       {
         var consequent = ($$anchor3) => {
-          var span = root_2$7();
+          var span = root_2$8();
           append($$anchor3, span);
         };
         if_block(node_2, ($$render) => {
@@ -12933,7 +13260,7 @@ function MessageBubble($$anchor, $$props) {
   var node_3 = sibling(div_1, 2);
   {
     var consequent_2 = ($$anchor2) => {
-      var span_1 = root_4$6();
+      var span_1 = root_4$7();
       var text_1 = child(span_1);
       template_effect(() => set_text(text_1, get$1(formattedTime)));
       append($$anchor2, span_1);
@@ -12950,17 +13277,17 @@ function MessageBubble($$anchor, $$props) {
   append($$anchor, div);
   pop();
 }
-var root$f = /* @__PURE__ */ from_html(`<div class="loading svelte-174ds4q"><span class="svelte-174ds4q">Homeclaw is thinking</span> <div class="loading-dots svelte-174ds4q"><div class="dot svelte-174ds4q"></div> <div class="dot svelte-174ds4q"></div> <div class="dot svelte-174ds4q"></div></div></div>`);
+var root$g = /* @__PURE__ */ from_html(`<div class="loading svelte-174ds4q"><span class="svelte-174ds4q">Homeclaw is thinking</span> <div class="loading-dots svelte-174ds4q"><div class="dot svelte-174ds4q"></div> <div class="dot svelte-174ds4q"></div> <div class="dot svelte-174ds4q"></div></div></div>`);
 function LoadingIndicator($$anchor) {
+  var div = root$g();
+  append($$anchor, div);
+}
+var root$f = /* @__PURE__ */ from_html(`<div class="empty-chat svelte-euh035"><svg viewBox="0 0 24 24" class="icon svelte-euh035"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"></path></svg> <h3 class="svelte-euh035">Start a conversation</h3> <p class="svelte-euh035">Ask your AI assistant about your Home Assistant setup, automations, or devices.</p></div>`);
+function EmptyState($$anchor) {
   var div = root$f();
   append($$anchor, div);
 }
-var root$e = /* @__PURE__ */ from_html(`<div class="empty-chat svelte-euh035"><svg viewBox="0 0 24 24" class="icon svelte-euh035"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"></path></svg> <h3 class="svelte-euh035">Start a conversation</h3> <p class="svelte-euh035">Ask your AI assistant about your Home Assistant setup, automations, or devices.</p></div>`);
-function EmptyState($$anchor) {
-  var div = root$e();
-  append($$anchor, div);
-}
-var root_1$c = /* @__PURE__ */ from_html(`<div class="error svelte-sualbq"><svg viewBox="0 0 24 24" class="icon svelte-sualbq"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg> <span class="error-message svelte-sualbq"> </span> <button class="error-dismiss svelte-sualbq" aria-label="Dismiss error"><svg viewBox="0 0 24 24" class="close-icon svelte-sualbq"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button></div>`);
+var root_1$d = /* @__PURE__ */ from_html(`<div class="error svelte-sualbq"><svg viewBox="0 0 24 24" class="icon svelte-sualbq"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg> <span class="error-message svelte-sualbq"> </span> <button class="error-dismiss svelte-sualbq" aria-label="Dismiss error"><svg viewBox="0 0 24 24" class="close-icon svelte-sualbq"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button></div>`);
 function ErrorMessage($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -12973,7 +13300,7 @@ function ErrorMessage($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var div = root_1$c();
+      var div = root_1$d();
       var span = sibling(child(div), 2);
       var text2 = child(span);
       var button = sibling(span, 2);
@@ -12990,7 +13317,7 @@ function ErrorMessage($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root$d = /* @__PURE__ */ from_html(`<div class="messages svelte-hiq0w4"><!> <!> <!> <!></div>`);
+var root$e = /* @__PURE__ */ from_html(`<div class="messages svelte-hiq0w4"><!> <!> <!> <!></div>`);
 function ChatArea($$anchor, $$props) {
   push($$props, false);
   const $hasMessages = () => store_get(hasMessages, "$hasMessages", $$stores);
@@ -13004,7 +13331,7 @@ function ChatArea($$anchor, $$props) {
     scrollToBottom(get$1(messagesContainer));
   });
   init();
-  var div = root$d();
+  var div = root$e();
   var node = child(div);
   {
     var consequent = ($$anchor2) => {
@@ -13152,7 +13479,7 @@ function parseAIResponse(content) {
   }
   return { text: content };
 }
-var root$c = /* @__PURE__ */ from_html(`<div class="input-wrapper svelte-5grvz8"><textarea placeholder="Ask me anything about your Home Assistant..." class="svelte-5grvz8"></textarea></div>`);
+var root$d = /* @__PURE__ */ from_html(`<div class="input-wrapper svelte-5grvz8"><textarea placeholder="Ask me anything about your Home Assistant..." class="svelte-5grvz8"></textarea></div>`);
 function MessageInput($$anchor, $$props) {
   push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -13180,7 +13507,7 @@ function MessageInput($$anchor, $$props) {
     }
   }
   var $$exports = { getValue, clear };
-  var div = root$c();
+  var div = root$d();
   var textarea_1 = child(div);
   textarea_1.__input = handleInput;
   textarea_1.__keydown = handleKeyDown;
@@ -13193,8 +13520,8 @@ function MessageInput($$anchor, $$props) {
   return $$pop;
 }
 delegate(["input", "keydown"]);
-var root_2$6 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_1$b = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-6zrmqv"><span class="provider-label svelte-6zrmqv">Provider:</span> <select class="provider-button svelte-6zrmqv"></select></div>`);
+var root_2$7 = /* @__PURE__ */ from_html(`<option> </option>`);
+var root_1$c = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-6zrmqv"><span class="provider-label svelte-6zrmqv">Provider:</span> <select class="provider-button svelte-6zrmqv"></select></div>`);
 var root_3$8 = /* @__PURE__ */ from_html(`<div class="no-providers svelte-6zrmqv">No providers configured</div>`);
 function ProviderSelector($$anchor, $$props) {
   push($$props, false);
@@ -13214,11 +13541,11 @@ function ProviderSelector($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var div = root_1$b();
+      var div = root_1$c();
       var select = sibling(child(div), 2);
       select.__change = handleChange;
       each(select, 5, () => $providerState().availableProviders, index, ($$anchor3, provider) => {
-        var option = root_2$6();
+        var option = root_2$7();
         var text2 = child(option);
         var option_value = {};
         template_effect(() => {
@@ -13252,9 +13579,9 @@ function ProviderSelector($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["change"]);
-var root_2$5 = /* @__PURE__ */ from_html(`<span class="default-star svelte-1whqbkb" title="Your default model">&#9733;</span>`);
+var root_2$6 = /* @__PURE__ */ from_html(`<span class="default-star svelte-1whqbkb" title="Your default model">&#9733;</span>`);
 var root_3$7 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_1$a = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-1whqbkb"><span class="provider-label svelte-1whqbkb">Model:</span> <!> <select class="provider-button svelte-1whqbkb"></select></div>`);
+var root_1$b = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-1whqbkb"><span class="provider-label svelte-1whqbkb">Model:</span> <!> <select class="provider-button svelte-1whqbkb"></select></div>`);
 function ModelSelector($$anchor, $$props) {
   push($$props, true);
   const $providerState = () => store_get(providerState, "$providerState", $$stores);
@@ -13269,11 +13596,11 @@ function ModelSelector($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent_1 = ($$anchor2) => {
-      var div = root_1$a();
+      var div = root_1$b();
       var node_1 = sibling(child(div), 2);
       {
         var consequent = ($$anchor3) => {
-          var span = root_2$5();
+          var span = root_2$6();
           append($$anchor3, span);
         };
         if_block(node_1, ($$render) => {
@@ -13312,14 +13639,14 @@ function ModelSelector($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["change"]);
-var root$b = /* @__PURE__ */ from_html(`<button class="send-button svelte-1lpj1oh"><svg viewBox="0 0 24 24" class="icon svelte-1lpj1oh"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>`);
+var root$c = /* @__PURE__ */ from_html(`<button class="send-button svelte-1lpj1oh"><svg viewBox="0 0 24 24" class="icon svelte-1lpj1oh"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>`);
 function SendButton($$anchor, $$props) {
   push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
   const $hasProviders = () => store_get(hasProviders, "$hasProviders", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   const disabled = /* @__PURE__ */ user_derived(() => $appState().isLoading || !$hasProviders());
-  var button = root$b();
+  var button = root$c();
   button.__click = function(...$$args) {
     $$props.onclick?.apply(this, $$args);
   };
@@ -13329,7 +13656,7 @@ function SendButton($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root$a = /* @__PURE__ */ from_html(`<label class="thinking-toggle svelte-1ahnk03"><input type="checkbox" class="svelte-1ahnk03"/> <span class="label svelte-1ahnk03">Debug Mode</span></label>`);
+var root$b = /* @__PURE__ */ from_html(`<label class="thinking-toggle svelte-1ahnk03"><input type="checkbox" class="svelte-1ahnk03"/> <span class="label svelte-1ahnk03">Debug Mode</span></label>`);
 function ThinkingToggle($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -13338,7 +13665,7 @@ function ThinkingToggle($$anchor, $$props) {
     appState.update((s2) => ({ ...s2, showThinking: !s2.showThinking }));
   }
   init();
-  var label = root$a();
+  var label = root$b();
   var input = child(label);
   input.__change = toggle;
   template_effect(() => set_checked(input, $appState().showThinking));
@@ -13347,7 +13674,7 @@ function ThinkingToggle($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["change"]);
-var root$9 = /* @__PURE__ */ from_html(`<div class="input-container svelte-f7ebxa"><div class="input-main svelte-f7ebxa"><!></div> <div class="input-footer svelte-f7ebxa"><!> <!> <!> <!></div></div>`);
+var root$a = /* @__PURE__ */ from_html(`<div class="input-container svelte-f7ebxa"><div class="input-main svelte-f7ebxa"><!></div> <div class="input-footer svelte-f7ebxa"><!> <!> <!> <!></div></div>`);
 function InputArea($$anchor, $$props) {
   push($$props, false);
   let messageInput = /* @__PURE__ */ mutable_source();
@@ -13483,7 +13810,7 @@ _${status}_` } : msg)
     }
   }
   init();
-  var div = root$9();
+  var div = root$a();
   var div_1 = child(div);
   var node = child(div_1);
   bind_this(MessageInput(node, { onSend: handleSend, $$legacy: true }), ($$value) => set(messageInput, $$value), () => get$1(messageInput));
@@ -13499,13 +13826,13 @@ _${status}_` } : msg)
   append($$anchor, div);
   pop();
 }
-var root_2$4 = /* @__PURE__ */ from_html(`<span class="thinking-subtitle svelte-wqn4rm"> </span>`);
+var root_2$5 = /* @__PURE__ */ from_html(`<span class="thinking-subtitle svelte-wqn4rm"> </span>`);
 var root_3$6 = /* @__PURE__ */ from_svg(`<path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"></path>`);
-var root_4$5 = /* @__PURE__ */ from_svg(`<path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>`);
-var root_6$5 = /* @__PURE__ */ from_html(`<div class="thinking-empty svelte-wqn4rm">No trace captured.</div>`);
-var root_8$4 = /* @__PURE__ */ from_html(`<div class="thinking-entry svelte-wqn4rm"><div class="badge svelte-wqn4rm"> </div> <pre class="svelte-wqn4rm"> </pre></div>`);
+var root_4$6 = /* @__PURE__ */ from_svg(`<path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>`);
+var root_6$6 = /* @__PURE__ */ from_html(`<div class="thinking-empty svelte-wqn4rm">No trace captured.</div>`);
+var root_8$5 = /* @__PURE__ */ from_html(`<div class="thinking-entry svelte-wqn4rm"><div class="badge svelte-wqn4rm"> </div> <pre class="svelte-wqn4rm"> </pre></div>`);
 var root_5$6 = /* @__PURE__ */ from_html(`<div class="thinking-body svelte-wqn4rm"><!></div>`);
-var root_1$9 = /* @__PURE__ */ from_html(`<div class="thinking-panel svelte-wqn4rm"><div class="thinking-header svelte-wqn4rm" role="button" tabindex="0"><div><span class="thinking-title svelte-wqn4rm">Thinking trace</span> <!></div> <svg viewBox="0 0 24 24" class="icon svelte-wqn4rm"><!></svg></div> <!></div>`);
+var root_1$a = /* @__PURE__ */ from_html(`<div class="thinking-panel svelte-wqn4rm"><div class="thinking-header svelte-wqn4rm" role="button" tabindex="0"><div><span class="thinking-title svelte-wqn4rm">Thinking trace</span> <!></div> <svg viewBox="0 0 24 24" class="icon svelte-wqn4rm"><!></svg></div> <!></div>`);
 function ThinkingPanel($$anchor, $$props) {
   push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -13526,14 +13853,14 @@ function ThinkingPanel($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent_4 = ($$anchor2) => {
-      var div = root_1$9();
+      var div = root_1$a();
       var div_1 = child(div);
       div_1.__click = toggleExpanded;
       var div_2 = child(div_1);
       var node_1 = sibling(child(div_2), 2);
       {
         var consequent = ($$anchor3) => {
-          var span = root_2$4();
+          var span = root_2$5();
           var text2 = child(span);
           template_effect(($0) => set_text(text2, $0), [() => get$1(subtitle)()]);
           append($$anchor3, span);
@@ -13550,7 +13877,7 @@ function ThinkingPanel($$anchor, $$props) {
           append($$anchor3, path);
         };
         var alternate = ($$anchor3) => {
-          var path_1 = root_4$5();
+          var path_1 = root_4$6();
           append($$anchor3, path_1);
         };
         if_block(node_2, ($$render) => {
@@ -13565,14 +13892,14 @@ function ThinkingPanel($$anchor, $$props) {
           var node_4 = child(div_3);
           {
             var consequent_2 = ($$anchor4) => {
-              var div_4 = root_6$5();
+              var div_4 = root_6$6();
               append($$anchor4, div_4);
             };
             var alternate_1 = ($$anchor4) => {
               var fragment_1 = comment();
               var node_5 = first_child(fragment_1);
               each(node_5, 17, () => get$1(conversation), index, ($$anchor5, entry) => {
-                var div_5 = root_8$4();
+                var div_5 = root_8$5();
                 var div_6 = child(div_5);
                 var text_1 = child(div_6);
                 var pre = sibling(div_6, 2);
@@ -13622,16 +13949,16 @@ async function updateProviderModels(hass, provider, data) {
   });
   return result.config;
 }
-var root_1$8 = /* @__PURE__ */ from_html(`<div> </div>`);
-var root_2$3 = /* @__PURE__ */ from_html(`<div class="loading svelte-fraw8h">Loading configuration...</div>`);
-var root_7$3 = /* @__PURE__ */ from_svg(`<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"></path>`);
-var root_8$3 = /* @__PURE__ */ from_svg(`<path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"></path>`);
-var root_6$4 = /* @__PURE__ */ from_html(`<div class="model-row svelte-fraw8h"><div class="model-fields svelte-fraw8h"><input class="input small svelte-fraw8h" placeholder="ID (e.g. gpt-4o)"/> <input class="input svelte-fraw8h" placeholder="Display Name"/> <input class="input wide svelte-fraw8h" placeholder="Description (optional)"/></div> <div class="model-actions svelte-fraw8h"><button><svg viewBox="0 0 24 24" class="star-icon svelte-fraw8h"><!></svg></button> <button class="icon-btn danger svelte-fraw8h" title="Remove model"><svg viewBox="0 0 24 24" class="svelte-fraw8h"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path></svg></button></div></div>`);
-var root_9$1 = /* @__PURE__ */ from_html(`<div class="empty-models svelte-fraw8h">No models defined. Add one below.</div>`);
+var root_1$9 = /* @__PURE__ */ from_html(`<div> </div>`);
+var root_2$4 = /* @__PURE__ */ from_html(`<div class="loading svelte-fraw8h">Loading configuration...</div>`);
+var root_7$4 = /* @__PURE__ */ from_svg(`<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"></path>`);
+var root_8$4 = /* @__PURE__ */ from_svg(`<path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"></path>`);
+var root_6$5 = /* @__PURE__ */ from_html(`<div class="model-row svelte-fraw8h"><div class="model-fields svelte-fraw8h"><input class="input small svelte-fraw8h" placeholder="ID (e.g. gpt-4o)"/> <input class="input svelte-fraw8h" placeholder="Display Name"/> <input class="input wide svelte-fraw8h" placeholder="Description (optional)"/></div> <div class="model-actions svelte-fraw8h"><button><svg viewBox="0 0 24 24" class="star-icon svelte-fraw8h"><!></svg></button> <button class="icon-btn danger svelte-fraw8h" title="Remove model"><svg viewBox="0 0 24 24" class="svelte-fraw8h"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path></svg></button></div></div>`);
+var root_9$2 = /* @__PURE__ */ from_html(`<div class="empty-models svelte-fraw8h">No models defined. Add one below.</div>`);
 var root_5$5 = /* @__PURE__ */ from_html(`<div class="provider-body svelte-fraw8h"><!> <!> <div class="provider-actions svelte-fraw8h"><button class="btn text svelte-fraw8h">+ Add Model</button> <div class="action-group svelte-fraw8h"><button class="btn secondary svelte-fraw8h">Revert</button> <button class="btn primary svelte-fraw8h"> </button></div></div></div>`);
-var root_4$4 = /* @__PURE__ */ from_html(`<div><button class="provider-header svelte-fraw8h"><div class="provider-info svelte-fraw8h"><span class="provider-name svelte-fraw8h"> </span> <span class="model-count svelte-fraw8h"> </span></div> <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5H7z"></path></svg></button> <!></div>`);
+var root_4$5 = /* @__PURE__ */ from_html(`<div><button class="provider-header svelte-fraw8h"><div class="provider-info svelte-fraw8h"><span class="provider-name svelte-fraw8h"> </span> <span class="model-count svelte-fraw8h"> </span></div> <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5H7z"></path></svg></button> <!></div>`);
 var root_3$5 = /* @__PURE__ */ from_html(`<div class="provider-list svelte-fraw8h"></div>`);
-var root$8 = /* @__PURE__ */ from_html(`<div class="models-editor svelte-fraw8h"><p class="description svelte-fraw8h">Edit model definitions for each provider. Changes are saved to the server and take
+var root$9 = /* @__PURE__ */ from_html(`<div class="models-editor svelte-fraw8h"><p class="description svelte-fraw8h">Edit model definitions for each provider. Changes are saved to the server and take
     effect immediately.</p> <!> <!></div>`);
 function ModelsEditor($$anchor, $$props) {
   push($$props, true);
@@ -13719,11 +14046,11 @@ function ModelsEditor($$anchor, $$props) {
     setTimeout(() => set(message, null), 3e3);
   }
   const providerKeys = /* @__PURE__ */ user_derived(() => Object.keys(get$1(config)));
-  var div = root$8();
+  var div = root$9();
   var node = sibling(child(div), 2);
   {
     var consequent = ($$anchor2) => {
-      var div_1 = root_1$8();
+      var div_1 = root_1$9();
       let classes;
       var text_1 = child(div_1);
       template_effect(() => {
@@ -13739,7 +14066,7 @@ function ModelsEditor($$anchor, $$props) {
   var node_1 = sibling(node, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      var div_2 = root_2$3();
+      var div_2 = root_2$4();
       append($$anchor2, div_2);
     };
     var alternate_1 = ($$anchor2) => {
@@ -13748,7 +14075,7 @@ function ModelsEditor($$anchor, $$props) {
         const pc = /* @__PURE__ */ user_derived(() => get$1(config)[provider]);
         const isExpanded = /* @__PURE__ */ user_derived(() => get$1(expandedProvider) === provider);
         const models = /* @__PURE__ */ user_derived(() => editingModels[provider] || get$1(pc).models || []);
-        var div_4 = root_4$4();
+        var div_4 = root_4$5();
         let classes_1;
         var button = child(div_4);
         button.__click = () => toggleProvider(provider);
@@ -13765,7 +14092,7 @@ function ModelsEditor($$anchor, $$props) {
             var div_6 = root_5$5();
             var node_3 = child(div_6);
             each(node_3, 17, () => get$1(models), index, ($$anchor5, model, index2) => {
-              var div_7 = root_6$4();
+              var div_7 = root_6$5();
               var div_8 = child(div_7);
               var input = child(div_8);
               input.__input = (e2) => updateModelField(provider, index2, "id", e2.target.value);
@@ -13781,11 +14108,11 @@ function ModelsEditor($$anchor, $$props) {
               var node_4 = child(svg_1);
               {
                 var consequent_2 = ($$anchor6) => {
-                  var path = root_7$3();
+                  var path = root_7$4();
                   append($$anchor6, path);
                 };
                 var alternate = ($$anchor6) => {
-                  var path_1 = root_8$3();
+                  var path_1 = root_8$4();
                   append($$anchor6, path_1);
                 };
                 if_block(node_4, ($$render) => {
@@ -13807,7 +14134,7 @@ function ModelsEditor($$anchor, $$props) {
             var node_5 = sibling(node_3, 2);
             {
               var consequent_3 = ($$anchor5) => {
-                var div_10 = root_9$1();
+                var div_10 = root_9$2();
                 append($$anchor5, div_10);
               };
               if_block(node_5, ($$render) => {
@@ -13852,16 +14179,16 @@ function ModelsEditor($$anchor, $$props) {
   pop();
 }
 delegate(["click", "input"]);
-var root_1$7 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_2$2 = /* @__PURE__ */ from_html(`<div class="loading-text svelte-1udswlp">Loading models...</div>`);
-var root_4$3 = /* @__PURE__ */ from_html(`<option> </option>`);
+var root_1$8 = /* @__PURE__ */ from_html(`<option> </option>`);
+var root_2$3 = /* @__PURE__ */ from_html(`<div class="loading-text svelte-1udswlp">Loading models...</div>`);
+var root_4$4 = /* @__PURE__ */ from_html(`<option> </option>`);
 var root_3$4 = /* @__PURE__ */ from_html(`<select id="default-model" class="select svelte-1udswlp"><option>-- Provider default --</option><!></select>`);
-var root_6$3 = /* @__PURE__ */ from_html(`<span class="badge svelte-1udswlp"> </span>`);
-var root_7$2 = /* @__PURE__ */ from_html(`<span class="badge model svelte-1udswlp"> </span>`);
+var root_6$4 = /* @__PURE__ */ from_html(`<span class="badge svelte-1udswlp"> </span>`);
+var root_7$3 = /* @__PURE__ */ from_html(`<span class="badge model svelte-1udswlp"> </span>`);
 var root_5$4 = /* @__PURE__ */ from_html(`<div class="current-defaults svelte-1udswlp"><strong>Current defaults:</strong> <!> <!></div>`);
-var root_8$2 = /* @__PURE__ */ from_html(`<div> </div>`);
-var root_9 = /* @__PURE__ */ from_html(`<button class="btn secondary svelte-1udswlp">Clear Defaults</button>`);
-var root$7 = /* @__PURE__ */ from_html(`<div class="defaults-editor svelte-1udswlp"><p class="description svelte-1udswlp">Set a default provider and model that will be automatically selected when you open the chat.</p> <div class="field svelte-1udswlp"><label for="default-provider" class="svelte-1udswlp">Default Provider</label> <select id="default-provider" class="select svelte-1udswlp"><option>-- None (auto-select first) --</option><!></select></div> <div class="field svelte-1udswlp"><label for="default-model" class="svelte-1udswlp">Default Model</label> <!></div> <!> <!> <div class="actions svelte-1udswlp"><button class="btn primary svelte-1udswlp"> </button> <!></div></div>`);
+var root_8$3 = /* @__PURE__ */ from_html(`<div> </div>`);
+var root_9$1 = /* @__PURE__ */ from_html(`<button class="btn secondary svelte-1udswlp">Clear Defaults</button>`);
+var root$8 = /* @__PURE__ */ from_html(`<div class="defaults-editor svelte-1udswlp"><p class="description svelte-1udswlp">Set a default provider and model that will be automatically selected when you open the chat.</p> <div class="field svelte-1udswlp"><label for="default-provider" class="svelte-1udswlp">Default Provider</label> <select id="default-provider" class="select svelte-1udswlp"><option>-- None (auto-select first) --</option><!></select></div> <div class="field svelte-1udswlp"><label for="default-model" class="svelte-1udswlp">Default Model</label> <!></div> <!> <!> <div class="actions svelte-1udswlp"><button class="btn primary svelte-1udswlp"> </button> <!></div></div>`);
 function DefaultsEditor($$anchor, $$props) {
   push($$props, true);
   const $providerState = () => store_get(providerState, "$providerState", $$stores);
@@ -13953,7 +14280,7 @@ function DefaultsEditor($$anchor, $$props) {
     set(selectedModel, target.value || null, true);
   }
   const hasDefaults = /* @__PURE__ */ user_derived(() => $providerState().defaultProvider !== null || $providerState().defaultModel !== null);
-  var div = root$7();
+  var div = root$8();
   var div_1 = sibling(child(div), 2);
   var select = sibling(child(div_1), 2);
   select.__change = handleProviderChange;
@@ -13961,7 +14288,7 @@ function DefaultsEditor($$anchor, $$props) {
   option.value = option.__value = "";
   var node = sibling(option);
   each(node, 1, () => $providerState().availableProviders, index, ($$anchor2, provider) => {
-    var option_1 = root_1$7();
+    var option_1 = root_1$8();
     var text2 = child(option_1);
     var option_1_value = {};
     template_effect(() => {
@@ -13978,7 +14305,7 @@ function DefaultsEditor($$anchor, $$props) {
   var node_1 = sibling(child(div_2), 2);
   {
     var consequent = ($$anchor2) => {
-      var div_3 = root_2$2();
+      var div_3 = root_2$3();
       append($$anchor2, div_3);
     };
     var alternate = ($$anchor2) => {
@@ -13988,7 +14315,7 @@ function DefaultsEditor($$anchor, $$props) {
       option_2.value = option_2.__value = "";
       var node_2 = sibling(option_2);
       each(node_2, 17, () => get$1(models), index, ($$anchor3, model) => {
-        var option_3 = root_4$3();
+        var option_3 = root_4$4();
         var text_1 = child(option_3);
         var option_3_value = {};
         template_effect(() => {
@@ -14021,7 +14348,7 @@ function DefaultsEditor($$anchor, $$props) {
       var node_4 = sibling(child(div_4), 2);
       {
         var consequent_1 = ($$anchor3) => {
-          var span = root_6$3();
+          var span = root_6$4();
           var text_2 = child(span);
           template_effect(($0) => set_text(text_2, $0), [
             () => $providerState().availableProviders.find((p2) => p2.value === $providerState().defaultProvider)?.label || $providerState().defaultProvider
@@ -14035,7 +14362,7 @@ function DefaultsEditor($$anchor, $$props) {
       var node_5 = sibling(node_4, 2);
       {
         var consequent_2 = ($$anchor3) => {
-          var span_1 = root_7$2();
+          var span_1 = root_7$3();
           var text_3 = child(span_1);
           template_effect(() => set_text(text_3, $providerState().defaultModel));
           append($$anchor3, span_1);
@@ -14053,7 +14380,7 @@ function DefaultsEditor($$anchor, $$props) {
   var node_6 = sibling(node_3, 2);
   {
     var consequent_4 = ($$anchor2) => {
-      var div_5 = root_8$2();
+      var div_5 = root_8$3();
       let classes;
       var text_4 = child(div_5);
       template_effect(() => {
@@ -14073,7 +14400,7 @@ function DefaultsEditor($$anchor, $$props) {
   var node_7 = sibling(button, 2);
   {
     var consequent_5 = ($$anchor2) => {
-      var button_1 = root_9();
+      var button_1 = root_9$1();
       button_1.__click = handleClear;
       template_effect(() => button_1.disabled = get$1(saving));
       append($$anchor2, button_1);
@@ -14111,21 +14438,21 @@ function formatExpiresAt(expiresAt) {
   }
   return `${Math.round(daysLeft)}d left`;
 }
-var root_2$1 = /* @__PURE__ */ from_html(`<button class="btn text btn-sm svelte-1lsjbvq">Edit</button>`);
+var root_2$2 = /* @__PURE__ */ from_html(`<button class="btn text btn-sm svelte-1lsjbvq">Edit</button>`);
 var root_3$3 = /* @__PURE__ */ from_html(`<div class="identity-form svelte-1lsjbvq"><div class="form-group svelte-1lsjbvq"><label for="id-agent-name" class="svelte-1lsjbvq">Agent Name</label> <input id="id-agent-name" type="text" placeholder="e.g. Jarvis" class="svelte-1lsjbvq"/></div> <div class="form-group svelte-1lsjbvq"><label for="id-agent-personality" class="svelte-1lsjbvq">Personality</label> <textarea id="id-agent-personality" placeholder="e.g. Friendly, witty, concise" rows="2" class="svelte-1lsjbvq"></textarea></div> <div class="form-group svelte-1lsjbvq"><label for="id-agent-emoji" class="svelte-1lsjbvq">Emoji</label> <input id="id-agent-emoji" type="text" placeholder="e.g. 🤖" maxlength="4" class="emoji-input svelte-1lsjbvq"/></div> <div class="form-group svelte-1lsjbvq"><label for="id-user-name" class="svelte-1lsjbvq">Your Name</label> <input id="id-user-name" type="text" placeholder="e.g. Adam" class="svelte-1lsjbvq"/></div> <div class="form-group svelte-1lsjbvq"><label for="id-user-info" class="svelte-1lsjbvq">About You</label> <textarea id="id-user-info" placeholder="e.g. Lives in Warsaw, works from home, has 2 cats" rows="3" class="svelte-1lsjbvq"></textarea></div> <div class="form-group svelte-1lsjbvq"><label for="id-language" class="svelte-1lsjbvq">Language</label> <select id="id-language" class="svelte-1lsjbvq"><option>Auto-detect</option><option>Polski</option><option>English</option><option>Deutsch</option><option>Français</option><option>Español</option><option>Italiano</option><option>Nederlands</option><option>Українська</option></select></div> <div class="form-actions svelte-1lsjbvq"><button class="btn primary svelte-1lsjbvq"> </button> <button class="btn text svelte-1lsjbvq">Cancel</button></div></div>`);
-var root_4$2 = /* @__PURE__ */ from_html(`<div class="kv-grid svelte-1lsjbvq"><span class="k svelte-1lsjbvq">Name</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Personality</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">User</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Language</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Onboarded</span><span class="v svelte-1lsjbvq"> </span></div>`);
-var root_1$6 = /* @__PURE__ */ from_html(`<div class="card svelte-1lsjbvq"><div class="card-header svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Agent Identity</h3> <!></div> <!></div>`);
+var root_4$3 = /* @__PURE__ */ from_html(`<div class="kv-grid svelte-1lsjbvq"><span class="k svelte-1lsjbvq">Name</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Personality</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">User</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Language</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Onboarded</span><span class="v svelte-1lsjbvq"> </span></div>`);
+var root_1$7 = /* @__PURE__ */ from_html(`<div class="card svelte-1lsjbvq"><div class="card-header svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Agent Identity</h3> <!></div> <!></div>`);
 var root_5$3 = /* @__PURE__ */ from_html(`<div class="card svelte-1lsjbvq"><div class="card-header svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Agent Identity</h3> <button class="btn text btn-sm svelte-1lsjbvq">Set up</button></div> <p class="desc svelte-1lsjbvq">No identity configured yet. Click "Set up" to create one, or start a conversation to go
         through the onboarding flow.</p></div>`);
-var root_7$1 = /* @__PURE__ */ from_html(`<div class="card svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Session Index</h3> <div class="kv-grid svelte-1lsjbvq"><span class="k svelte-1lsjbvq">Total chunks</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Indexed sessions</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Storage</span><span class="v svelte-1lsjbvq"> </span></div></div>`);
-var root_6$2 = /* @__PURE__ */ from_html(`<div class="card svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Entity Index</h3> <div class="kv-grid svelte-1lsjbvq"><span class="k svelte-1lsjbvq">Indexed entities</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Embedding provider</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Dimensions</span><span class="v svelte-1lsjbvq"> </span></div></div> <!>`, 1);
-var root_10$1 = /* @__PURE__ */ from_html(`<span class="k cat svelte-1lsjbvq"> </span><span class="v svelte-1lsjbvq"> </span>`, 1);
-var root_13 = /* @__PURE__ */ from_html(`<span class="k source-label svelte-1lsjbvq"> </span> <span> </span>`, 1);
-var root_14 = /* @__PURE__ */ from_html(`<span class="k svelte-1lsjbvq">With TTL (ephemeral)</span> <span class="v svelte-1lsjbvq"> </span>`, 1);
+var root_7$2 = /* @__PURE__ */ from_html(`<div class="card svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Session Index</h3> <div class="kv-grid svelte-1lsjbvq"><span class="k svelte-1lsjbvq">Total chunks</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Indexed sessions</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Storage</span><span class="v svelte-1lsjbvq"> </span></div></div>`);
+var root_6$3 = /* @__PURE__ */ from_html(`<div class="card svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Entity Index</h3> <div class="kv-grid svelte-1lsjbvq"><span class="k svelte-1lsjbvq">Indexed entities</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Embedding provider</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Dimensions</span><span class="v svelte-1lsjbvq"> </span></div></div> <!>`, 1);
+var root_10$2 = /* @__PURE__ */ from_html(`<span class="k cat svelte-1lsjbvq"> </span><span class="v svelte-1lsjbvq"> </span>`, 1);
+var root_13$1 = /* @__PURE__ */ from_html(`<span class="k source-label svelte-1lsjbvq"> </span> <span> </span>`, 1);
+var root_14$1 = /* @__PURE__ */ from_html(`<span class="k svelte-1lsjbvq">With TTL (ephemeral)</span> <span class="v svelte-1lsjbvq"> </span>`, 1);
 var root_15$1 = /* @__PURE__ */ from_html(`<span class="k svelte-1lsjbvq">Expiring within 3 days</span> <span class="v expiring-count svelte-1lsjbvq"> </span>`, 1);
-var root_11 = /* @__PURE__ */ from_html(`<div class="card smart-memory-card svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Smart Memory</h3> <div class="kv-grid svelte-1lsjbvq"><!> <!> <!></div></div>`);
-var root_8$1 = /* @__PURE__ */ from_html(`<div class="card svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Memories</h3> <div class="kv-grid svelte-1lsjbvq"><span class="k svelte-1lsjbvq">Total</span><span class="v svelte-1lsjbvq"> </span> <!></div></div> <!>`, 1);
-var root$6 = /* @__PURE__ */ from_html(`<div class="section svelte-1lsjbvq"><!> <!> <!> <button class="btn text svelte-1lsjbvq">Refresh</button></div>`);
+var root_11$1 = /* @__PURE__ */ from_html(`<div class="card smart-memory-card svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Smart Memory</h3> <div class="kv-grid svelte-1lsjbvq"><!> <!> <!></div></div>`);
+var root_8$2 = /* @__PURE__ */ from_html(`<div class="card svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Memories</h3> <div class="kv-grid svelte-1lsjbvq"><span class="k svelte-1lsjbvq">Total</span><span class="v svelte-1lsjbvq"> </span> <!></div></div> <!>`, 1);
+var root$7 = /* @__PURE__ */ from_html(`<div class="section svelte-1lsjbvq"><!> <!> <!> <button class="btn text svelte-1lsjbvq">Refresh</button></div>`);
 function RagOverview($$anchor, $$props) {
   push($$props, true);
   let identityEditing = /* @__PURE__ */ state(false);
@@ -14173,16 +14500,16 @@ function RagOverview($$anchor, $$props) {
       set(identitySaving, false);
     }
   }
-  var div = root$6();
+  var div = root$7();
   var node = child(div);
   {
     var consequent_2 = ($$anchor2) => {
-      var div_1 = root_1$6();
+      var div_1 = root_1$7();
       var div_2 = child(div_1);
       var node_1 = sibling(child(div_2), 2);
       {
         var consequent = ($$anchor3) => {
-          var button = root_2$1();
+          var button = root_2$2();
           button.__click = startEditingIdentity;
           append($$anchor3, button);
         };
@@ -14243,7 +14570,7 @@ function RagOverview($$anchor, $$props) {
           append($$anchor3, div_3);
         };
         var alternate = ($$anchor3) => {
-          var div_11 = root_4$2();
+          var div_11 = root_4$3();
           var span = sibling(child(div_11));
           var text_1 = child(span);
           var span_1 = sibling(span, 3);
@@ -14285,7 +14612,7 @@ function RagOverview($$anchor, $$props) {
   var node_3 = sibling(node, 2);
   {
     var consequent_4 = ($$anchor2) => {
-      var fragment = root_6$2();
+      var fragment = root_6$3();
       var div_14 = first_child(fragment);
       var div_15 = sibling(child(div_14), 2);
       var span_5 = sibling(child(div_15));
@@ -14297,7 +14624,7 @@ function RagOverview($$anchor, $$props) {
       var node_4 = sibling(div_14, 2);
       {
         var consequent_3 = ($$anchor3) => {
-          var div_16 = root_7$1();
+          var div_16 = root_7$2();
           var div_17 = sibling(child(div_16), 2);
           var span_8 = sibling(child(div_17));
           var text_9 = child(span_8);
@@ -14330,7 +14657,7 @@ function RagOverview($$anchor, $$props) {
   var node_5 = sibling(node_3, 2);
   {
     var consequent_10 = ($$anchor2) => {
-      var fragment_1 = root_8$1();
+      var fragment_1 = root_8$2();
       var div_18 = first_child(fragment_1);
       var div_19 = sibling(child(div_18), 2);
       var span_11 = sibling(child(div_19));
@@ -14344,7 +14671,7 @@ function RagOverview($$anchor, $$props) {
             var $$array = /* @__PURE__ */ user_derived(() => to_array(get$1($$item), 2));
             let cat = () => get$1($$array)[0];
             let count = () => get$1($$array)[1];
-            var fragment_3 = root_10$1();
+            var fragment_3 = root_10$2();
             var span_12 = first_child(fragment_3);
             var text_13 = child(span_12);
             var span_13 = sibling(span_12);
@@ -14364,7 +14691,7 @@ function RagOverview($$anchor, $$props) {
       var node_8 = sibling(div_18, 2);
       {
         var consequent_9 = ($$anchor3) => {
-          var div_20 = root_11();
+          var div_20 = root_11$1();
           var div_21 = sibling(child(div_20), 2);
           var node_9 = child(div_21);
           {
@@ -14375,7 +14702,7 @@ function RagOverview($$anchor, $$props) {
                 var $$array_1 = /* @__PURE__ */ user_derived(() => to_array(get$1($$item), 2));
                 let src = () => get$1($$array_1)[0];
                 let count = () => get$1($$array_1)[1];
-                var fragment_5 = root_13();
+                var fragment_5 = root_13$1();
                 var span_14 = first_child(fragment_5);
                 var text_15 = child(span_14);
                 var span_15 = sibling(span_14, 2);
@@ -14397,7 +14724,7 @@ function RagOverview($$anchor, $$props) {
           var node_11 = sibling(node_9, 2);
           {
             var consequent_7 = ($$anchor4) => {
-              var fragment_6 = root_14();
+              var fragment_6 = root_14$1();
               var span_16 = sibling(first_child(fragment_6), 2);
               var text_17 = child(span_16);
               template_effect(() => set_text(text_17, $$props.stats.memory_stats.total_with_ttl));
@@ -14441,11 +14768,11 @@ function RagOverview($$anchor, $$props) {
   pop();
 }
 delegate(["click"]);
-var root_1$5 = /* @__PURE__ */ from_html(`<div class="empty svelte-maj3ai">Loading memories...</div>`);
+var root_1$6 = /* @__PURE__ */ from_html(`<div class="empty svelte-maj3ai">Loading memories...</div>`);
 var root_3$2 = /* @__PURE__ */ from_html(`<div class="empty svelte-maj3ai">No memories found.</div>`);
-var root_6$1 = /* @__PURE__ */ from_html(`<span class="badge ttl-badge svelte-maj3ai"> </span>`);
+var root_6$2 = /* @__PURE__ */ from_html(`<span class="badge ttl-badge svelte-maj3ai"> </span>`);
 var root_5$2 = /* @__PURE__ */ from_html(`<div><div class="memory-header svelte-maj3ai"><span> </span> <!> <span class="importance svelte-maj3ai" title="Importance"> </span> <span class="source svelte-maj3ai"> </span> <button class="del-btn svelte-maj3ai" title="Delete memory">x</button></div> <div class="memory-text svelte-maj3ai"> </div> <div class="memory-meta svelte-maj3ai"> </div></div>`);
-var root$5 = /* @__PURE__ */ from_html(`<div class="section svelte-maj3ai"><div class="toolbar svelte-maj3ai"><select class="filter-select svelte-maj3ai"><option>All categories</option><option>fact</option><option>preference</option><option>decision</option><option>entity</option><option>observation</option><option>other</option></select> <select class="filter-select svelte-maj3ai"><option>All sources</option><option>agent (proactive)</option><option>auto-captured</option><option>user/tool</option></select> <span class="count svelte-maj3ai"> </span></div> <!></div>`);
+var root$6 = /* @__PURE__ */ from_html(`<div class="section svelte-maj3ai"><div class="toolbar svelte-maj3ai"><select class="filter-select svelte-maj3ai"><option>All categories</option><option>fact</option><option>preference</option><option>decision</option><option>entity</option><option>observation</option><option>other</option></select> <select class="filter-select svelte-maj3ai"><option>All sources</option><option>agent (proactive)</option><option>auto-captured</option><option>user/tool</option></select> <span class="count svelte-maj3ai"> </span></div> <!></div>`);
 function RagMemories($$anchor, $$props) {
   push($$props, true);
   let memories = /* @__PURE__ */ state(proxy([]));
@@ -14486,7 +14813,7 @@ function RagMemories($$anchor, $$props) {
       $$props.onMessage(e2?.message || "Failed to delete", "error");
     }
   }
-  var div = root$5();
+  var div = root$6();
   var div_1 = child(div);
   var select = child(div_1);
   select.__change = loadMemories;
@@ -14518,7 +14845,7 @@ function RagMemories($$anchor, $$props) {
   var node = sibling(div_1, 2);
   {
     var consequent = ($$anchor2) => {
-      var div_2 = root_1$5();
+      var div_2 = root_1$6();
       append($$anchor2, div_2);
     };
     var alternate_1 = ($$anchor2) => {
@@ -14541,7 +14868,7 @@ function RagMemories($$anchor, $$props) {
             var node_3 = sibling(span_1, 2);
             {
               var consequent_2 = ($$anchor5) => {
-                var span_2 = root_6$1();
+                var span_2 = root_6$2();
                 var text_2 = child(span_2);
                 template_effect(($0) => set_text(text_2, $0), [() => formatExpiresAt(get$1(mem).expires_at)]);
                 append($$anchor5, span_2);
@@ -14604,10 +14931,10 @@ function RagMemories($$anchor, $$props) {
   pop();
 }
 delegate(["change", "click"]);
-var root_1$4 = /* @__PURE__ */ from_html(`<div class="empty svelte-1gytc9k">Loading session chunks...</div>`);
+var root_1$5 = /* @__PURE__ */ from_html(`<div class="empty svelte-1gytc9k">Loading session chunks...</div>`);
 var root_3$1 = /* @__PURE__ */ from_html(`<div class="empty svelte-1gytc9k">No session chunks indexed.</div>`);
 var root_5$1 = /* @__PURE__ */ from_html(`<div class="chunk-card svelte-1gytc9k"><div class="chunk-header svelte-1gytc9k"><span class="badge svelte-1gytc9k"> </span> <span class="chunk-range svelte-1gytc9k"> </span> <span class="chunk-len svelte-1gytc9k"> </span></div> <pre class="chunk-text svelte-1gytc9k"> </pre></div>`);
-var root$4 = /* @__PURE__ */ from_html(`<div class="section svelte-1gytc9k"><div class="toolbar svelte-1gytc9k"><span class="count svelte-1gytc9k"> </span> <button class="btn text svelte-1gytc9k">Refresh</button></div> <!></div>`);
+var root$5 = /* @__PURE__ */ from_html(`<div class="section svelte-1gytc9k"><div class="toolbar svelte-1gytc9k"><span class="count svelte-1gytc9k"> </span> <button class="btn text svelte-1gytc9k">Refresh</button></div> <!></div>`);
 function RagSessions($$anchor, $$props) {
   push($$props, true);
   let chunks = /* @__PURE__ */ state(proxy([]));
@@ -14630,7 +14957,7 @@ function RagSessions($$anchor, $$props) {
       set(loading, false);
     }
   }
-  var div = root$4();
+  var div = root$5();
   var div_1 = child(div);
   var span = child(div_1);
   var text2 = child(span);
@@ -14639,7 +14966,7 @@ function RagSessions($$anchor, $$props) {
   var node = sibling(div_1, 2);
   {
     var consequent = ($$anchor2) => {
-      var div_2 = root_1$4();
+      var div_2 = root_1$5();
       append($$anchor2, div_2);
     };
     var alternate_1 = ($$anchor2) => {
@@ -14698,8 +15025,8 @@ function RagSessions($$anchor, $$props) {
   pop();
 }
 delegate(["click"]);
-var root_1$3 = /* @__PURE__ */ from_html(`<div class="search-result svelte-xtoz3f"><div class="search-meta svelte-xtoz3f"> </div> <pre class="search-text svelte-xtoz3f"> </pre></div>`);
-var root$3 = /* @__PURE__ */ from_html(`<div class="section svelte-xtoz3f"><p class="desc svelte-xtoz3f">Test what RAG context would be generated for a given query.</p> <div class="search-row svelte-xtoz3f"><input class="search-input svelte-xtoz3f" placeholder="Enter a query..."/> <button class="btn primary svelte-xtoz3f"> </button></div> <!></div>`);
+var root_1$4 = /* @__PURE__ */ from_html(`<div class="search-result svelte-xtoz3f"><div class="search-meta svelte-xtoz3f"> </div> <pre class="search-text svelte-xtoz3f"> </pre></div>`);
+var root$4 = /* @__PURE__ */ from_html(`<div class="section svelte-xtoz3f"><p class="desc svelte-xtoz3f">Test what RAG context would be generated for a given query.</p> <div class="search-row svelte-xtoz3f"><input class="search-input svelte-xtoz3f" placeholder="Enter a query..."/> <button class="btn primary svelte-xtoz3f"> </button></div> <!></div>`);
 function RagSearch($$anchor, $$props) {
   push($$props, true);
   let searchQuery = /* @__PURE__ */ state("");
@@ -14727,7 +15054,7 @@ function RagSearch($$anchor, $$props) {
       set(searching, false);
     }
   }
-  var div = root$3();
+  var div = root$4();
   var div_1 = sibling(child(div), 2);
   var input = child(div_1);
   input.__keydown = (e2) => e2.key === "Enter" && handleSearch();
@@ -14737,7 +15064,7 @@ function RagSearch($$anchor, $$props) {
   var node = sibling(div_1, 2);
   {
     var consequent = ($$anchor2) => {
-      var div_2 = root_1$3();
+      var div_2 = root_1$4();
       var div_3 = child(div_2);
       var text_1 = child(div_3);
       var pre = sibling(div_3, 2);
@@ -14764,26 +15091,26 @@ function RagSearch($$anchor, $$props) {
   pop();
 }
 delegate(["keydown", "click"]);
-var root_1$2 = /* @__PURE__ */ from_html(`<div class="loading svelte-10ewjma">Analyzing RAG database...</div>`);
+var root_1$3 = /* @__PURE__ */ from_html(`<div class="loading svelte-10ewjma">Analyzing RAG database...</div>`);
 var root_5 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Chunks reducible</span> <span class="v savings svelte-10ewjma"> </span>`, 1);
-var root_6 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Memories reducible</span> <span class="v savings svelte-10ewjma"> </span>`, 1);
-var root_7 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_8 = /* @__PURE__ */ from_html(`<option>Loading models...</option>`);
-var root_10 = /* @__PURE__ */ from_html(`<option>Select provider first</option>`);
-var root_12 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_4$1 = /* @__PURE__ */ from_html(`<div class="card savings-card svelte-10ewjma"><h3 class="svelte-10ewjma">Estimated Savings</h3> <div class="kv-grid svelte-10ewjma"><!> <!></div></div> <div class="card svelte-10ewjma"><h3 class="svelte-10ewjma">Optimization Settings</h3> <div class="opt-form svelte-10ewjma"><div class="form-row svelte-10ewjma"><label for="opt-provider" class="svelte-10ewjma">Provider</label> <select id="opt-provider" class="filter-select svelte-10ewjma"><option>Select provider...</option><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-model" class="svelte-10ewjma">Model</label> <select id="opt-model" class="filter-select svelte-10ewjma"><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-scope" class="svelte-10ewjma">Scope</label> <select id="opt-scope" class="filter-select svelte-10ewjma"><option>All (sessions + memories)</option><option>Sessions only</option><option>Memories only</option></select></div></div></div> <button class="btn primary optimize-btn svelte-10ewjma"><!></button>`, 1);
+var root_6$1 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Memories reducible</span> <span class="v savings svelte-10ewjma"> </span>`, 1);
+var root_7$1 = /* @__PURE__ */ from_html(`<option> </option>`);
+var root_8$1 = /* @__PURE__ */ from_html(`<option>Loading models...</option>`);
+var root_10$1 = /* @__PURE__ */ from_html(`<option>Select provider first</option>`);
+var root_12$1 = /* @__PURE__ */ from_html(`<option> </option>`);
+var root_4$2 = /* @__PURE__ */ from_html(`<div class="card savings-card svelte-10ewjma"><h3 class="svelte-10ewjma">Estimated Savings</h3> <div class="kv-grid svelte-10ewjma"><!> <!></div></div> <div class="card svelte-10ewjma"><h3 class="svelte-10ewjma">Optimization Settings</h3> <div class="opt-form svelte-10ewjma"><div class="form-row svelte-10ewjma"><label for="opt-provider" class="svelte-10ewjma">Provider</label> <select id="opt-provider" class="filter-select svelte-10ewjma"><option>Select provider...</option><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-model" class="svelte-10ewjma">Model</label> <select id="opt-model" class="filter-select svelte-10ewjma"><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-scope" class="svelte-10ewjma">Scope</label> <select id="opt-scope" class="filter-select svelte-10ewjma"><option>All (sessions + memories)</option><option>Sessions only</option><option>Memories only</option></select></div></div></div> <button class="btn primary optimize-btn svelte-10ewjma"><!></button>`, 1);
 var root_15 = /* @__PURE__ */ from_html(`<div class="card svelte-10ewjma"><p class="no-savings svelte-10ewjma">RAG database is already compact. No optimization needed.</p></div>`);
-var root_17 = /* @__PURE__ */ from_html(`<div class="progress-bar-container svelte-10ewjma"><div class="progress-bar svelte-10ewjma"></div></div>`);
-var root_18 = /* @__PURE__ */ from_html(`<div> </div>`);
+var root_17$1 = /* @__PURE__ */ from_html(`<div class="progress-bar-container svelte-10ewjma"><div class="progress-bar svelte-10ewjma"></div></div>`);
+var root_18$1 = /* @__PURE__ */ from_html(`<div> </div>`);
 var root_16 = /* @__PURE__ */ from_html(`<div class="card progress-card svelte-10ewjma"><h3 class="svelte-10ewjma">Progress</h3> <!> <div class="progress-log svelte-10ewjma"></div></div>`);
-var root_20 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Session chunks</span> <span class="v svelte-10ewjma"> <span class="savings svelte-10ewjma"> </span></span>`, 1);
-var root_21 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Memories</span> <span class="v svelte-10ewjma"> <span class="savings svelte-10ewjma"> </span></span>`, 1);
+var root_20$1 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Session chunks</span> <span class="v svelte-10ewjma"> <span class="savings svelte-10ewjma"> </span></span>`, 1);
+var root_21$1 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Memories</span> <span class="v svelte-10ewjma"> <span class="savings svelte-10ewjma"> </span></span>`, 1);
 var root_23 = /* @__PURE__ */ from_html(`<div class="error-line svelte-10ewjma"> </div>`);
-var root_22 = /* @__PURE__ */ from_html(`<div class="error-list svelte-10ewjma"><strong>Errors:</strong> <!></div>`);
-var root_19 = /* @__PURE__ */ from_html(`<div><h3 class="svelte-10ewjma">Optimization Result</h3> <div class="kv-grid svelte-10ewjma"><!> <!> <span class="k svelte-10ewjma">Duration</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Sessions processed</span><span class="v svelte-10ewjma"> </span></div> <!></div>`);
+var root_22$1 = /* @__PURE__ */ from_html(`<div class="error-list svelte-10ewjma"><strong>Errors:</strong> <!></div>`);
+var root_19$1 = /* @__PURE__ */ from_html(`<div><h3 class="svelte-10ewjma">Optimization Result</h3> <div class="kv-grid svelte-10ewjma"><!> <!> <span class="k svelte-10ewjma">Duration</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Sessions processed</span><span class="v svelte-10ewjma"> </span></div> <!></div>`);
 var root_3 = /* @__PURE__ */ from_html(`<div class="card svelte-10ewjma"><h3 class="svelte-10ewjma">Current Size</h3> <div class="kv-grid svelte-10ewjma"><span class="k svelte-10ewjma">Session chunks</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Sessions</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Optimizable sessions</span><span class="v highlight svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Storage</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Memories</span><span class="v svelte-10ewjma"> </span></div></div> <!> <!> <!> <button class="btn text svelte-10ewjma">Refresh Analysis</button>`, 1);
 var root_25 = /* @__PURE__ */ from_html(`<div class="not-initialized svelte-10ewjma">RAG system is not initialized.</div>`);
-var root$2 = /* @__PURE__ */ from_html(`<div class="section svelte-10ewjma"><p class="desc svelte-10ewjma">Condense RAG data using an AI model. This reduces session chunks and merges duplicate memories
+var root$3 = /* @__PURE__ */ from_html(`<div class="section svelte-10ewjma"><p class="desc svelte-10ewjma">Condense RAG data using an AI model. This reduces session chunks and merges duplicate memories
     while preserving important information.</p> <!></div>`);
 function RagOptimize($$anchor, $$props) {
   push($$props, true);
@@ -14891,11 +15218,11 @@ function RagOptimize($$anchor, $$props) {
   function getAvailableProviders() {
     return get(providerState).availableProviders || [];
   }
-  var div = root$2();
+  var div = root$3();
   var node = sibling(child(div), 2);
   {
     var consequent = ($$anchor2) => {
-      var div_1 = root_1$2();
+      var div_1 = root_1$3();
       append($$anchor2, div_1);
     };
     var alternate_5 = ($$anchor2) => {
@@ -14919,7 +15246,7 @@ function RagOptimize($$anchor, $$props) {
           var node_2 = sibling(div_2, 2);
           {
             var consequent_6 = ($$anchor4) => {
-              var fragment_2 = root_4$1();
+              var fragment_2 = root_4$2();
               var div_4 = first_child(fragment_2);
               var div_5 = sibling(child(div_4), 2);
               var node_3 = child(div_5);
@@ -14940,7 +15267,7 @@ function RagOptimize($$anchor, $$props) {
               var node_4 = sibling(node_3, 2);
               {
                 var consequent_2 = ($$anchor5) => {
-                  var fragment_4 = root_6();
+                  var fragment_4 = root_6$1();
                   var span_6 = sibling(first_child(fragment_4), 2);
                   var text_6 = child(span_6);
                   template_effect(($0) => set_text(text_6, `~${get$1(analysis).potential_memory_savings ?? ""} memories (${$0 ?? ""}%)`), [
@@ -14961,7 +15288,7 @@ function RagOptimize($$anchor, $$props) {
               option.value = option.__value = "";
               var node_5 = sibling(option);
               each(node_5, 17, getAvailableProviders, index, ($$anchor5, provider) => {
-                var option_1 = root_7();
+                var option_1 = root_7$1();
                 var text_7 = child(option_1);
                 var option_1_value = {};
                 template_effect(() => {
@@ -14977,7 +15304,7 @@ function RagOptimize($$anchor, $$props) {
               var node_6 = child(select_1);
               {
                 var consequent_3 = ($$anchor5) => {
-                  var option_2 = root_8();
+                  var option_2 = root_8$1();
                   option_2.value = option_2.__value = "";
                   append($$anchor5, option_2);
                 };
@@ -14986,7 +15313,7 @@ function RagOptimize($$anchor, $$props) {
                   var node_7 = first_child(fragment_5);
                   {
                     var consequent_4 = ($$anchor6) => {
-                      var option_3 = root_10();
+                      var option_3 = root_10$1();
                       option_3.value = option_3.__value = "";
                       append($$anchor6, option_3);
                     };
@@ -14994,7 +15321,7 @@ function RagOptimize($$anchor, $$props) {
                       var fragment_6 = comment();
                       var node_8 = first_child(fragment_6);
                       each(node_8, 17, () => get$1(optimizeModels), index, ($$anchor7, model) => {
-                        var option_4 = root_12();
+                        var option_4 = root_12$1();
                         var text_8 = child(option_4);
                         var option_4_value = {};
                         template_effect(() => {
@@ -15073,7 +15400,7 @@ function RagOptimize($$anchor, $$props) {
               var node_11 = sibling(child(div_12), 2);
               {
                 var consequent_7 = ($$anchor5) => {
-                  var div_13 = root_17();
+                  var div_13 = root_17$1();
                   var div_14 = child(div_13);
                   template_effect(() => set_style(div_14, `width: ${get$1(optimizeProgressPct) ?? ""}%`));
                   append($$anchor5, div_13);
@@ -15084,7 +15411,7 @@ function RagOptimize($$anchor, $$props) {
               }
               var div_15 = sibling(node_11, 2);
               each(div_15, 21, () => get$1(optimizeProgress), index, ($$anchor5, event) => {
-                var div_16 = root_18();
+                var div_16 = root_18$1();
                 let classes;
                 var text_11 = child(div_16);
                 template_effect(() => {
@@ -15107,13 +15434,13 @@ function RagOptimize($$anchor, $$props) {
           var node_12 = sibling(node_10, 2);
           {
             var consequent_12 = ($$anchor4) => {
-              var div_17 = root_19();
+              var div_17 = root_19$1();
               let classes_1;
               var div_18 = sibling(child(div_17), 2);
               var node_13 = child(div_18);
               {
                 var consequent_9 = ($$anchor5) => {
-                  var fragment_7 = root_20();
+                  var fragment_7 = root_20$1();
                   var span_7 = sibling(first_child(fragment_7), 2);
                   var text_12 = child(span_7);
                   var span_8 = sibling(text_12);
@@ -15131,7 +15458,7 @@ function RagOptimize($$anchor, $$props) {
               var node_14 = sibling(node_13, 2);
               {
                 var consequent_10 = ($$anchor5) => {
-                  var fragment_8 = root_21();
+                  var fragment_8 = root_21$1();
                   var span_9 = sibling(first_child(fragment_8), 2);
                   var text_14 = child(span_9);
                   var span_10 = sibling(text_14);
@@ -15153,7 +15480,7 @@ function RagOptimize($$anchor, $$props) {
               var node_15 = sibling(div_18, 2);
               {
                 var consequent_11 = ($$anchor5) => {
-                  var div_19 = root_22();
+                  var div_19 = root_22$1();
                   var node_16 = sibling(child(div_19), 2);
                   each(node_16, 17, () => get$1(optimizeResult).errors, index, ($$anchor6, err) => {
                     var div_20 = root_23();
@@ -15227,10 +15554,10 @@ function RagOptimize($$anchor, $$props) {
   pop();
 }
 delegate(["change", "click"]);
-var root_1$1 = /* @__PURE__ */ from_html(`<div> </div>`);
-var root_2 = /* @__PURE__ */ from_html(`<div class="loading svelte-1djclk2">Loading RAG data...</div>`);
-var root_4 = /* @__PURE__ */ from_html(`<div class="not-initialized svelte-1djclk2">RAG system is not initialized. Enable it in the integration config.</div>`);
-var root$1 = /* @__PURE__ */ from_html(`<div class="rag-viewer svelte-1djclk2"><!> <div class="section-nav svelte-1djclk2"><button>Overview</button> <button>Memories</button> <button>Sessions</button> <button>Search</button> <button>Optimize</button></div> <!></div>`);
+var root_1$2 = /* @__PURE__ */ from_html(`<div> </div>`);
+var root_2$1 = /* @__PURE__ */ from_html(`<div class="loading svelte-1djclk2">Loading RAG data...</div>`);
+var root_4$1 = /* @__PURE__ */ from_html(`<div class="not-initialized svelte-1djclk2">RAG system is not initialized. Enable it in the integration config.</div>`);
+var root$2 = /* @__PURE__ */ from_html(`<div class="rag-viewer svelte-1djclk2"><!> <div class="section-nav svelte-1djclk2"><button>Overview</button> <button>Memories</button> <button>Sessions</button> <button>Search</button> <button>Optimize</button></div> <!></div>`);
 function RagViewer($$anchor, $$props) {
   push($$props, true);
   let activeSection = /* @__PURE__ */ state("overview");
@@ -15262,11 +15589,11 @@ function RagViewer($$anchor, $$props) {
   function handleSectionChange(section) {
     set(activeSection, section, true);
   }
-  var div = root$1();
+  var div = root$2();
   var node = child(div);
   {
     var consequent = ($$anchor2) => {
-      var div_1 = root_1$1();
+      var div_1 = root_1$2();
       let classes;
       var text_1 = child(div_1);
       template_effect(() => {
@@ -15298,7 +15625,7 @@ function RagViewer($$anchor, $$props) {
   var node_1 = sibling(div_2, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      var div_3 = root_2();
+      var div_3 = root_2$1();
       append($$anchor2, div_3);
     };
     var alternate_5 = ($$anchor2) => {
@@ -15306,7 +15633,7 @@ function RagViewer($$anchor, $$props) {
       var node_2 = first_child(fragment);
       {
         var consequent_2 = ($$anchor3) => {
-          var div_4 = root_4();
+          var div_4 = root_4$1();
           append($$anchor3, div_4);
         };
         var alternate_4 = ($$anchor3) => {
@@ -15431,7 +15758,467 @@ function RagViewer($$anchor, $$props) {
   pop();
 }
 delegate(["click"]);
-var root_1 = /* @__PURE__ */ from_html(`<div class="settings-backdrop svelte-nsapwt"></div> <div class="settings-panel svelte-nsapwt"><div class="settings-header svelte-nsapwt"><h2 class="svelte-nsapwt">Settings</h2> <button class="close-btn svelte-nsapwt" aria-label="Close settings"><svg viewBox="0 0 24 24" class="icon svelte-nsapwt"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button></div> <div class="tabs svelte-nsapwt"><button>Defaults</button> <button>Models</button> <button>RAG</button></div> <div class="settings-content svelte-nsapwt"><!></div></div>`, 1);
+var root_1$1 = /* @__PURE__ */ from_html(`<div> </div>`);
+var root_2 = /* @__PURE__ */ from_html(`<div class="loading svelte-7zsr1v">Loading scheduler...</div>`);
+var root_4 = /* @__PURE__ */ from_html(`<div class="not-available svelte-7zsr1v">Scheduler is not initialized. It starts automatically with the integration.</div>`);
+var root_7 = /* @__PURE__ */ from_html(`<div class="status-bar svelte-7zsr1v"><span> </span> <span class="dot svelte-7zsr1v">&#183;</span> <span> </span> <span class="dot svelte-7zsr1v">&#183;</span> <span> </span></div>`);
+var root_8 = /* @__PURE__ */ from_html(`<div class="empty svelte-7zsr1v">No scheduled jobs yet. Ask the assistant to create one, e.g. <em class="svelte-7zsr1v">"Remind me to check energy at 8pm every day"</em></div>`);
+var root_11 = /* @__PURE__ */ from_html(`<span class="badge one-shot svelte-7zsr1v">once</span>`);
+var root_12 = /* @__PURE__ */ from_html(`<span class="next-run svelte-7zsr1v"> </span>`);
+var root_14 = /* @__PURE__ */ from_html(`<span class="last-error svelte-7zsr1v">failed</span>`);
+var root_13 = /* @__PURE__ */ from_html(`<div class="job-last-run svelte-7zsr1v"><span></span> <!></div>`);
+var root_10 = /* @__PURE__ */ from_html(`<div><div class="job-header svelte-7zsr1v"><div class="job-title-row svelte-7zsr1v"><span class="job-name svelte-7zsr1v"> </span> <!> <span> </span></div> <label class="toggle svelte-7zsr1v"><input type="checkbox" class="svelte-7zsr1v"/> <span class="slider svelte-7zsr1v"></span></label></div> <div class="job-meta svelte-7zsr1v"><span class="cron svelte-7zsr1v"> </span> <!></div> <div class="job-prompt svelte-7zsr1v"> </div> <!> <div class="job-actions svelte-7zsr1v"><button class="action-btn run svelte-7zsr1v"> </button> <button class="action-btn delete svelte-7zsr1v">Remove</button></div></div>`);
+var root_9 = /* @__PURE__ */ from_html(`<div class="jobs-list svelte-7zsr1v"></div>`);
+var root_6 = /* @__PURE__ */ from_html(`<!> <!>`, 1);
+var root_17 = /* @__PURE__ */ from_html(`<div class="empty svelte-7zsr1v">No run history yet.</div>`);
+var root_20 = /* @__PURE__ */ from_html(`<span class="history-duration svelte-7zsr1v"> </span>`);
+var root_21 = /* @__PURE__ */ from_html(`<div class="history-error svelte-7zsr1v"> </div>`);
+var root_22 = /* @__PURE__ */ from_html(`<div class="history-response svelte-7zsr1v"> </div>`);
+var root_19 = /* @__PURE__ */ from_html(`<div><div class="history-header svelte-7zsr1v"><span class="history-name svelte-7zsr1v"> </span> <span class="history-time svelte-7zsr1v"> </span></div> <div class="history-detail svelte-7zsr1v"><span></span> <span class="history-status svelte-7zsr1v"> </span> <!></div> <!> <!></div>`);
+var root_18 = /* @__PURE__ */ from_html(`<div class="history-list svelte-7zsr1v"></div>`);
+var root$1 = /* @__PURE__ */ from_html(`<div class="scheduler-panel svelte-7zsr1v"><!> <div class="section-nav svelte-7zsr1v"><button>Jobs</button> <button>History</button> <button class="pill refresh-pill svelte-7zsr1v" title="Refresh">Refresh</button></div> <!></div>`);
+function SchedulerPanel($$anchor, $$props) {
+  push($$props, true);
+  let jobs = /* @__PURE__ */ state(proxy([]));
+  let status = /* @__PURE__ */ state(null);
+  let history = /* @__PURE__ */ state(proxy([]));
+  let loading = /* @__PURE__ */ state(false);
+  let available = /* @__PURE__ */ state(true);
+  let runningJobId = /* @__PURE__ */ state(null);
+  let message = /* @__PURE__ */ state(null);
+  let messageType = /* @__PURE__ */ state("success");
+  let activeSection = /* @__PURE__ */ state("jobs");
+  user_effect(() => {
+    loadJobs();
+  });
+  function showMessage(text2, type) {
+    set(message, text2, true);
+    set(messageType, type, true);
+    setTimeout(() => set(message, null), 3e3);
+  }
+  async function loadJobs() {
+    const hass = getHass();
+    if (!hass) return;
+    set(loading, true);
+    try {
+      const result = await hass.callWS({ type: "homeclaw/scheduler/list" });
+      set(available, result.available !== false);
+      set(jobs, result.jobs || [], true);
+      set(status, result.status || null, true);
+    } catch (e2) {
+      console.error("[Scheduler] Failed to load:", e2);
+      set(available, false);
+    } finally {
+      set(loading, false);
+    }
+  }
+  async function loadHistory() {
+    const hass = getHass();
+    if (!hass) return;
+    try {
+      const result = await hass.callWS({ type: "homeclaw/scheduler/history", limit: 50 });
+      set(history, (result.history || []).reverse(), true);
+    } catch (e2) {
+      console.error("[Scheduler] Failed to load history:", e2);
+    }
+  }
+  async function toggleJob(jobId, enabled) {
+    const hass = getHass();
+    if (!hass) return;
+    try {
+      await hass.callWS({ type: "homeclaw/scheduler/enable", job_id: jobId, enabled });
+      showMessage(enabled ? "Job enabled" : "Job disabled", "success");
+      await loadJobs();
+    } catch (e2) {
+      showMessage(e2.message || "Failed to toggle job", "error");
+      await loadJobs();
+    }
+  }
+  async function removeJob(jobId, jobName) {
+    if (!confirm(`Remove "${jobName}"?`)) return;
+    const hass = getHass();
+    if (!hass) return;
+    try {
+      await hass.callWS({ type: "homeclaw/scheduler/remove", job_id: jobId });
+      showMessage("Job removed", "success");
+      await loadJobs();
+    } catch (e2) {
+      showMessage(e2.message || "Failed to remove job", "error");
+    }
+  }
+  async function runJobNow(jobId) {
+    const hass = getHass();
+    if (!hass) return;
+    set(runningJobId, jobId, true);
+    try {
+      const result = await hass.callWS({ type: "homeclaw/scheduler/run", job_id: jobId });
+      const run2 = result.run;
+      if (run2?.status === "ok") {
+        showMessage("Job executed successfully", "success");
+      } else {
+        showMessage(run2?.error || "Job failed", "error");
+      }
+      await loadJobs();
+    } catch (e2) {
+      showMessage(e2.message || "Failed to run job", "error");
+    } finally {
+      set(runningJobId, null);
+    }
+  }
+  function handleSectionChange(section) {
+    set(activeSection, section, true);
+    if (section === "history") {
+      loadHistory();
+    }
+  }
+  function formatDate(isoOrTimestamp) {
+    if (!isoOrTimestamp) return "-";
+    const d2 = typeof isoOrTimestamp === "number" ? new Date(isoOrTimestamp * 1e3) : new Date(isoOrTimestamp);
+    if (isNaN(d2.getTime())) return "-";
+    const now = /* @__PURE__ */ new Date();
+    const isToday = d2.toDateString() === now.toDateString();
+    const time = d2.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (isToday) return time;
+    const day = d2.getDate();
+    const month = d2.toLocaleString("default", { month: "short" });
+    return `${day} ${month}, ${time}`;
+  }
+  function describeCron(cron) {
+    const parts = cron.split(" ");
+    if (parts.length !== 5) return cron;
+    const [min, hour, dom, mon, dow] = parts;
+    if (dom !== "*" && mon !== "*") {
+      return `${hour}:${min.padStart(2, "0")} on ${dom}/${mon}`;
+    }
+    if (min.startsWith("*/")) return `Every ${min.slice(2)} min`;
+    if (hour.startsWith("*/") && min === "0") return `Every ${hour.slice(2)}h`;
+    if (dom === "*" && mon === "*" && dow === "*") {
+      return `Daily at ${hour}:${min.padStart(2, "0")}`;
+    }
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    if (dow !== "*" && dom === "*") {
+      const dayName = dayNames[parseInt(dow)] || dow;
+      return `${dayName} at ${hour}:${min.padStart(2, "0")}`;
+    }
+    if (dom !== "*" && mon === "*") {
+      return `${dom}th of month at ${hour}:${min.padStart(2, "0")}`;
+    }
+    return cron;
+  }
+  var div = root$1();
+  var node = child(div);
+  {
+    var consequent = ($$anchor2) => {
+      var div_1 = root_1$1();
+      let classes;
+      var text_1 = child(div_1);
+      template_effect(() => {
+        classes = set_class(div_1, 1, "msg svelte-7zsr1v", null, classes, { error: get$1(messageType) === "error" });
+        set_text(text_1, get$1(message));
+      });
+      append($$anchor2, div_1);
+    };
+    if_block(node, ($$render) => {
+      if (get$1(message)) $$render(consequent);
+    });
+  }
+  var div_2 = sibling(node, 2);
+  var button = child(div_2);
+  let classes_1;
+  button.__click = () => handleSectionChange("jobs");
+  var button_1 = sibling(button, 2);
+  let classes_2;
+  button_1.__click = () => handleSectionChange("history");
+  var button_2 = sibling(button_1, 2);
+  button_2.__click = loadJobs;
+  var node_1 = sibling(div_2, 2);
+  {
+    var consequent_1 = ($$anchor2) => {
+      var div_3 = root_2();
+      append($$anchor2, div_3);
+    };
+    var alternate_4 = ($$anchor2) => {
+      var fragment = comment();
+      var node_2 = first_child(fragment);
+      {
+        var consequent_2 = ($$anchor3) => {
+          var div_4 = root_4();
+          append($$anchor3, div_4);
+        };
+        var alternate_3 = ($$anchor3) => {
+          var fragment_1 = comment();
+          var node_3 = first_child(fragment_1);
+          {
+            var consequent_9 = ($$anchor4) => {
+              var fragment_2 = root_6();
+              var node_4 = first_child(fragment_2);
+              {
+                var consequent_3 = ($$anchor5) => {
+                  var div_5 = root_7();
+                  var span = child(div_5);
+                  var text_2 = child(span);
+                  var span_1 = sibling(span, 4);
+                  var text_3 = child(span_1);
+                  var span_2 = sibling(span_1, 4);
+                  var text_4 = child(span_2);
+                  template_effect(() => {
+                    set_text(text_2, `${get$1(status).total_jobs ?? ""} jobs`);
+                    set_text(text_3, `${get$1(status).enabled_jobs ?? ""} enabled`);
+                    set_text(text_4, `${get$1(status).active_timers ?? ""} timers`);
+                  });
+                  append($$anchor5, div_5);
+                };
+                if_block(node_4, ($$render) => {
+                  if (get$1(status)) $$render(consequent_3);
+                });
+              }
+              var node_5 = sibling(node_4, 2);
+              {
+                var consequent_4 = ($$anchor5) => {
+                  var div_6 = root_8();
+                  append($$anchor5, div_6);
+                };
+                var alternate = ($$anchor5) => {
+                  var div_7 = root_9();
+                  each(div_7, 21, () => get$1(jobs), (job) => job.job_id, ($$anchor6, job) => {
+                    var div_8 = root_10();
+                    let classes_3;
+                    var div_9 = child(div_8);
+                    var div_10 = child(div_9);
+                    var span_3 = child(div_10);
+                    var text_5 = child(span_3);
+                    var node_6 = sibling(span_3, 2);
+                    {
+                      var consequent_5 = ($$anchor7) => {
+                        var span_4 = root_11();
+                        append($$anchor7, span_4);
+                      };
+                      if_block(node_6, ($$render) => {
+                        if (get$1(job).one_shot) $$render(consequent_5);
+                      });
+                    }
+                    var span_5 = sibling(node_6, 2);
+                    let classes_4;
+                    var text_6 = child(span_5);
+                    var label = sibling(div_10, 2);
+                    var input = child(label);
+                    input.__change = () => toggleJob(get$1(job).job_id, !get$1(job).enabled);
+                    var div_11 = sibling(div_9, 2);
+                    var span_6 = child(div_11);
+                    var text_7 = child(span_6);
+                    var node_7 = sibling(span_6, 2);
+                    {
+                      var consequent_6 = ($$anchor7) => {
+                        var span_7 = root_12();
+                        var text_8 = child(span_7);
+                        template_effect(($0) => set_text(text_8, `Next: ${$0 ?? ""}`), [() => formatDate(get$1(job).next_run)]);
+                        append($$anchor7, span_7);
+                      };
+                      if_block(node_7, ($$render) => {
+                        if (get$1(job).next_run && get$1(job).enabled) $$render(consequent_6);
+                      });
+                    }
+                    var div_12 = sibling(div_11, 2);
+                    var text_9 = child(div_12);
+                    var node_8 = sibling(div_12, 2);
+                    {
+                      var consequent_8 = ($$anchor7) => {
+                        var div_13 = root_13();
+                        var span_8 = child(div_13);
+                        let classes_5;
+                        var text_10 = sibling(span_8);
+                        var node_9 = sibling(text_10);
+                        {
+                          var consequent_7 = ($$anchor8) => {
+                            var span_9 = root_14();
+                            template_effect(() => set_attribute(span_9, "title", get$1(job).last_error));
+                            append($$anchor8, span_9);
+                          };
+                          if_block(node_9, ($$render) => {
+                            if (get$1(job).last_error) $$render(consequent_7);
+                          });
+                        }
+                        template_effect(
+                          ($0) => {
+                            classes_5 = set_class(span_8, 1, "status-dot svelte-7zsr1v", null, classes_5, {
+                              ok: get$1(job).last_status === "ok",
+                              error: get$1(job).last_status === "error"
+                            });
+                            set_text(text_10, ` Last: ${$0 ?? ""} `);
+                          },
+                          [() => formatDate(get$1(job).last_run)]
+                        );
+                        append($$anchor7, div_13);
+                      };
+                      if_block(node_8, ($$render) => {
+                        if (get$1(job).last_run) $$render(consequent_8);
+                      });
+                    }
+                    var div_14 = sibling(node_8, 2);
+                    var button_3 = child(div_14);
+                    button_3.__click = () => runJobNow(get$1(job).job_id);
+                    var text_11 = child(button_3);
+                    var button_4 = sibling(button_3, 2);
+                    button_4.__click = () => removeJob(get$1(job).job_id, get$1(job).name);
+                    template_effect(
+                      ($0) => {
+                        classes_3 = set_class(div_8, 1, "job-card svelte-7zsr1v", null, classes_3, { disabled: !get$1(job).enabled });
+                        set_text(text_5, get$1(job).name);
+                        classes_4 = set_class(span_5, 1, "badge svelte-7zsr1v", null, classes_4, { agent: get$1(job).created_by === "agent" });
+                        set_text(text_6, get$1(job).created_by);
+                        set_checked(input, get$1(job).enabled);
+                        set_attribute(span_6, "title", get$1(job).cron);
+                        set_text(text_7, $0);
+                        set_text(text_9, get$1(job).prompt);
+                        button_3.disabled = get$1(runningJobId) === get$1(job).job_id;
+                        set_text(text_11, get$1(runningJobId) === get$1(job).job_id ? "Running..." : "Run now");
+                      },
+                      [() => describeCron(get$1(job).cron)]
+                    );
+                    append($$anchor6, div_8);
+                  });
+                  append($$anchor5, div_7);
+                };
+                if_block(node_5, ($$render) => {
+                  if (get$1(jobs).length === 0) $$render(consequent_4);
+                  else $$render(alternate, false);
+                });
+              }
+              append($$anchor4, fragment_2);
+            };
+            var alternate_2 = ($$anchor4) => {
+              var fragment_3 = comment();
+              var node_10 = first_child(fragment_3);
+              {
+                var consequent_14 = ($$anchor5) => {
+                  var fragment_4 = comment();
+                  var node_11 = first_child(fragment_4);
+                  {
+                    var consequent_10 = ($$anchor6) => {
+                      var div_15 = root_17();
+                      append($$anchor6, div_15);
+                    };
+                    var alternate_1 = ($$anchor6) => {
+                      var div_16 = root_18();
+                      each(div_16, 21, () => get$1(history), index, ($$anchor7, run2) => {
+                        var div_17 = root_19();
+                        let classes_6;
+                        var div_18 = child(div_17);
+                        var span_10 = child(div_18);
+                        var text_12 = child(span_10);
+                        var span_11 = sibling(span_10, 2);
+                        var text_13 = child(span_11);
+                        var div_19 = sibling(div_18, 2);
+                        var span_12 = child(div_19);
+                        let classes_7;
+                        var span_13 = sibling(span_12, 2);
+                        var text_14 = child(span_13);
+                        var node_12 = sibling(span_13, 2);
+                        {
+                          var consequent_11 = ($$anchor8) => {
+                            var span_14 = root_20();
+                            var text_15 = child(span_14);
+                            template_effect(($0) => set_text(text_15, `${$0 ?? ""}s`), [() => (get$1(run2).duration_ms / 1e3).toFixed(1)]);
+                            append($$anchor8, span_14);
+                          };
+                          if_block(node_12, ($$render) => {
+                            if (get$1(run2).duration_ms) $$render(consequent_11);
+                          });
+                        }
+                        var node_13 = sibling(div_19, 2);
+                        {
+                          var consequent_12 = ($$anchor8) => {
+                            var div_20 = root_21();
+                            var text_16 = child(div_20);
+                            template_effect(() => set_text(text_16, get$1(run2).error));
+                            append($$anchor8, div_20);
+                          };
+                          if_block(node_13, ($$render) => {
+                            if (get$1(run2).error) $$render(consequent_12);
+                          });
+                        }
+                        var node_14 = sibling(node_13, 2);
+                        {
+                          var consequent_13 = ($$anchor8) => {
+                            var div_21 = root_22();
+                            var text_17 = child(div_21);
+                            template_effect(($0) => set_text(text_17, $0), [() => get$1(run2).response.slice(0, 200)]);
+                            append($$anchor8, div_21);
+                          };
+                          if_block(node_14, ($$render) => {
+                            if (get$1(run2).response) $$render(consequent_13);
+                          });
+                        }
+                        template_effect(
+                          ($0) => {
+                            classes_6 = set_class(div_17, 1, "history-item svelte-7zsr1v", null, classes_6, { error: get$1(run2).status === "error" });
+                            set_text(text_12, get$1(run2).job_name);
+                            set_text(text_13, $0);
+                            classes_7 = set_class(span_12, 1, "status-dot svelte-7zsr1v", null, classes_7, {
+                              ok: get$1(run2).status === "ok",
+                              error: get$1(run2).status === "error"
+                            });
+                            set_text(text_14, get$1(run2).status);
+                          },
+                          [() => formatDate(get$1(run2).timestamp)]
+                        );
+                        append($$anchor7, div_17);
+                      });
+                      append($$anchor6, div_16);
+                    };
+                    if_block(node_11, ($$render) => {
+                      if (get$1(history).length === 0) $$render(consequent_10);
+                      else $$render(alternate_1, false);
+                    });
+                  }
+                  append($$anchor5, fragment_4);
+                };
+                if_block(
+                  node_10,
+                  ($$render) => {
+                    if (get$1(activeSection) === "history") $$render(consequent_14);
+                  },
+                  true
+                );
+              }
+              append($$anchor4, fragment_3);
+            };
+            if_block(
+              node_3,
+              ($$render) => {
+                if (get$1(activeSection) === "jobs") $$render(consequent_9);
+                else $$render(alternate_2, false);
+              },
+              true
+            );
+          }
+          append($$anchor3, fragment_1);
+        };
+        if_block(
+          node_2,
+          ($$render) => {
+            if (!get$1(available)) $$render(consequent_2);
+            else $$render(alternate_3, false);
+          },
+          true
+        );
+      }
+      append($$anchor2, fragment);
+    };
+    if_block(node_1, ($$render) => {
+      if (get$1(loading) && !get$1(jobs).length) $$render(consequent_1);
+      else $$render(alternate_4, false);
+    });
+  }
+  template_effect(() => {
+    classes_1 = set_class(button, 1, "pill svelte-7zsr1v", null, classes_1, { active: get$1(activeSection) === "jobs" });
+    classes_2 = set_class(button_1, 1, "pill svelte-7zsr1v", null, classes_2, { active: get$1(activeSection) === "history" });
+  });
+  append($$anchor, div);
+  pop();
+}
+delegate(["click", "change"]);
+var root_1 = /* @__PURE__ */ from_html(`<div class="settings-backdrop svelte-nsapwt"></div> <div class="settings-panel svelte-nsapwt"><div class="settings-header svelte-nsapwt"><h2 class="svelte-nsapwt">Settings</h2> <button class="close-btn svelte-nsapwt" aria-label="Close settings"><svg viewBox="0 0 24 24" class="icon svelte-nsapwt"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button></div> <div class="tabs svelte-nsapwt"><button>Defaults</button> <button>Models</button> <button>RAG</button> <button>Scheduler</button></div> <div class="settings-content svelte-nsapwt"><!></div></div>`, 1);
 function SettingsPanel($$anchor, $$props) {
   push($$props, true);
   const $uiState = () => store_get(uiState, "$uiState", $$stores);
@@ -15440,7 +16227,7 @@ function SettingsPanel($$anchor, $$props) {
   var fragment = comment();
   var node = first_child(fragment);
   {
-    var consequent_3 = ($$anchor2) => {
+    var consequent_4 = ($$anchor2) => {
       var fragment_1 = root_1();
       var div = first_child(fragment_1);
       div.__click = function(...$$args) {
@@ -15462,30 +16249,51 @@ function SettingsPanel($$anchor, $$props) {
       var button_3 = sibling(button_2, 2);
       let classes_2;
       button_3.__click = () => set(activeTab, "rag");
+      var button_4 = sibling(button_3, 2);
+      let classes_3;
+      button_4.__click = () => set(activeTab, "scheduler");
       var div_4 = sibling(div_3, 2);
       var node_1 = child(div_4);
       {
         var consequent = ($$anchor3) => {
           DefaultsEditor($$anchor3, {});
         };
-        var alternate_1 = ($$anchor3) => {
+        var alternate_2 = ($$anchor3) => {
           var fragment_3 = comment();
           var node_2 = first_child(fragment_3);
           {
             var consequent_1 = ($$anchor4) => {
               ModelsEditor($$anchor4, {});
             };
-            var alternate = ($$anchor4) => {
+            var alternate_1 = ($$anchor4) => {
               var fragment_5 = comment();
               var node_3 = first_child(fragment_5);
               {
                 var consequent_2 = ($$anchor5) => {
                   RagViewer($$anchor5, {});
                 };
+                var alternate = ($$anchor5) => {
+                  var fragment_7 = comment();
+                  var node_4 = first_child(fragment_7);
+                  {
+                    var consequent_3 = ($$anchor6) => {
+                      SchedulerPanel($$anchor6, {});
+                    };
+                    if_block(
+                      node_4,
+                      ($$render) => {
+                        if (get$1(activeTab) === "scheduler") $$render(consequent_3);
+                      },
+                      true
+                    );
+                  }
+                  append($$anchor5, fragment_7);
+                };
                 if_block(
                   node_3,
                   ($$render) => {
                     if (get$1(activeTab) === "rag") $$render(consequent_2);
+                    else $$render(alternate, false);
                   },
                   true
                 );
@@ -15496,7 +16304,7 @@ function SettingsPanel($$anchor, $$props) {
               node_2,
               ($$render) => {
                 if (get$1(activeTab) === "models") $$render(consequent_1);
-                else $$render(alternate, false);
+                else $$render(alternate_1, false);
               },
               true
             );
@@ -15505,18 +16313,19 @@ function SettingsPanel($$anchor, $$props) {
         };
         if_block(node_1, ($$render) => {
           if (get$1(activeTab) === "defaults") $$render(consequent);
-          else $$render(alternate_1, false);
+          else $$render(alternate_2, false);
         });
       }
       template_effect(() => {
         classes = set_class(button_1, 1, "tab svelte-nsapwt", null, classes, { active: get$1(activeTab) === "defaults" });
         classes_1 = set_class(button_2, 1, "tab svelte-nsapwt", null, classes_1, { active: get$1(activeTab) === "models" });
         classes_2 = set_class(button_3, 1, "tab svelte-nsapwt", null, classes_2, { active: get$1(activeTab) === "rag" });
+        classes_3 = set_class(button_4, 1, "tab svelte-nsapwt", null, classes_3, { active: get$1(activeTab) === "scheduler" });
       });
       append($$anchor2, fragment_1);
     };
     if_block(node, ($$render) => {
-      if ($uiState().settingsOpen) $$render(consequent_3);
+      if ($uiState().settingsOpen) $$render(consequent_4);
     });
   }
   append($$anchor, fragment);
