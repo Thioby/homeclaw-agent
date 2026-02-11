@@ -179,7 +179,10 @@ async def test_async_initialize_success(hass, mock_dependencies):
 async def test_async_initialize_already_initialized(hass, mock_dependencies):
     """Test initialization is skipped if already initialized."""
     rag = RAGManager(hass, {})
-    rag._initialized = True
+    await rag.async_initialize()
+
+    # Reset call counts to verify second init doesn't re-create anything
+    mock_dependencies["store_cls"].reset_mock()
 
     await rag.async_initialize()
 

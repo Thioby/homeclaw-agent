@@ -342,6 +342,7 @@ class Agent:
             from ..managers.entity_manager import EntityManager
 
             self._entity_manager = EntityManager(self.hass)
+            self._entity_manager.async_setup()
         return self._entity_manager
 
     def _get_control_manager(self) -> ControlManager:

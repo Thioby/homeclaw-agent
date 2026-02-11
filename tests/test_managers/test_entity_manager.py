@@ -19,27 +19,33 @@ def entity_manager(hass):
 @pytest.fixture
 def sample_states(hass):
     """Create sample entity states for testing using real hass."""
-    hass.states.async_set("light.living_room", "on", {
-        "friendly_name": "Living Room Light",
-        "brightness": 255
-    })
-    hass.states.async_set("light.bedroom", "off", {
-        "friendly_name": "Bedroom Light",
-        "brightness": 0
-    })
-    hass.states.async_set("sensor.temperature", "22.5", {
-        "friendly_name": "Temperature Sensor",
-        "unit_of_measurement": "C",
-        "device_class": "temperature"
-    })
-    hass.states.async_set("sensor.humidity", "45", {
-        "friendly_name": "Humidity Sensor",
-        "unit_of_measurement": "%",
-        "device_class": "humidity"
-    })
-    hass.states.async_set("switch.fan", "on", {
-        "friendly_name": "Fan Switch"
-    })
+    hass.states.async_set(
+        "light.living_room",
+        "on",
+        {"friendly_name": "Living Room Light", "brightness": 255},
+    )
+    hass.states.async_set(
+        "light.bedroom", "off", {"friendly_name": "Bedroom Light", "brightness": 0}
+    )
+    hass.states.async_set(
+        "sensor.temperature",
+        "22.5",
+        {
+            "friendly_name": "Temperature Sensor",
+            "unit_of_measurement": "C",
+            "device_class": "temperature",
+        },
+    )
+    hass.states.async_set(
+        "sensor.humidity",
+        "45",
+        {
+            "friendly_name": "Humidity Sensor",
+            "unit_of_measurement": "%",
+            "device_class": "humidity",
+        },
+    )
+    hass.states.async_set("switch.fan", "on", {"friendly_name": "Fan Switch"})
     return hass
 
 
@@ -48,10 +54,11 @@ class TestGetEntityState:
 
     def test_get_entity_state_returns_entity_dict(self, entity_manager, hass):
         """Test that get_entity_state returns a proper entity state dict."""
-        hass.states.async_set("light.living_room", "on", {
-            "friendly_name": "Living Room Light",
-            "brightness": 255
-        })
+        hass.states.async_set(
+            "light.living_room",
+            "on",
+            {"friendly_name": "Living Room Light", "brightness": 255},
+        )
 
         result = entity_manager.get_entity_state("light.living_room")
 
@@ -88,9 +95,7 @@ class TestGetEntityState:
 class TestGetEntitiesByDomain:
     """Tests for get_entities_by_domain method."""
 
-    def test_get_entities_by_domain_returns_list(
-        self, entity_manager, sample_states
-    ):
+    def test_get_entities_by_domain_returns_list(self, entity_manager, sample_states):
         """Test that get_entities_by_domain returns list of entities."""
         result = entity_manager.get_entities_by_domain("light")
 
@@ -100,18 +105,14 @@ class TestGetEntitiesByDomain:
         assert "light.living_room" in entity_ids
         assert "light.bedroom" in entity_ids
 
-    def test_get_entities_by_domain_empty_result(
-        self, entity_manager, sample_states
-    ):
+    def test_get_entities_by_domain_empty_result(self, entity_manager, sample_states):
         """Test that get_entities_by_domain returns empty list for non-existent domain."""
         result = entity_manager.get_entities_by_domain("camera")
 
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_get_entities_by_domain_sensor(
-        self, entity_manager, sample_states
-    ):
+    def test_get_entities_by_domain_sensor(self, entity_manager, sample_states):
         """Test that get_entities_by_domain correctly filters sensor domain."""
         result = entity_manager.get_entities_by_domain("sensor")
 
@@ -137,9 +138,7 @@ class TestGetEntityIdsByDomain:
         # Ensure we only get strings (IDs), not dicts
         assert all(isinstance(id, str) for id in result)
 
-    def test_get_entity_ids_by_domain_empty_result(
-        self, entity_manager, sample_states
-    ):
+    def test_get_entity_ids_by_domain_empty_result(self, entity_manager, sample_states):
         """Test that get_entity_ids_by_domain returns empty list for non-existent domain."""
         result = entity_manager.get_entity_ids_by_domain("vacuum")
 
@@ -150,9 +149,7 @@ class TestGetEntityIdsByDomain:
 class TestFilterEntities:
     """Tests for filter_entities method."""
 
-    def test_filter_entities_by_domain(
-        self, entity_manager, sample_states
-    ):
+    def test_filter_entities_by_domain(self, entity_manager, sample_states):
         """Test filtering entities by domain only."""
         result = entity_manager.filter_entities(domain="sensor")
 
@@ -160,9 +157,7 @@ class TestFilterEntities:
         for entity in result:
             assert entity["entity_id"].startswith("sensor.")
 
-    def test_filter_entities_by_state(
-        self, entity_manager, sample_states
-    ):
+    def test_filter_entities_by_state(self, entity_manager, sample_states):
         """Test filtering entities by state value."""
         result = entity_manager.filter_entities(state="on")
 
@@ -170,9 +165,7 @@ class TestFilterEntities:
         for entity in result:
             assert entity["state"] == "on"
 
-    def test_filter_entities_by_attribute(
-        self, entity_manager, sample_states
-    ):
+    def test_filter_entities_by_attribute(self, entity_manager, sample_states):
         """Test filtering entities by attribute existence and value."""
         result = entity_manager.filter_entities(
             attribute="device_class", value="temperature"
@@ -181,9 +174,7 @@ class TestFilterEntities:
         assert len(result) == 1
         assert result[0]["entity_id"] == "sensor.temperature"
 
-    def test_filter_entities_by_domain_and_state(
-        self, entity_manager, sample_states
-    ):
+    def test_filter_entities_by_domain_and_state(self, entity_manager, sample_states):
         """Test filtering entities by both domain and state."""
         result = entity_manager.filter_entities(domain="light", state="on")
 
@@ -202,18 +193,14 @@ class TestFilterEntities:
 class TestGetEntityByFriendlyName:
     """Tests for get_entity_by_friendly_name method."""
 
-    def test_get_entity_by_friendly_name_found(
-        self, entity_manager, sample_states
-    ):
+    def test_get_entity_by_friendly_name_found(self, entity_manager, sample_states):
         """Test finding entity by friendly name."""
         result = entity_manager.get_entity_by_friendly_name("Living Room Light")
 
         assert result is not None
         assert result["entity_id"] == "light.living_room"
 
-    def test_get_entity_by_friendly_name_not_found(
-        self, entity_manager, sample_states
-    ):
+    def test_get_entity_by_friendly_name_not_found(self, entity_manager, sample_states):
         """Test that non-existent friendly name returns None."""
         result = entity_manager.get_entity_by_friendly_name("Non-existent Entity")
 
@@ -251,3 +238,172 @@ class TestEntityManagerInitialization:
         """Test that EntityManager raises error with None hass."""
         with pytest.raises(ValueError, match="hass is required"):
             EntityManager(None)
+
+
+class TestEntityManagerCache:
+    """Tests for the per-domain cache and state_changed invalidation."""
+
+    def test_cache_builds_lazily_on_first_query(self, entity_manager, sample_states):
+        """Test that the cache is not built until a query method is called."""
+        assert entity_manager._cache_built is False
+
+        entity_manager.get_entities_by_domain("light")
+
+        assert entity_manager._cache_built is True
+        assert "light" in entity_manager._domain_cache
+        assert "sensor" in entity_manager._domain_cache
+        assert "switch" in entity_manager._domain_cache
+
+    def test_cache_returns_correct_domain_entities(self, entity_manager, sample_states):
+        """Test that cached results match async_all() results."""
+        # Force cache build
+        cached_lights = entity_manager.get_entities_by_domain("light")
+        direct_lights = [
+            s
+            for s in sample_states.states.async_all()
+            if s.entity_id.startswith("light.")
+        ]
+
+        assert len(cached_lights) == len(direct_lights)
+        cached_ids = {e["entity_id"] for e in cached_lights}
+        direct_ids = {s.entity_id for s in direct_lights}
+        assert cached_ids == direct_ids
+
+    def test_filter_uses_cache(self, entity_manager, sample_states):
+        """Test that filter_entities uses the cache after first build."""
+        # First call builds cache
+        result1 = entity_manager.filter_entities(domain="sensor")
+        assert entity_manager._cache_built is True
+
+        # Second call should use cached data
+        result2 = entity_manager.filter_entities(domain="sensor")
+        assert result1 == result2
+
+    @pytest.mark.asyncio
+    async def test_state_changed_updates_cache(self, entity_manager, sample_states):
+        """Test that state_changed event updates the cache in-place."""
+        entity_manager.async_setup()
+
+        # Build cache
+        entity_manager.get_entities_by_domain("light")
+        assert entity_manager._cache_built is True
+
+        # Simulate state change via hass (fires EVENT_STATE_CHANGED internally)
+        sample_states.states.async_set(
+            "light.living_room",
+            "off",
+            {
+                "friendly_name": "Living Room Light",
+                "brightness": 0,
+            },
+        )
+        await sample_states.async_block_till_done()
+
+        # Cache should reflect the new state
+        result = entity_manager.get_entities_by_domain("light")
+        living_room = next(e for e in result if e["entity_id"] == "light.living_room")
+        assert living_room["state"] == "off"
+        assert living_room["attributes"]["brightness"] == 0
+
+        entity_manager.async_teardown()
+
+    @pytest.mark.asyncio
+    async def test_state_changed_adds_new_entity_to_cache(
+        self, entity_manager, sample_states
+    ):
+        """Test that adding a new entity updates the domain cache."""
+        entity_manager.async_setup()
+
+        # Build cache
+        entity_manager.get_entities_by_domain("light")
+        initial_count = len(entity_manager._domain_cache.get("light", []))
+
+        # Add a new light entity
+        sample_states.states.async_set(
+            "light.kitchen",
+            "on",
+            {
+                "friendly_name": "Kitchen Light",
+            },
+        )
+        await sample_states.async_block_till_done()
+
+        result = entity_manager.get_entities_by_domain("light")
+        assert len(result) == initial_count + 1
+        assert any(e["entity_id"] == "light.kitchen" for e in result)
+
+        entity_manager.async_teardown()
+
+    @pytest.mark.asyncio
+    async def test_state_changed_removes_entity_from_cache(
+        self, entity_manager, sample_states
+    ):
+        """Test that removing an entity updates the domain cache."""
+        entity_manager.async_setup()
+
+        # Build cache
+        entity_manager.get_entities_by_domain("switch")
+        assert len(entity_manager._domain_cache.get("switch", [])) == 1
+
+        # Remove the switch entity
+        sample_states.states.async_remove("switch.fan")
+        await sample_states.async_block_till_done()
+
+        result = entity_manager.get_entities_by_domain("switch")
+        assert len(result) == 0
+
+        entity_manager.async_teardown()
+
+    def test_async_teardown_clears_cache(self, entity_manager, sample_states):
+        """Test that async_teardown clears cache and listener."""
+        entity_manager.async_setup()
+
+        # Build cache
+        entity_manager.get_entities_by_domain("light")
+        assert entity_manager._cache_built is True
+        assert entity_manager._unsub_state_changed is not None
+
+        entity_manager.async_teardown()
+
+        assert entity_manager._cache_built is False
+        assert entity_manager._domain_cache == {}
+        assert entity_manager._unsub_state_changed is None
+
+    def test_async_setup_is_idempotent(self, entity_manager, hass):
+        """Test that calling async_setup multiple times is safe."""
+        entity_manager.async_setup()
+        first_unsub = entity_manager._unsub_state_changed
+
+        entity_manager.async_setup()
+        second_unsub = entity_manager._unsub_state_changed
+
+        assert first_unsub is second_unsub
+
+        entity_manager.async_teardown()
+
+    @pytest.mark.asyncio
+    async def test_cache_not_invalidated_before_build(
+        self, entity_manager, sample_states
+    ):
+        """Test that state_changed events before cache build are no-ops."""
+        entity_manager.async_setup()
+        assert entity_manager._cache_built is False
+
+        # State change before cache is built
+        sample_states.states.async_set(
+            "light.living_room",
+            "off",
+            {
+                "friendly_name": "Living Room Light",
+            },
+        )
+        await sample_states.async_block_till_done()
+
+        # Cache still not built
+        assert entity_manager._cache_built is False
+
+        # When we finally query, we get the latest state (off)
+        result = entity_manager.get_entity_state("light.living_room")
+        assert result["state"] == "off"
+
+        entity_manager.async_teardown()

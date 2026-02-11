@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from ..function_calling import FunctionCallHandler, FunctionCall
 from .compaction import compact_messages
+from .function_call_parser import FunctionCallParser
 from .response_parser import ResponseParser
 from .token_estimator import (
     DEFAULT_CONTEXT_WINDOW,
@@ -55,6 +56,7 @@ class QueryProcessor:
         self.max_iterations = max_iterations
         self.max_query_length = max_query_length
         self.response_parser = ResponseParser()
+        self.function_call_parser = FunctionCallParser(self.response_parser)
 
     def _sanitize_query(self, query: str, max_length: int | None = None) -> str:
         """Sanitize a user query by removing invisible characters.
@@ -266,97 +268,16 @@ class QueryProcessor:
     def _detect_function_call(self, response_text: str) -> list[FunctionCall] | None:
         """Detect and parse function calls from response text.
 
+        Delegates to FunctionCallParser which handles all provider-specific
+        formats (OpenAI, Gemini, Anthropic, simple/custom).
+
         Args:
             response_text: The text response from the AI provider.
 
         Returns:
             List of FunctionCall objects if found, None otherwise.
         """
-        # Parse the text to JSON/Dict
-        parsed_result = self.response_parser.parse(response_text)
-
-        if parsed_result["type"] == "text":
-            return None
-
-        content = parsed_result["content"]
-        if not isinstance(content, dict):
-            return None
-
-        # Try FunctionCallHandler for standard provider formats
-        # We try strict formats first
-
-        # OpenAI format
-        fc_openai = (
-            FunctionCallHandler.parse_openai_response(
-                {"choices": [{"message": {"tool_calls": content.get("tool_calls")}}]}
-            )
-            if "tool_calls" in content
-            else None
-        )
-        if fc_openai:
-            return fc_openai
-
-        # Gemini format (simulated based on typical JSON output)
-        if "functionCall" in content:
-            return [
-                FunctionCall(
-                    id=f"gemini_{content['functionCall'].get('name', '')}",
-                    name=content["functionCall"].get("name", ""),
-                    arguments=content["functionCall"].get("args", {}),
-                )
-            ]
-
-        # Anthropic format: {"tool_use": {"id": ..., "name": ..., "input": ...}, "additional_tool_calls": [...]}
-        if "tool_use" in content:
-            tool_use = content["tool_use"]
-            calls = [
-                FunctionCall(
-                    id=tool_use.get("id", ""),
-                    name=tool_use.get("name", ""),
-                    arguments=tool_use.get("input", {}),
-                )
-            ]
-            for extra in content.get("additional_tool_calls", []):
-                calls.append(
-                    FunctionCall(
-                        id=extra.get("id", ""),
-                        name=extra.get("name", ""),
-                        arguments=extra.get("input", {}),
-                    )
-                )
-            return calls
-
-        # Fallback: Check for simplified/direct JSON format often used in custom implementations
-        # e.g. {"function": "name", "parameters": {}} or {"name": "name", "arguments": {}}
-        name = content.get("function") or content.get("name") or content.get("tool")
-        args = (
-            content.get("parameters") or content.get("arguments") or content.get("args")
-        )
-
-        if name and isinstance(name, str) and isinstance(args, dict):
-            return [FunctionCall(id=name, name=name, arguments=args)]
-
-        # Check for list of tool calls in 'tool_calls' key directly
-        tool_calls_list = content.get("tool_calls")
-        if isinstance(tool_calls_list, list):
-            result = []
-            for tc in tool_calls_list:
-                # Handle OpenAI-style inside the list
-                func = tc.get("function", {})
-                if func:
-                    result.append(
-                        FunctionCall(
-                            id=tc.get("id", ""),
-                            name=func.get("name", ""),
-                            arguments=func.get("arguments", {})
-                            if isinstance(func.get("arguments"), dict)
-                            else json.loads(func.get("arguments", "{}")),
-                        )
-                    )
-            if result:
-                return result
-
-        return None
+        return self.function_call_parser.detect(response_text)
 
     async def process_stream(
         self,

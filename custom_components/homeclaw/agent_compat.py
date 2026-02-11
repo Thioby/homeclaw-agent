@@ -164,12 +164,20 @@ class HomeclawAgent:
         self._agent = Agent(
             hass=self.hass,
             provider=self._provider,
-            entity_manager=EntityManager(self.hass),
+            entity_manager=self._create_entity_manager(),
             registry_manager=RegistryManager(self.hass),
             automation_manager=AutomationManager(self.hass),
             dashboard_manager=DashboardManager(self.hass),
             control_manager=ControlManager(self.hass),
         )
+
+    def _create_entity_manager(self):
+        """Create an EntityManager with cache listener enabled."""
+        from .managers.entity_manager import EntityManager
+
+        em = EntityManager(self.hass)
+        em.async_setup()
+        return em
 
     # === PUBLIC API (same signatures as old agent) ===
 
