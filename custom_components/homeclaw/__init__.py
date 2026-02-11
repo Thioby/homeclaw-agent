@@ -393,6 +393,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.services.async_register(DOMAIN, "rag_reindex", async_handle_rag_reindex)
 
+    # Clean up old file uploads (> 7 days) at startup
+    try:
+        from .file_processor import cleanup_old_uploads
+
+        await cleanup_old_uploads(hass)
+    except Exception as err:
+        _LOGGER.warning("Failed to clean up old uploads: %s", err)
+
     # --- Proactive subsystem: heartbeat + scheduler + subagent ---
     await _initialize_proactive(hass)
 

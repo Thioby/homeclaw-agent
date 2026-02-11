@@ -61,6 +61,7 @@ export async function selectSession(hass: HomeAssistant, sessionId: string): Pro
         timestamp: m.timestamp,
         status: m.status,
         error_message: m.error_message,
+        attachments: m.attachments,
       }))
       .sort((a: any, b: any) => (a.timestamp || '').localeCompare(b.timestamp || ''));
 

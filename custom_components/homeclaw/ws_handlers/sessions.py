@@ -152,6 +152,14 @@ async def ws_delete_session(
         storage = _get_storage(hass, user_id)
         await storage.delete_session(msg["session_id"])
 
+        # Clean up uploaded files for this session (if any)
+        try:
+            from ..file_processor import cleanup_session_uploads
+
+            await cleanup_session_uploads(hass, msg["session_id"])
+        except Exception:
+            pass  # Non-critical -- don't fail the delete
+
         # Remove session from RAG index (if available)
         try:
             if DOMAIN in hass.data:

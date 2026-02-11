@@ -65,6 +65,37 @@ class OpenAIProvider(BaseHTTPClient):
             "Content-Type": "application/json",
         }
 
+    @staticmethod
+    def _convert_multimodal_messages(
+        messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Convert messages with _images to OpenAI multimodal content blocks.
+
+        Transforms our internal format into OpenAI's vision API format:
+        content: [{"type":"text","text":"..."}, {"type":"image_url","image_url":{"url":"data:..."}}]
+        """
+        converted = []
+        for msg in messages:
+            images = msg.get("_images")
+            if images and msg.get("role") == "user":
+                content_blocks: list[dict[str, Any]] = [
+                    {"type": "text", "text": msg.get("content", "")},
+                ]
+                for img in images:
+                    data_url = f"data:{img['mime_type']};base64,{img['data']}"
+                    content_blocks.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": data_url, "detail": "auto"},
+                        }
+                    )
+                converted.append({"role": "user", "content": content_blocks})
+            else:
+                # Strip _images key from non-image messages
+                clean = {k: v for k, v in msg.items() if k != "_images"}
+                converted.append(clean)
+        return converted
+
     def _build_payload(
         self, messages: list[dict[str, Any]], **kwargs: Any
     ) -> dict[str, Any]:
@@ -78,9 +109,12 @@ class OpenAIProvider(BaseHTTPClient):
         Returns:
             The request payload dictionary.
         """
+        # Convert multimodal messages to OpenAI format
+        converted_messages = self._convert_multimodal_messages(messages)
+
         payload: dict[str, Any] = {
             "model": self._model,
-            "messages": messages,
+            "messages": converted_messages,
         }
 
         # Add tools if provided

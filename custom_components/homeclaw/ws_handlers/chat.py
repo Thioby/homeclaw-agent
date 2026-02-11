@@ -13,6 +13,10 @@ from homeassistant.components import websocket_api
 from homeassistant.exceptions import HomeAssistantError
 
 from ..const import DOMAIN
+from ..file_processor import (
+    FileProcessingError,
+    process_attachments,
+)
 from ..models import get_context_window
 from ..storage import Message, SessionStorage
 from ._common import (
@@ -99,6 +103,77 @@ async def _rag_post_conversation(
         _LOGGER.debug("Explicit memory capture failed: %s", mem_err)
 
 
+def _build_conversation_history(
+    messages: list[Message],
+    max_image_messages: int = 5,
+) -> list[dict[str, Any]]:
+    """Build conversation history dicts, reconstructing _images for historical messages.
+
+    For user messages that had image attachments, we read the full-resolution image
+    from disk and attach it as _images so the AI provider can "see" images from
+    earlier in the conversation.
+
+    Only the most recent `max_image_messages` user messages with images are
+    reconstructed to avoid context window bloat.
+
+    Args:
+        messages: List of Message objects from storage (excluding the current message).
+        max_image_messages: Max number of historical image messages to reconstruct.
+
+    Returns:
+        List of message dicts with role, content, and optionally _images.
+    """
+    import base64
+
+    history: list[dict[str, Any]] = []
+
+    # First pass: identify which messages have image attachments
+    image_msg_indices: list[int] = []
+    for i, m in enumerate(messages):
+        if m.role == "user" and m.attachments:
+            has_images = any(a.get("is_image") for a in m.attachments)
+            if has_images:
+                image_msg_indices.append(i)
+
+    # Only reconstruct the most recent N image messages
+    reconstruct_set = set(image_msg_indices[-max_image_messages:])
+
+    for i, m in enumerate(messages):
+        msg_dict: dict[str, Any] = {"role": m.role, "content": m.content}
+
+        if i in reconstruct_set:
+            # Reconstruct _images from stored attachments
+            images: list[dict[str, Any]] = []
+            for att in m.attachments:
+                if not att.get("is_image"):
+                    continue
+                storage_path = att.get("storage_path", "")
+                if not storage_path:
+                    continue
+                try:
+                    with open(storage_path, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode("ascii")
+                    images.append(
+                        {
+                            "mime_type": att.get("mime_type", "image/jpeg"),
+                            "data": b64,
+                            "filename": att.get("filename", "image"),
+                        }
+                    )
+                except (OSError, IOError) as err:
+                    _LOGGER.debug(
+                        "Could not read historical image %s: %s",
+                        storage_path,
+                        err,
+                    )
+            if images:
+                msg_dict["_images"] = images
+
+        history.append(msg_dict)
+
+    return history
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "homeclaw/chat/send",
@@ -107,6 +182,20 @@ async def _rag_post_conversation(
         vol.Optional("provider"): str,
         vol.Optional("model"): str,
         vol.Optional("debug"): vol.Coerce(bool),
+        vol.Optional("attachments"): vol.All(
+            list,
+            vol.Length(max=5),
+            [
+                vol.Schema(
+                    {
+                        vol.Required("filename"): str,
+                        vol.Required("mime_type"): str,
+                        vol.Required("content"): str,
+                        vol.Optional("size"): int,
+                    }
+                )
+            ],
+        ),
     }
 )
 @websocket_api.async_response
@@ -130,7 +219,25 @@ async def ws_send_message(
 
         now = datetime.now(timezone.utc).isoformat()
 
-        # Create and save user message
+        # Process file attachments if present
+        processed_attachments = []
+        raw_attachments = msg.get("attachments", [])
+        if raw_attachments:
+            try:
+                processed_attachments = await process_attachments(
+                    hass, session_id, raw_attachments
+                )
+                _LOGGER.info(
+                    "Processed %d attachments for session %s",
+                    len(processed_attachments),
+                    session_id,
+                )
+            except FileProcessingError as fp_err:
+                _LOGGER.warning("Attachment processing error: %s", fp_err)
+                connection.send_error(msg["id"], "invalid_attachment", str(fp_err))
+                return
+
+        # Create and save user message (with attachment refs)
         user_message = Message(
             message_id=str(uuid.uuid4()),
             session_id=session_id,
@@ -138,16 +245,16 @@ async def ws_send_message(
             content=msg["message"],
             timestamp=now,
             status="completed",
+            attachments=[a.to_storage_dict() for a in processed_attachments],
         )
         await storage.add_message(session_id, user_message)
 
         # Build conversation history for AI context.
         # Exclude the last message (the one we just saved) -- it will be appended
         # by _build_messages() in QueryProcessor to avoid duplication.
+        # Reconstructs _images for historical user messages with image attachments.
         all_messages = await storage.get_session_messages(session_id)
-        conversation_history = [
-            {"role": m.role, "content": m.content} for m in all_messages[:-1]
-        ]
+        conversation_history = _build_conversation_history(all_messages[:-1])
 
         # Determine provider
         provider = msg.get("provider") or session.provider or "anthropic"
@@ -170,14 +277,22 @@ async def ws_send_message(
 
             if DOMAIN in hass.data and provider in hass.data[DOMAIN].get("agents", {}):
                 agent = hass.data[DOMAIN]["agents"][provider]
+
+                # Build kwargs for non-streaming (including attachments)
+                query_kwargs: dict[str, Any] = {
+                    "provider": provider,
+                    "model": msg.get("model"),
+                    "debug": msg.get("debug", False),
+                    "conversation_history": conversation_history,
+                    "user_id": user_id,
+                    "session_id": session_id,
+                }
+                if processed_attachments:
+                    query_kwargs["attachments"] = processed_attachments
+
                 result = await agent.process_query(
                     msg["message"],
-                    provider=provider,
-                    model=msg.get("model"),
-                    debug=msg.get("debug", False),
-                    conversation_history=conversation_history,
-                    user_id=user_id,
-                    session_id=session_id,
+                    **query_kwargs,
                 )
 
                 # Check if AI agent returned success or error
@@ -259,6 +374,20 @@ async def ws_send_message(
         vol.Optional("provider"): str,
         vol.Optional("model"): str,
         vol.Optional("debug"): vol.Coerce(bool),
+        vol.Optional("attachments"): vol.All(
+            list,
+            vol.Length(max=5),
+            [
+                vol.Schema(
+                    {
+                        vol.Required("filename"): str,
+                        vol.Required("mime_type"): str,
+                        vol.Required("content"): str,
+                        vol.Optional("size"): int,
+                    }
+                )
+            ],
+        ),
     }
 )
 @websocket_api.async_response
@@ -293,7 +422,25 @@ async def ws_send_message_stream(
 
         now = datetime.now(timezone.utc).isoformat()
 
-        # Create and save user message
+        # Process file attachments if present
+        processed_attachments = []
+        raw_attachments = msg.get("attachments", [])
+        if raw_attachments:
+            try:
+                processed_attachments = await process_attachments(
+                    hass, session_id, raw_attachments
+                )
+                _LOGGER.info(
+                    "Processed %d attachments for session %s",
+                    len(processed_attachments),
+                    session_id,
+                )
+            except FileProcessingError as fp_err:
+                _LOGGER.warning("Attachment processing error: %s", fp_err)
+                connection.send_error(request_id, "invalid_attachment", str(fp_err))
+                return
+
+        # Create and save user message (with attachment refs)
         user_message = Message(
             message_id=str(uuid.uuid4()),
             session_id=session_id,
@@ -301,6 +448,7 @@ async def ws_send_message_stream(
             content=msg["message"],
             timestamp=now,
             status="completed",
+            attachments=[a.to_storage_dict() for a in processed_attachments],
         )
         await storage.add_message(session_id, user_message)
 
@@ -321,10 +469,9 @@ async def ws_send_message_stream(
         # Build conversation history for AI context.
         # Exclude the last message (the one we just saved) -- it will be appended
         # by _build_messages() in QueryProcessor to avoid duplication.
+        # Reconstructs _images for historical user messages with image attachments.
         all_messages = await storage.get_session_messages(session_id)
-        conversation_history = [
-            {"role": m.role, "content": m.content} for m in all_messages[:-1]
-        ]
+        conversation_history = _build_conversation_history(all_messages[:-1])
 
         # Determine provider
         provider = msg.get("provider") or session.provider or "anthropic"
@@ -378,6 +525,10 @@ async def ws_send_message_stream(
                     kwargs["debug"] = True
                 if model_id:
                     kwargs["model"] = model_id
+
+                # Pass processed attachments for multimodal content
+                if processed_attachments:
+                    kwargs["attachments"] = processed_attachments
 
                 # Add tools for native function calling
                 from ..agent_compat import HomeclawAgent

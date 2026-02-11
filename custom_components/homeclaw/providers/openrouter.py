@@ -6,6 +6,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from .base_client import BaseHTTPClient
+from .openai import OpenAIProvider
 from .registry import ProviderRegistry
 
 if TYPE_CHECKING:
@@ -83,9 +84,12 @@ class OpenRouterProvider(BaseHTTPClient):
         Returns:
             The request payload dictionary.
         """
+        # Convert multimodal messages (with _images) to OpenAI vision format
+        converted_messages = OpenAIProvider._convert_multimodal_messages(messages)
+
         payload: dict[str, Any] = {
             "model": self._model,
-            "messages": messages,
+            "messages": converted_messages,
         }
 
         # Add tools if provided

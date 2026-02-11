@@ -96,6 +96,10 @@ class QueryProcessor:
         into a flat list.  When the result exceeds the model's context budget,
         automatically triggers compaction (AI summarization of old messages).
 
+        Supports multimodal content: when attachments are present, image
+        attachments produce provider-specific content blocks, and text/PDF
+        attachments have their extracted content appended to the query.
+
         Args:
             query: The current user query.
             history: Previous conversation messages.
@@ -106,6 +110,7 @@ class QueryProcessor:
                 - memory_flush_fn: Async callable for pre-compaction memory capture.
                 - user_id (str): For memory flush scoping.
                 - session_id (str): For memory flush context.
+                - attachments: List of ProcessedAttachment objects.
 
         Returns:
             List of message dictionaries ready for the provider.
@@ -143,8 +148,60 @@ class QueryProcessor:
         # Add conversation history
         messages.extend(history)
 
-        # Add the current user query
-        messages.append({"role": "user", "content": query})
+        # --- Process attachments into the user message ---
+        attachments = kwargs.pop("attachments", None)
+        enriched_query = query
+        image_attachments = []
+
+        if attachments:
+            from ..file_processor import get_image_base64
+
+            text_parts: list[str] = []
+            for att in attachments:
+                if att.is_image:
+                    b64 = get_image_base64(att)
+                    if b64:
+                        image_attachments.append(
+                            {
+                                "mime_type": att.mime_type,
+                                "data": b64,
+                                "filename": att.filename,
+                            }
+                        )
+                elif att.content_text:
+                    text_parts.append(
+                        f"--- Attached file: {att.filename} ---\n"
+                        f"{att.content_text}\n"
+                        f"--- End of {att.filename} ---"
+                    )
+
+            # Append extracted text to the query
+            if text_parts:
+                enriched_query = query + "\n\n" + "\n\n".join(text_parts)
+                _LOGGER.info(
+                    "Enriched query with %d text attachment(s), total %d chars",
+                    len(text_parts),
+                    len(enriched_query),
+                )
+
+        # Build the user message (multimodal or plain text)
+        if image_attachments:
+            # Multimodal message: uses provider-agnostic format with _images key.
+            # Provider converters (gemini_convert, openai, anthropic) will handle
+            # the conversion to their specific format.
+            messages.append(
+                {
+                    "role": "user",
+                    "content": enriched_query,
+                    "_images": image_attachments,
+                }
+            )
+            _LOGGER.info(
+                "Built multimodal user message with %d image(s)",
+                len(image_attachments),
+            )
+        else:
+            messages.append({"role": "user", "content": enriched_query})
 
         # --- Context window compaction ---
         context_window = kwargs.get("context_window", DEFAULT_CONTEXT_WINDOW)
@@ -331,13 +388,18 @@ class QueryProcessor:
         # Sanitize the query
         sanitized_query = self._sanitize_query(query)
 
-        # Check for empty query
-        if not sanitized_query:
+        # Check for empty query (allow empty text if attachments are present)
+        attachments = kwargs.get("attachments")
+        if not sanitized_query and not attachments:
             yield {
                 "type": "error",
                 "message": "Query is empty or contains only whitespace",
             }
             return
+
+        # Default to a generic prompt for image-only messages
+        if not sanitized_query and attachments:
+            sanitized_query = "Describe what you see in the attached image(s)."
 
         # Extract RAG context from kwargs
         rag_context = kwargs.pop("rag_context", None)
@@ -350,6 +412,9 @@ class QueryProcessor:
         memory_flush_fn = kwargs.pop("memory_flush_fn", None)
         user_id = kwargs.get("user_id", "")
         session_id = kwargs.get("session_id", "")
+
+        # Extract file attachments (consumed by _build_messages, not passed to provider)
+        attachments = kwargs.pop("attachments", None)
 
         # Filter denied tools from the tools list sent to the LLM (two-layer defense)
         effective_tools = tools
@@ -376,6 +441,7 @@ class QueryProcessor:
             user_id=user_id,
             session_id=session_id,
             model=kwargs.get("model"),
+            attachments=attachments,
         )
 
         hass = kwargs.get("hass")
@@ -663,12 +729,17 @@ class QueryProcessor:
         # Sanitize the query
         sanitized_query = self._sanitize_query(query)
 
-        # Check for empty query
-        if not sanitized_query:
+        # Check for empty query (allow empty text if attachments are present)
+        attachments_p = kwargs.get("attachments")
+        if not sanitized_query and not attachments_p:
             return {
                 "success": False,
                 "error": "Query is empty or contains only whitespace",
             }
+
+        # Default to a generic prompt for image-only messages
+        if not sanitized_query and attachments_p:
+            sanitized_query = "Describe what you see in the attached image(s)."
 
         # Extract RAG context from kwargs
         rag_context = kwargs.pop("rag_context", None)
@@ -703,6 +774,7 @@ class QueryProcessor:
             messages,
             system_prompt=system_prompt,
             rag_context=rag_context,
+            attachments=kwargs.pop("attachments", None),
             context_window=context_window_p,
             memory_flush_fn=memory_flush_fn_p,
             user_id=user_id_p,

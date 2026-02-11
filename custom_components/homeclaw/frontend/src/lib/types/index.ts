@@ -6,6 +6,8 @@ export type {
   Message,
   MessageType,
   MessageMetadata,
+  FileAttachment,
+  AttachmentStatus,
   AutomationSuggestion,
   DashboardSuggestion,
   DebugInfo,

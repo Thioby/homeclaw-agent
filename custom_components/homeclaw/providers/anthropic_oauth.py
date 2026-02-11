@@ -259,7 +259,28 @@ class AnthropicOAuthProvider(AIProvider):
                     pass
                 anthropic_messages.append({"role": "assistant", "content": content})
             elif role == "user" and content:
-                anthropic_messages.append({"role": "user", "content": content})
+                images = message.get("_images", [])
+                if images:
+                    # Build multimodal content blocks for Anthropic vision API
+                    content_blocks: list[dict[str, Any]] = [
+                        {"type": "text", "text": content},
+                    ]
+                    for img in images:
+                        content_blocks.append(
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": img["mime_type"],
+                                    "data": img["data"],
+                                },
+                            }
+                        )
+                    anthropic_messages.append(
+                        {"role": "user", "content": content_blocks}
+                    )
+                else:
+                    anthropic_messages.append({"role": "user", "content": content})
 
         # Build system as array with Claude Code identifier first (required for OAuth)
         # MUST be sent as array of text blocks, not a single string

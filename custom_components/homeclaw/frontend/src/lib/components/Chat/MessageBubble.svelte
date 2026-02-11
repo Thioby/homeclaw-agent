@@ -9,7 +9,7 @@
 
   // Render markdown for assistant messages
   const renderedContent = $derived(
-    message.type === 'assistant' 
+    message.type === 'assistant'
       ? renderMarkdown(message.text, get(sessionState).activeSessionId || undefined)
       : message.text
   );
@@ -33,16 +33,89 @@
       return '';
     }
   });
+
+  // Check if message has attachments
+  const hasAttachments = $derived(
+    message.attachments && message.attachments.length > 0
+  );
+
+  const imageAttachments = $derived(
+    (message.attachments || []).filter((a) => a.is_image)
+  );
+
+  const fileAttachments = $derived(
+    (message.attachments || []).filter((a) => !a.is_image)
+  );
+
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
 </script>
 
-<div class="message" class:user={message.type === 'user'} class:assistant={message.type === 'assistant'} class:streaming={message.isStreaming}>
+<div
+  class="message"
+  class:user={message.type === 'user'}
+  class:assistant={message.type === 'assistant'}
+  class:streaming={message.isStreaming}
+>
   <div class="bubble">
+    {#if hasAttachments}
+      <div class="attachments">
+        {#if imageAttachments.length > 0}
+          <div class="image-attachments">
+            {#each imageAttachments as att (att.file_id)}
+              {#if att.data_url}
+                <img
+                  src={att.data_url}
+                  alt={att.filename}
+                  class="attached-image"
+                  loading="lazy"
+                />
+              {:else if att.thumbnail_b64}
+                <img
+                  src={`data:${att.mime_type};base64,${att.thumbnail_b64}`}
+                  alt={att.filename}
+                  class="attached-image"
+                  loading="lazy"
+                />
+              {:else}
+                <div class="image-placeholder">
+                  <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                  <span>{att.filename}</span>
+                </div>
+              {/if}
+            {/each}
+          </div>
+        {/if}
+
+        {#if fileAttachments.length > 0}
+          <div class="file-attachments">
+            {#each fileAttachments as att (att.file_id)}
+              <div class="file-chip">
+                <svg viewBox="0 0 24 24" class="file-icon">
+                  {#if att.mime_type === 'application/pdf'}
+                    <path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/>
+                  {:else}
+                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                  {/if}
+                </svg>
+                <span class="file-name" title={att.filename}>{att.filename}</span>
+                <span class="file-size">{formatSize(att.size)}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     {#if message.type === 'assistant'}
       {@html renderedContent}
       {#if message.isStreaming}
-        <span class="streaming-cursor">▋</span>
+        <span class="streaming-cursor">&#9611;</span>
       {/if}
-    {:else}
+    {:else if message.text}
       {message.text}
     {/if}
     {#if formattedTime}
@@ -79,9 +152,10 @@
     line-height: 1.45;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    overflow: hidden;
   }
 
-  /* User bubble — right side, Telegram-style */
+  /* User bubble -- right side, Telegram-style */
   .message.user .bubble {
     background: var(--bubble-user);
     color: var(--text-bubble-user);
@@ -108,7 +182,7 @@
     display: none;
   }
 
-  /* Assistant bubble — left side */
+  /* Assistant bubble -- left side */
   .message.assistant .bubble {
     background: var(--bubble-assistant);
     color: var(--text-bubble-assistant);
@@ -134,7 +208,7 @@
     display: none;
   }
 
-  /* Timestamp INSIDE bubble — Telegram style */
+  /* Timestamp INSIDE bubble -- Telegram style */
   .bubble-time {
     float: right;
     font-size: 11px;
@@ -147,10 +221,107 @@
     color: var(--text-bubble-time-user);
   }
 
+  /* --- Attachments --- */
+  .attachments {
+    margin-bottom: 6px;
+  }
+
+  .image-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+
+  .attached-image {
+    max-width: 260px;
+    max-height: 200px;
+    border-radius: 8px;
+    object-fit: contain;
+    cursor: pointer;
+    display: block;
+  }
+
+  .image-placeholder {
+    width: 120px;
+    height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+    gap: 4px;
+  }
+
+  .image-placeholder svg {
+    width: 24px;
+    height: 24px;
+    fill: var(--secondary-text-color);
+  }
+
+  .image-placeholder span {
+    font-size: 10px;
+    color: var(--secondary-text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100px;
+  }
+
+  .file-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+
+  .file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+    font-size: 12px;
+    max-width: 200px;
+  }
+
+  .message.user .file-chip {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .file-icon {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    fill: currentColor;
+    opacity: 0.7;
+  }
+
+  .file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .file-size {
+    opacity: 0.6;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+
   /* Bubble content formatting (from markdown) */
-  .bubble :global(p) { margin-bottom: 6px; }
-  .bubble :global(p:last-of-type) { margin-bottom: 0; }
-  .bubble :global(strong) { font-weight: 600; }
+  .bubble :global(p) {
+    margin-bottom: 6px;
+  }
+  .bubble :global(p:last-of-type) {
+    margin-bottom: 0;
+  }
+  .bubble :global(strong) {
+    font-weight: 600;
+  }
   .bubble :global(code) {
     background: var(--bubble-code-bg);
     padding: 1px 5px;
@@ -172,11 +343,14 @@
     padding: 0;
     font-size: 13px;
   }
-  .bubble :global(ul), .bubble :global(ol) {
+  .bubble :global(ul),
+  .bubble :global(ol) {
     padding-left: 18px;
     margin: 4px 0;
   }
-  .bubble :global(li) { margin: 2px 0; }
+  .bubble :global(li) {
+    margin: 2px 0;
+  }
 
   /* Streaming cursor */
   .streaming-cursor {
@@ -188,8 +362,14 @@
   }
 
   @keyframes blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
+    0%,
+    50% {
+      opacity: 1;
+    }
+    51%,
+    100% {
+      opacity: 0;
+    }
   }
 
   .message.streaming {

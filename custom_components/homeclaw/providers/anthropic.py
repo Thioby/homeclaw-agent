@@ -136,6 +136,23 @@ class AnthropicProvider(BaseHTTPClient):
                 except (ValueError, TypeError, json.JSONDecodeError):
                     pass
                 filtered_messages.append({"role": role, "content": content})
+            elif role == "user" and message.get("_images"):
+                # Multimodal user message with images
+                content_blocks: list[dict[str, Any]] = [
+                    {"type": "text", "text": content},
+                ]
+                for img in message["_images"]:
+                    content_blocks.append(
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": img["mime_type"],
+                                "data": img["data"],
+                            },
+                        }
+                    )
+                filtered_messages.append({"role": "user", "content": content_blocks})
             elif content:
                 filtered_messages.append({"role": role, "content": content})
 

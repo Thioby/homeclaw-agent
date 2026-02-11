@@ -9,6 +9,28 @@ export interface MessageMetadata {
   debug?: DebugInfo;
 }
 
+/**
+ * File attachment for chat messages
+ */
+export type AttachmentStatus = 'pending' | 'uploading' | 'ready' | 'error';
+
+export interface FileAttachment {
+  file_id: string;
+  filename: string;
+  mime_type: string;
+  size: number;
+  /** Base64 data URL for image preview (e.g., "data:image/png;base64,...") */
+  data_url?: string;
+  /** Raw base64 content for WebSocket upload */
+  content?: string;
+  /** Attachment processing status (frontend only, absent in history) */
+  status?: AttachmentStatus;
+  /** Whether this is an image attachment */
+  is_image?: boolean;
+  /** Small base64 thumbnail for chat history (without data URL prefix) */
+  thumbnail_b64?: string;
+}
+
 export interface Message {
   id: string; // Required for Svelte each keying
   type: MessageType;
@@ -20,6 +42,7 @@ export interface Message {
   dashboard?: DashboardSuggestion;
   metadata?: MessageMetadata;
   isStreaming?: boolean; // Flag for UI to show streaming cursor
+  attachments?: FileAttachment[];
 }
 
 /**

@@ -8,12 +8,21 @@ import { providerState } from '$lib/stores/providers';
  * WebSocket service for Home Assistant communication
  */
 
+/** Attachment payload for WebSocket */
+export interface WsAttachment {
+  filename: string;
+  mime_type: string;
+  content: string; // base64
+  size: number;
+}
+
 /**
  * Send a message via WebSocket
  */
 export async function sendMessage(
   hass: HomeAssistant,
-  message: string
+  message: string,
+  attachments?: WsAttachment[]
 ): Promise<any> {
   const session = get(sessionState);
   if (!session.activeSessionId) {
@@ -36,6 +45,11 @@ export async function sendMessage(
     wsParams.model = provider.selectedModel;
   }
 
+  // Add attachments if present
+  if (attachments && attachments.length > 0) {
+    wsParams.attachments = attachments;
+  }
+
   return hass.callWS(wsParams);
 }
 
@@ -53,7 +67,8 @@ export async function sendMessageStream(
     onToolResult?: (name: string, result: any) => void;
     onComplete?: (result: any) => void;
     onError?: (error: string) => void;
-  }
+  },
+  attachments?: WsAttachment[]
 ): Promise<void> {
   const session = get(sessionState);
   if (!session.activeSessionId) {
@@ -76,7 +91,10 @@ export async function sendMessageStream(
     wsParams.model = provider.selectedModel;
   }
 
-  console.log('[WebSocket] Sending STREAMING message with params:', wsParams);
+  // Add attachments if present
+  if (attachments && attachments.length > 0) {
+    wsParams.attachments = attachments;
+  }
 
   // Subscribe to events for this request.
   // CRITICAL: resubscribe must be false — this is a one-shot command that
@@ -86,46 +104,32 @@ export async function sendMessageStream(
   let unsubscribe: (() => void) | undefined;
   unsubscribe = await hass.connection.subscribeMessage(
     (event: any) => {
-      console.log('[WebSocket] Received streaming event:', event);
-      
-      // Home Assistant subscribeMessage unpacks the event, so we receive the inner event directly
-      console.log('[WebSocket] Event type:', event.type);
-      
       switch (event.type) {
         case 'user_message':
-          console.log('[WebSocket] User message received');
           break;
-        
+
         case 'stream_start':
-          console.log('[WebSocket] Stream started, message_id:', event.message_id);
           callbacks.onStart?.(event.message_id);
           break;
-        
+
         case 'stream_chunk':
-          console.log('[WebSocket] Stream chunk:', event.chunk?.substring(0, 50));
           callbacks.onChunk?.(event.chunk);
           break;
-        
+
         case 'status':
-          console.log('[WebSocket] Status update:', event.message);
           callbacks.onStatus?.(event.message);
           break;
-        
+
         case 'tool_call':
-          console.log('[WebSocket] Tool call:', event.name);
           callbacks.onToolCall?.(event.name, event.args);
           break;
-        
+
         case 'tool_result':
-          console.log('[WebSocket] Tool result:', event.name);
           callbacks.onToolResult?.(event.name, event.result);
           break;
-        
+
         case 'stream_end':
-          console.log('[WebSocket] Stream ended, success:', event.success);
           if (event.success) {
-            // Stream completed successfully - call onComplete
-            console.log('[WebSocket] Calling onComplete');
             callbacks.onComplete?.({});
           } else {
             callbacks.onError?.(event.error || 'Unknown error');
@@ -135,14 +139,9 @@ export async function sendMessageStream(
             unsubscribe();
           }
           break;
-        
-        case 'result':
-          // This shouldn't be called in subscription mode, but handle it just in case
-          console.log('[WebSocket] Unexpected result event in subscription');
-          break;
-        
+
         default:
-          console.log('[WebSocket] Unknown event type:', event.type);
+          break;
       }
     },
     wsParams,
@@ -196,7 +195,7 @@ export function parseAIResponse(content: string): {
           text: parsed.response || parsed.message || content,
         };
       }
-    } catch (e) {
+    } catch (_e) {
       // Not valid JSON, return as-is
     }
   }

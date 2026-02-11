@@ -39,7 +39,19 @@ def convert_messages(
             else:
                 system_instruction += "\n\n" + content
         elif role == "user" and content:
-            contents.append({"role": "user", "parts": [{"text": content}]})
+            parts: list[dict[str, Any]] = [{"text": content}]
+            # Add inline image data for multimodal messages
+            images = message.get("_images", [])
+            for img in images:
+                parts.append(
+                    {
+                        "inlineData": {
+                            "mimeType": img["mime_type"],
+                            "data": img["data"],
+                        }
+                    }
+                )
+            contents.append({"role": "user", "parts": parts})
         elif role == "assistant" and content:
             # Check if this is a function call response (JSON with functionCall)
             try:

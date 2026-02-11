@@ -42,6 +42,7 @@ class Message:
     status: str = "completed"  # "pending" | "completed" | "error"
     error_message: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
+    attachments: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Validate and sanitize message data."""

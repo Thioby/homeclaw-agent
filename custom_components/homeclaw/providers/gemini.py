@@ -6,6 +6,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..models import get_model_ids
+from ._gemini_convert import convert_messages as _convert_gemini_messages
+from ._gemini_convert import convert_tools as _convert_gemini_tools
 from .base_client import BaseHTTPClient
 from .registry import ProviderRegistry
 
@@ -68,11 +70,8 @@ class GeminiProvider(BaseHTTPClient):
     ) -> tuple[list[dict[str, Any]], str | None]:
         """Convert OpenAI-style messages to Gemini format.
 
-        Gemini uses:
-        - 'user' role (same as OpenAI)
-        - 'model' role (instead of 'assistant')
-        - System messages are extracted for systemInstruction
-        - Function results use 'user' role with functionResponse parts
+        Delegates to the shared _gemini_convert module which handles
+        multimodal messages (_images), function calls, and tool results.
 
         Args:
             messages: List of message dicts with 'role' and 'content'.
@@ -80,60 +79,14 @@ class GeminiProvider(BaseHTTPClient):
         Returns:
             Tuple of (contents list, system instruction text or None).
         """
-        import json as _json
-
-        contents = []
-        system_instruction = None
-
-        for message in messages:
-            role = message.get("role", "user")
-            content = message.get("content", "")
-
-            if role == "system":
-                # Concatenate multiple system messages
-                if system_instruction is None:
-                    system_instruction = content
-                else:
-                    system_instruction += "\n\n" + content
-            elif role == "user":
-                contents.append({"role": "user", "parts": [{"text": content}]})
-            elif role == "assistant":
-                # Check if this is a function call response (JSON with functionCall)
-                try:
-                    parsed = _json.loads(content)
-                    if "functionCall" in parsed:
-                        contents.append({"role": "model", "parts": [parsed]})
-                        continue
-                except (ValueError, TypeError):
-                    pass
-                contents.append({"role": "model", "parts": [{"text": content}]})
-            elif role == "function":
-                # Tool result - Gemini uses functionResponse in user role
-                func_name = message.get("name", "unknown")
-                try:
-                    result_data = _json.loads(content)
-                except (ValueError, TypeError):
-                    result_data = {"result": content}
-                contents.append(
-                    {
-                        "role": "user",
-                        "parts": [
-                            {
-                                "functionResponse": {
-                                    "name": func_name,
-                                    "response": result_data,
-                                }
-                            }
-                        ],
-                    }
-                )
-
-        return contents, system_instruction
+        return _convert_gemini_messages(messages)
 
     def _convert_tools(
         self, openai_tools: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         """Convert OpenAI tool format to Gemini functionDeclarations format.
+
+        Delegates to the shared _gemini_convert module.
 
         Args:
             openai_tools: List of OpenAI-formatted tool definitions.
@@ -141,22 +94,7 @@ class GeminiProvider(BaseHTTPClient):
         Returns:
             List containing a single dict with 'functionDeclarations' key.
         """
-        if not openai_tools:
-            return []
-
-        function_declarations = []
-        for tool in openai_tools:
-            if tool.get("type") == "function":
-                func = tool.get("function", {})
-                function_declarations.append(
-                    {
-                        "name": func.get("name", ""),
-                        "description": func.get("description", ""),
-                        "parameters": func.get("parameters", {}),
-                    }
-                )
-
-        return [{"functionDeclarations": function_declarations}]
+        return _convert_gemini_tools(openai_tools)
 
     def _build_payload(
         self, messages: list[dict[str, Any]], **kwargs: Any
