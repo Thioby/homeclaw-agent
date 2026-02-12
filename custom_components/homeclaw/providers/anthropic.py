@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import TYPE_CHECKING, Any
 
 from .base_client import BaseHTTPClient
@@ -10,6 +11,8 @@ from .registry import ProviderRegistry
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @ProviderRegistry.register("anthropic")
@@ -276,3 +279,200 @@ class AnthropicProvider(BaseHTTPClient):
             return json.dumps(result)
 
         return " ".join(text_parts) if text_parts else ""
+
+    @staticmethod
+    def _build_tool_call_chunk(
+        tool_state: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Build a tool_call chunk from accumulated streaming state."""
+        name = tool_state.get("name", "")
+        if not name:
+            return None
+
+        args: dict[str, Any] = {}
+
+        # Some streams provide complete input up-front in content_block_start.
+        start_input = tool_state.get("input")
+        if isinstance(start_input, dict):
+            args = start_input
+        else:
+            # Otherwise accumulate partial_json from input_json_delta events.
+            input_json = "".join(tool_state.get("input_json_parts", []))
+            if input_json:
+                try:
+                    parsed = json.loads(input_json)
+                    if isinstance(parsed, dict):
+                        args = parsed
+                    else:
+                        _LOGGER.debug(
+                            "Anthropic tool input parsed to non-dict: %s", parsed
+                        )
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    _LOGGER.warning(
+                        "Failed to parse Anthropic tool input JSON for %s", name
+                    )
+
+        return {
+            "type": "tool_call",
+            "name": name,
+            "args": args,
+            "id": tool_state.get("id", ""),
+        }
+
+    def _extract_stream_chunks(
+        self,
+        event_data: dict[str, Any],
+        pending_tools: dict[int, dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Convert one Anthropic stream event into normalized chunks."""
+        output: list[dict[str, Any]] = []
+        event_type = event_data.get("type", "")
+
+        if event_type == "content_block_start":
+            block = event_data.get("content_block", {})
+            if block.get("type") == "tool_use":
+                index = int(event_data.get("index", 0))
+                pending_tools[index] = {
+                    "id": block.get("id", ""),
+                    "name": block.get("name", ""),
+                    "input": block.get("input"),
+                    "input_json_parts": [],
+                }
+            return output
+
+        if event_type == "content_block_delta":
+            delta = event_data.get("delta", {})
+            delta_type = delta.get("type", "")
+
+            if delta_type == "text_delta":
+                text = delta.get("text", "")
+                if text:
+                    output.append({"type": "text", "content": text})
+                return output
+
+            if delta_type == "input_json_delta":
+                index = int(event_data.get("index", 0))
+                tool_state = pending_tools.setdefault(
+                    index,
+                    {
+                        "id": "",
+                        "name": "",
+                        "input": None,
+                        "input_json_parts": [],
+                    },
+                )
+                partial_json = delta.get("partial_json", "")
+                if partial_json:
+                    tool_state["input_json_parts"].append(partial_json)
+                return output
+
+        # On message stop, flush pending tool calls once.
+        if event_type in {"message_delta", "message_stop"}:
+            for index in sorted(pending_tools):
+                chunk = self._build_tool_call_chunk(pending_tools[index])
+                if chunk:
+                    output.append(chunk)
+            pending_tools.clear()
+
+        return output
+
+    async def get_response_stream(self, messages: list[dict[str, Any]], **kwargs: Any):
+        """Stream response chunks from Anthropic Messages API.
+
+        Yields normalized chunks consumed by QueryProcessor:
+        - {"type": "text", "content": "..."}
+        - {"type": "tool_call", "name": str, "args": dict, "id": str}
+        - {"type": "error", "message": str}
+        """
+        headers = self._build_headers()
+        payload = self._build_payload(messages, **kwargs)
+        payload["stream"] = True
+
+        pending_tools: dict[int, dict[str, Any]] = {}
+        buffer = ""
+
+        try:
+            async with self.session.post(
+                self.api_url,
+                headers=headers,
+                json=payload,
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    _LOGGER.error(
+                        "Anthropic streaming request failed: status=%d body=%s",
+                        response.status,
+                        error_text[:500],
+                    )
+                    yield {
+                        "type": "error",
+                        "message": f"Anthropic API error {response.status}: {error_text[:200]}",
+                    }
+                    return
+
+                async for raw_chunk in response.content.iter_any():
+                    if not raw_chunk:
+                        continue
+
+                    buffer += raw_chunk.decode("utf-8", errors="ignore")
+
+                    while "\n\n" in buffer:
+                        raw_event, buffer = buffer.split("\n\n", 1)
+                        if not raw_event.strip():
+                            continue
+
+                        data_lines: list[str] = []
+                        for line in raw_event.splitlines():
+                            if line.startswith("data:"):
+                                data_lines.append(line[5:].strip())
+
+                        if not data_lines:
+                            continue
+
+                        data_text = "\n".join(data_lines)
+                        if data_text == "[DONE]":
+                            break
+
+                        try:
+                            event_data = json.loads(data_text)
+                        except (TypeError, ValueError, json.JSONDecodeError):
+                            _LOGGER.debug(
+                                "Skipping unparsable Anthropic stream event: %s",
+                                data_text[:200],
+                            )
+                            continue
+
+                        for out_chunk in self._extract_stream_chunks(
+                            event_data, pending_tools
+                        ):
+                            yield out_chunk
+
+                # Flush remaining event data at stream end.
+                if buffer.strip():
+                    for raw_event in buffer.strip().split("\n\n"):
+                        data_lines = [
+                            line[5:].strip()
+                            for line in raw_event.splitlines()
+                            if line.startswith("data:")
+                        ]
+                        if not data_lines:
+                            continue
+                        try:
+                            event_data = json.loads("\n".join(data_lines))
+                        except (TypeError, ValueError, json.JSONDecodeError):
+                            continue
+                        for out_chunk in self._extract_stream_chunks(
+                            event_data, pending_tools
+                        ):
+                            yield out_chunk
+
+                # Safety flush in case stream ended without message_stop.
+                if pending_tools:
+                    for index in sorted(pending_tools):
+                        chunk = self._build_tool_call_chunk(pending_tools[index])
+                        if chunk:
+                            yield chunk
+
+        except Exception as err:
+            _LOGGER.error("Anthropic streaming exception: %s", err)
+            yield {"type": "error", "message": str(err)}

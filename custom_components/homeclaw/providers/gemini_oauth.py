@@ -745,6 +745,8 @@ class GeminiOAuthProvider(AIProvider):
                     _LOGGER.info("Gemini streaming: starting to read chunks")
                     chunk_count = 0
                     buffer = ""
+                    decoder = json.JSONDecoder()
+                    stream_array_closed = False
 
                     async for line in resp.content:
                         if not line:
@@ -753,15 +755,32 @@ class GeminiOAuthProvider(AIProvider):
                         line_text = line.decode("utf-8")
                         buffer += line_text
 
-                        # Try to parse complete JSON objects from buffer
+                        # Try to parse complete JSON objects from a streamed JSON array.
+                        # API format is typically: [{...},{...},...]
                         while buffer:
-                            buffer = buffer.lstrip()
+                            buffer = buffer.lstrip(" \t\n\r")
                             if not buffer:
                                 break
 
+                            # Consume array delimiters and separators incrementally.
+                            if buffer[0] in "[,":
+                                buffer = buffer[1:]
+                                continue
+                            if buffer[0] == "]":
+                                stream_array_closed = True
+                                buffer = buffer[1:]
+                                continue
+
                             try:
-                                chunk, idx = json.JSONDecoder().raw_decode(buffer)
+                                chunk, idx = decoder.raw_decode(buffer)
                                 buffer = buffer[idx:]
+
+                                if not isinstance(chunk, dict):
+                                    _LOGGER.debug(
+                                        "Gemini streaming: skipping non-object chunk type=%s",
+                                        type(chunk).__name__,
+                                    )
+                                    continue
 
                                 chunk_count += 1
                                 if chunk_count == 1:
@@ -795,9 +814,16 @@ class GeminiOAuthProvider(AIProvider):
                         remaining = buffer.strip()
                         parse_attempts = 0
                         while remaining:
-                            remaining = remaining.lstrip(" \t\n\r,")
+                            remaining = remaining.lstrip(" \t\n\r")
                             if not remaining:
                                 break
+                            if remaining[0] in "[,":
+                                remaining = remaining[1:]
+                                continue
+                            if remaining[0] == "]":
+                                stream_array_closed = True
+                                remaining = remaining[1:]
+                                continue
                             parse_attempts += 1
                             if parse_attempts > 50:
                                 _LOGGER.warning(
@@ -806,8 +832,12 @@ class GeminiOAuthProvider(AIProvider):
                                 )
                                 break
                             try:
-                                chunk, idx = json.JSONDecoder().raw_decode(remaining)
+                                chunk, idx = decoder.raw_decode(remaining)
                                 remaining = remaining[idx:]
+
+                                if not isinstance(chunk, dict):
+                                    continue
+
                                 chunk_count += 1
 
                                 for result in process_gemini_chunk(
@@ -827,8 +857,9 @@ class GeminiOAuthProvider(AIProvider):
                                 break
 
                     _LOGGER.info(
-                        "Gemini streaming: completed, received %d chunks total",
+                        "Gemini streaming: completed, received %d chunks total (array_closed=%s)",
                         chunk_count,
+                        stream_array_closed,
                     )
 
             except aiohttp.ClientError as e:

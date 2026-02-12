@@ -308,3 +308,62 @@ class TestAnthropicOAuthProviderConstants:
     def test_user_agent_matches_claude_cli(self):
         """Test that user agent identifies as claude-cli."""
         assert "claude-cli" in USER_AGENT
+
+
+class TestAnthropicOAuthProviderStreaming:
+    """Tests for Anthropic OAuth streaming event parsing."""
+
+    def test_unprefix_tool_name(self, provider):
+        """Tool names from stream should be de-prefixed."""
+        assert provider._unprefix_tool_name("mcp_get_weather") == "get_weather"
+        assert provider._unprefix_tool_name("get_weather") == "get_weather"
+
+    def test_extract_stream_chunks_text_delta(self, provider):
+        """Text stream delta should map to text chunk."""
+        pending_tools = {}
+        event = {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "hello"},
+        }
+
+        chunks = provider._extract_stream_chunks(event, pending_tools)
+        assert chunks == [{"type": "text", "content": "hello"}]
+
+    def test_extract_stream_chunks_tool_use_and_json(self, provider):
+        """Tool stream blocks should assemble to normalized tool_call."""
+        pending_tools = {}
+        start_event = {
+            "type": "content_block_start",
+            "index": 2,
+            "content_block": {
+                "type": "tool_use",
+                "id": "tool_1",
+                "name": "mcp_get_weather",
+            },
+        }
+        delta_event = {
+            "type": "content_block_delta",
+            "index": 2,
+            "delta": {
+                "type": "input_json_delta",
+                "partial_json": '{"location":"Krakow"}',
+            },
+        }
+        stop_event = {
+            "type": "message_delta",
+            "delta": {"stop_reason": "tool_use"},
+        }
+
+        assert provider._extract_stream_chunks(start_event, pending_tools) == []
+        assert provider._extract_stream_chunks(delta_event, pending_tools) == []
+
+        chunks = provider._extract_stream_chunks(stop_event, pending_tools)
+        assert chunks == [
+            {
+                "type": "tool_call",
+                "name": "get_weather",
+                "args": {"location": "Krakow"},
+                "id": "tool_1",
+            }
+        ]

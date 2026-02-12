@@ -165,6 +165,12 @@ class AnthropicOAuthProvider(AIProvider):
         """Transform response to remove mcp_ prefix from tool names."""
         return re.sub(r'"name"\s*:\s*"mcp_([^"]+)"', r'"name": "\1"', text)
 
+    def _unprefix_tool_name(self, name: str) -> str:
+        """Remove mcp_ prefix from tool names returned by OAuth API."""
+        if name.startswith(self.TOOL_PREFIX):
+            return name[len(self.TOOL_PREFIX) :]
+        return name
+
     def _convert_tools(
         self, openai_tools: list[dict[str, Any]] | None
     ) -> list[dict[str, Any]]:
@@ -377,3 +383,281 @@ class AnthropicOAuthProvider(AIProvider):
                     return json.dumps(result)
 
                 return " ".join(text_parts) if text_parts else ""
+
+    @staticmethod
+    def _build_tool_call_chunk(
+        tool_state: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Build a normalized tool_call chunk from streaming tool state."""
+        name = tool_state.get("name", "")
+        if not name:
+            return None
+
+        args: dict[str, Any] = {}
+        start_input = tool_state.get("input")
+        if isinstance(start_input, dict):
+            args = start_input
+        else:
+            input_json = "".join(tool_state.get("input_json_parts", []))
+            if input_json:
+                try:
+                    parsed = json.loads(input_json)
+                    if isinstance(parsed, dict):
+                        args = parsed
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    _LOGGER.warning(
+                        "Failed to parse Anthropic OAuth tool input JSON for %s", name
+                    )
+
+        return {
+            "type": "tool_call",
+            "name": name,
+            "args": args,
+            "id": tool_state.get("id", ""),
+        }
+
+    def _extract_stream_chunks(
+        self,
+        event_data: dict[str, Any],
+        pending_tools: dict[int, dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Convert one Anthropic OAuth stream event into normalized chunks."""
+        output: list[dict[str, Any]] = []
+        event_type = event_data.get("type", "")
+
+        if event_type == "content_block_start":
+            block = event_data.get("content_block", {})
+            if block.get("type") == "tool_use":
+                index = int(event_data.get("index", 0))
+                pending_tools[index] = {
+                    "id": block.get("id", ""),
+                    "name": self._unprefix_tool_name(block.get("name", "")),
+                    "input": block.get("input"),
+                    "input_json_parts": [],
+                }
+            return output
+
+        if event_type == "content_block_delta":
+            delta = event_data.get("delta", {})
+            delta_type = delta.get("type", "")
+
+            if delta_type == "text_delta":
+                text = delta.get("text", "")
+                if text:
+                    output.append({"type": "text", "content": text})
+                return output
+
+            if delta_type == "input_json_delta":
+                index = int(event_data.get("index", 0))
+                tool_state = pending_tools.setdefault(
+                    index,
+                    {
+                        "id": "",
+                        "name": "",
+                        "input": None,
+                        "input_json_parts": [],
+                    },
+                )
+                partial_json = delta.get("partial_json", "")
+                if partial_json:
+                    tool_state["input_json_parts"].append(partial_json)
+                return output
+
+        if event_type in {"message_delta", "message_stop"}:
+            for index in sorted(pending_tools):
+                chunk = self._build_tool_call_chunk(pending_tools[index])
+                if chunk:
+                    output.append(chunk)
+            pending_tools.clear()
+
+        return output
+
+    async def get_response_stream(self, messages: list[dict[str, Any]], **kwargs: Any):
+        """Stream response chunks from Anthropic OAuth Messages API."""
+        access_token = await self._get_valid_token()
+
+        headers = {
+            "authorization": f"Bearer {access_token}",
+            "content-type": "application/json",
+            "anthropic-version": self.ANTHROPIC_VERSION,
+            "anthropic-beta": ANTHROPIC_BETA_FLAGS,
+            "user-agent": USER_AGENT,
+        }
+
+        system_message = None
+        anthropic_messages = []
+
+        for message in messages:
+            role = message.get("role", "user")
+            content = message.get("content", "")
+
+            if role == "system":
+                system_message = content
+            elif role == "function":
+                tool_use_id = message.get("tool_use_id", message.get("name", ""))
+                anthropic_messages.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_use_id,
+                                "content": content,
+                            }
+                        ],
+                    }
+                )
+            elif role == "assistant" and content:
+                try:
+                    parsed = json.loads(content)
+                    if "tool_use" in parsed:
+                        tool_use = parsed["tool_use"]
+                        anthropic_messages.append(
+                            {
+                                "role": "assistant",
+                                "content": [
+                                    {
+                                        "type": "tool_use",
+                                        "id": tool_use.get("id", ""),
+                                        "name": tool_use.get("name", ""),
+                                        "input": tool_use.get("input", {}),
+                                    }
+                                ],
+                            }
+                        )
+                        continue
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    pass
+                anthropic_messages.append({"role": "assistant", "content": content})
+            elif role == "user" and content:
+                images = message.get("_images", [])
+                if images:
+                    content_blocks: list[dict[str, Any]] = [
+                        {"type": "text", "text": content},
+                    ]
+                    for img in images:
+                        content_blocks.append(
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": img["mime_type"],
+                                    "data": img["data"],
+                                },
+                            }
+                        )
+                    anthropic_messages.append(
+                        {"role": "user", "content": content_blocks}
+                    )
+                else:
+                    anthropic_messages.append({"role": "user", "content": content})
+
+        system_blocks = [{"type": "text", "text": CLAUDE_CODE_SYSTEM_PREFIX}]
+        if system_message:
+            system_blocks.append({"type": "text", "text": system_message})
+
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "max_tokens": self._max_tokens,
+            "temperature": self.config.get("temperature", 0.7),
+            "messages": anthropic_messages,
+            "system": system_blocks,
+            "stream": True,
+        }
+
+        tools = kwargs.get("tools")
+        if tools:
+            anthropic_tools = self._convert_tools(tools)
+            if anthropic_tools:
+                payload["tools"] = anthropic_tools
+
+        payload = self._transform_request(payload)
+
+        pending_tools: dict[int, dict[str, Any]] = {}
+        buffer = ""
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.API_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=300),
+                ) as resp:
+                    if resp.status != 200:
+                        error_text = await resp.text()
+                        _LOGGER.error(
+                            "Anthropic OAuth streaming API error %d: %s",
+                            resp.status,
+                            error_text[:500],
+                        )
+                        yield {
+                            "type": "error",
+                            "message": f"Anthropic OAuth API error {resp.status}: {error_text[:200]}",
+                        }
+                        return
+
+                    async for raw_chunk in resp.content.iter_any():
+                        if not raw_chunk:
+                            continue
+
+                        buffer += raw_chunk.decode("utf-8", errors="ignore")
+
+                        while "\n\n" in buffer:
+                            raw_event, buffer = buffer.split("\n\n", 1)
+                            if not raw_event.strip():
+                                continue
+
+                            data_lines = [
+                                line[5:].strip()
+                                for line in raw_event.splitlines()
+                                if line.startswith("data:")
+                            ]
+                            if not data_lines:
+                                continue
+
+                            data_text = "\n".join(data_lines)
+                            if data_text == "[DONE]":
+                                break
+
+                            try:
+                                event_data = json.loads(data_text)
+                            except (TypeError, ValueError, json.JSONDecodeError):
+                                _LOGGER.debug(
+                                    "Skipping unparsable Anthropic OAuth stream event: %s",
+                                    data_text[:200],
+                                )
+                                continue
+
+                            for out_chunk in self._extract_stream_chunks(
+                                event_data, pending_tools
+                            ):
+                                yield out_chunk
+
+                    if buffer.strip():
+                        for raw_event in buffer.strip().split("\n\n"):
+                            data_lines = [
+                                line[5:].strip()
+                                for line in raw_event.splitlines()
+                                if line.startswith("data:")
+                            ]
+                            if not data_lines:
+                                continue
+                            try:
+                                event_data = json.loads("\n".join(data_lines))
+                            except (TypeError, ValueError, json.JSONDecodeError):
+                                continue
+                            for out_chunk in self._extract_stream_chunks(
+                                event_data, pending_tools
+                            ):
+                                yield out_chunk
+
+                    if pending_tools:
+                        for index in sorted(pending_tools):
+                            chunk = self._build_tool_call_chunk(pending_tools[index])
+                            if chunk:
+                                yield chunk
+
+        except Exception as err:
+            _LOGGER.error("Anthropic OAuth streaming exception: %s", err)
+            yield {"type": "error", "message": str(err)}

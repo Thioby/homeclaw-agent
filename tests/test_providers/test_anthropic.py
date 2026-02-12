@@ -10,7 +10,9 @@ import pytest
 from custom_components.homeclaw.providers import ProviderRegistry
 
 # Import to trigger registration
-from custom_components.homeclaw.providers import anthropic as anthropic_module  # noqa: F401
+from custom_components.homeclaw.providers import (
+    anthropic as anthropic_module,
+)  # noqa: F401
 from custom_components.homeclaw.providers.anthropic import AnthropicProvider
 
 if TYPE_CHECKING:
@@ -338,3 +340,68 @@ class TestAnthropicProviderAPIUrl:
         provider = AnthropicProvider(hass, config)
 
         assert provider.api_url == "https://api.anthropic.com/v1/messages"
+
+
+class TestAnthropicProviderStreaming:
+    """Tests for AnthropicProvider streaming event parsing."""
+
+    def test_extract_stream_chunks_text_delta(self, hass: HomeAssistant) -> None:
+        """Text deltas should be converted to text chunks."""
+        provider = AnthropicProvider(hass, {"api_key": "test-key"})
+        pending_tools: dict[int, dict[str, Any]] = {}
+
+        event = {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {
+                "type": "text_delta",
+                "text": "Hello",
+            },
+        }
+
+        chunks = provider._extract_stream_chunks(event, pending_tools)
+        assert chunks == [{"type": "text", "content": "Hello"}]
+
+    def test_extract_stream_chunks_tool_use_and_input_json(
+        self, hass: HomeAssistant
+    ) -> None:
+        """Tool blocks should be assembled into tool_call chunks."""
+        provider = AnthropicProvider(hass, {"api_key": "test-key"})
+        pending_tools: dict[int, dict[str, Any]] = {}
+
+        start_event = {
+            "type": "content_block_start",
+            "index": 1,
+            "content_block": {
+                "type": "tool_use",
+                "id": "toolu_123",
+                "name": "get_weather",
+            },
+        }
+        delta_event = {
+            "type": "content_block_delta",
+            "index": 1,
+            "delta": {
+                "type": "input_json_delta",
+                "partial_json": '{"location":"Warsaw"}',
+            },
+        }
+        stop_event = {
+            "type": "message_delta",
+            "delta": {
+                "stop_reason": "tool_use",
+            },
+        }
+
+        assert provider._extract_stream_chunks(start_event, pending_tools) == []
+        assert provider._extract_stream_chunks(delta_event, pending_tools) == []
+
+        chunks = provider._extract_stream_chunks(stop_event, pending_tools)
+        assert chunks == [
+            {
+                "type": "tool_call",
+                "name": "get_weather",
+                "args": {"location": "Warsaw"},
+                "id": "toolu_123",
+            }
+        ]
