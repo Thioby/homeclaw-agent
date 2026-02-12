@@ -90,10 +90,16 @@ class TestToolExecutorDeniedTools:
         mock_result = MagicMock()
         mock_result.to_dict.return_value = {"success": True, "data": "on"}
 
-        with patch(
-            "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
-            new_callable=AsyncMock,
-            return_value=mock_result,
+        with (
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool",
+                return_value=None,
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ),
         ):
             async for _ in ToolExecutor.execute_tool_calls(
                 [fc],
@@ -119,10 +125,16 @@ class TestToolExecutorDeniedTools:
         mock_result = MagicMock()
         mock_result.to_dict.return_value = {"success": True}
 
-        with patch(
-            "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
-            new_callable=AsyncMock,
-            return_value=mock_result,
+        with (
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool",
+                return_value=None,
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
+                new_callable=AsyncMock,
+                return_value=mock_result,
+            ),
         ):
             async for _ in ToolExecutor.execute_tool_calls(
                 [fc],
@@ -180,3 +192,43 @@ class TestToolExecutorDeniedTools:
         # Third: blocked
         content_2 = json.loads(messages[2]["content"])
         assert "error" in content_2
+
+    async def test_invalid_arguments_return_structured_validation_error(self):
+        """Invalid tool args should fail before execute_tool call."""
+        fc = FunctionCall(id="call_1", name="get_entity_state", arguments={})
+        messages: list[dict] = []
+
+        mock_tool = MagicMock()
+        param = MagicMock()
+        param.name = "entity_id"
+        param.required = True
+        param.default = None
+        mock_tool.parameters = [param]
+        mock_tool.validate_parameters.return_value = [
+            "Missing required parameter: entity_id"
+        ]
+
+        with (
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool",
+                return_value=mock_tool,
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
+                new_callable=AsyncMock,
+            ) as execute_mock,
+        ):
+            async for _ in ToolExecutor.execute_tool_calls(
+                [fc],
+                hass=MagicMock(),
+                messages=messages,
+                yield_mode="none",
+                denied_tools=None,
+            ):
+                pass
+
+        execute_mock.assert_not_called()
+        assert len(messages) == 1
+        payload = json.loads(messages[0]["content"])
+        assert payload["error"] == "Invalid tool arguments"
+        assert "entity_id" in payload["required_parameters"]

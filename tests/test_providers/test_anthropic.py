@@ -130,6 +130,33 @@ class TestAnthropicProviderSystemMessage:
         assert assistant_content[0]["id"] == "toolu_1"
         assert assistant_content[1]["id"] == "toolu_2"
 
+    def test_extract_system_with_canonical_tool_calls(
+        self, hass: HomeAssistant
+    ) -> None:
+        """Canonical tool_calls payload should map to tool_use blocks."""
+        provider = AnthropicProvider(hass, {"api_key": "test-key"})
+        messages = [
+            {
+                "role": "assistant",
+                "content": json.dumps(
+                    {
+                        "tool_calls": [
+                            {
+                                "id": "toolu_10",
+                                "name": "get_entity_state",
+                                "args": {"entity_id": "switch.kettle"},
+                            }
+                        ]
+                    }
+                ),
+            }
+        ]
+
+        filtered_messages, _ = provider._extract_system(messages)
+        assistant_content = filtered_messages[0]["content"]
+        assert len(assistant_content) == 1
+        assert assistant_content[0]["id"] == "toolu_10"
+
 
 class TestAnthropicProviderPayload:
     """Tests for AnthropicProvider payload building."""
@@ -440,5 +467,44 @@ class TestAnthropicProviderStreaming:
                 "name": "get_weather",
                 "args": {"location": "Warsaw"},
                 "id": "toolu_123",
+            }
+        ]
+
+    def test_extract_stream_chunks_merges_empty_start_input_with_deltas(
+        self, hass: HomeAssistant
+    ) -> None:
+        """When start input is empty dict, delta JSON should still win."""
+        provider = AnthropicProvider(hass, {"api_key": "test-key"})
+        pending_tools: dict[int, dict[str, Any]] = {}
+
+        start_event = {
+            "type": "content_block_start",
+            "index": 2,
+            "content_block": {
+                "type": "tool_use",
+                "id": "toolu_456",
+                "name": "get_entity_state",
+                "input": {},
+            },
+        }
+        delta_event = {
+            "type": "content_block_delta",
+            "index": 2,
+            "delta": {
+                "type": "input_json_delta",
+                "partial_json": '{"entity_id":"switch.kettle"}',
+            },
+        }
+        stop_event = {"type": "message_delta", "delta": {"stop_reason": "tool_use"}}
+
+        assert provider._extract_stream_chunks(start_event, pending_tools) == []
+        assert provider._extract_stream_chunks(delta_event, pending_tools) == []
+        chunks = provider._extract_stream_chunks(stop_event, pending_tools)
+        assert chunks == [
+            {
+                "type": "tool_call",
+                "name": "get_entity_state",
+                "args": {"entity_id": "switch.kettle"},
+                "id": "toolu_456",
             }
         ]

@@ -6,6 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
+from ..core.tool_call_codec import extract_tool_calls_from_assistant_content
 from .base_client import BaseHTTPClient
 from .registry import ProviderRegistry
 
@@ -60,30 +61,15 @@ class AnthropicProvider(BaseHTTPClient):
         """Extract Anthropic tool_use blocks from stored assistant JSON."""
         blocks: list[dict[str, Any]] = []
 
-        primary = parsed_content.get("tool_use")
-        if isinstance(primary, dict):
+        for call in extract_tool_calls_from_assistant_content(parsed_content):
             blocks.append(
                 {
                     "type": "tool_use",
-                    "id": primary.get("id", ""),
-                    "name": primary.get("name", ""),
-                    "input": primary.get("input", {}),
+                    "id": call.get("id", ""),
+                    "name": call.get("name", ""),
+                    "input": call.get("args", {}),
                 }
             )
-
-        additional = parsed_content.get("additional_tool_calls", [])
-        if isinstance(additional, list):
-            for extra in additional:
-                if not isinstance(extra, dict):
-                    continue
-                blocks.append(
-                    {
-                        "type": "tool_use",
-                        "id": extra.get("id", ""),
-                        "name": extra.get("name", ""),
-                        "input": extra.get("input", {}),
-                    }
-                )
 
         return blocks
 
@@ -327,23 +313,21 @@ class AnthropicProvider(BaseHTTPClient):
         # Some streams provide complete input up-front in content_block_start.
         start_input = tool_state.get("input")
         if isinstance(start_input, dict):
-            args = start_input
-        else:
-            # Otherwise accumulate partial_json from input_json_delta events.
-            input_json = "".join(tool_state.get("input_json_parts", []))
-            if input_json:
-                try:
-                    parsed = json.loads(input_json)
-                    if isinstance(parsed, dict):
-                        args = parsed
-                    else:
-                        _LOGGER.debug(
-                            "Anthropic tool input parsed to non-dict: %s", parsed
-                        )
-                except (TypeError, ValueError, json.JSONDecodeError):
-                    _LOGGER.warning(
-                        "Failed to parse Anthropic tool input JSON for %s", name
-                    )
+            args = dict(start_input)
+
+        # Anthropic may emit `{}` at start and send the real args in deltas.
+        input_json = "".join(tool_state.get("input_json_parts", []))
+        if input_json:
+            try:
+                parsed = json.loads(input_json)
+                if isinstance(parsed, dict):
+                    args = {**args, **parsed}
+                else:
+                    _LOGGER.debug("Anthropic tool input parsed to non-dict: %s", parsed)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                _LOGGER.warning(
+                    "Failed to parse Anthropic tool input JSON for %s", name
+                )
 
         return {
             "type": "tool_call",

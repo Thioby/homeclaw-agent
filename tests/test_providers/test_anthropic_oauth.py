@@ -427,3 +427,60 @@ class TestAnthropicOAuthProviderStreaming:
                 "id": "tool_1",
             }
         ]
+
+    def test_extract_stream_chunks_merges_empty_start_input_with_deltas(self, provider):
+        """When start input is {}, delta JSON should still populate args."""
+        pending_tools = {}
+        start_event = {
+            "type": "content_block_start",
+            "index": 3,
+            "content_block": {
+                "type": "tool_use",
+                "id": "tool_3",
+                "name": "mcp_get_entity_state",
+                "input": {},
+            },
+        }
+        delta_event = {
+            "type": "content_block_delta",
+            "index": 3,
+            "delta": {
+                "type": "input_json_delta",
+                "partial_json": '{"entity_id":"light.kitchen"}',
+            },
+        }
+        stop_event = {"type": "message_delta", "delta": {"stop_reason": "tool_use"}}
+
+        assert provider._extract_stream_chunks(start_event, pending_tools) == []
+        assert provider._extract_stream_chunks(delta_event, pending_tools) == []
+        chunks = provider._extract_stream_chunks(stop_event, pending_tools)
+        assert chunks == [
+            {
+                "type": "tool_call",
+                "name": "get_entity_state",
+                "args": {"entity_id": "light.kitchen"},
+                "id": "tool_3",
+            }
+        ]
+
+    def test_assistant_tool_use_blocks_accepts_canonical_tool_calls(self, provider):
+        """Canonical tool_calls payload should map to Anthropic tool_use blocks."""
+        parsed = {
+            "tool_calls": [
+                {
+                    "id": "toolu_1",
+                    "name": "mcp_get_entity_state",
+                    "args": {"entity_id": "light.kitchen"},
+                }
+            ]
+        }
+
+        blocks = provider._assistant_tool_use_blocks(parsed)
+        assert blocks == [
+            {
+                "type": "tool_use",
+                "id": "toolu_1",
+                "name": "get_entity_state",
+                "input": {"entity_id": "light.kitchen"},
+            }
+        ]

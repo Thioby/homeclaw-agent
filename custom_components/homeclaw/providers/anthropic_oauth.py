@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import aiohttp
 
 from .registry import AIProvider, ProviderRegistry
+from ..core.tool_call_codec import extract_tool_calls_from_assistant_content
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -177,30 +178,15 @@ class AnthropicOAuthProvider(AIProvider):
         """Extract Anthropic tool_use blocks from stored assistant JSON."""
         blocks: list[dict[str, Any]] = []
 
-        primary = parsed_content.get("tool_use")
-        if isinstance(primary, dict):
+        for call in extract_tool_calls_from_assistant_content(parsed_content):
             blocks.append(
                 {
                     "type": "tool_use",
-                    "id": primary.get("id", ""),
-                    "name": self._unprefix_tool_name(primary.get("name", "")),
-                    "input": primary.get("input", {}),
+                    "id": call.get("id", ""),
+                    "name": self._unprefix_tool_name(call.get("name", "")),
+                    "input": call.get("args", {}),
                 }
             )
-
-        additional = parsed_content.get("additional_tool_calls", [])
-        if isinstance(additional, list):
-            for extra in additional:
-                if not isinstance(extra, dict):
-                    continue
-                blocks.append(
-                    {
-                        "type": "tool_use",
-                        "id": extra.get("id", ""),
-                        "name": self._unprefix_tool_name(extra.get("name", "")),
-                        "input": extra.get("input", {}),
-                    }
-                )
 
         return blocks
 
@@ -428,18 +414,20 @@ class AnthropicOAuthProvider(AIProvider):
         args: dict[str, Any] = {}
         start_input = tool_state.get("input")
         if isinstance(start_input, dict):
-            args = start_input
-        else:
-            input_json = "".join(tool_state.get("input_json_parts", []))
-            if input_json:
-                try:
-                    parsed = json.loads(input_json)
-                    if isinstance(parsed, dict):
-                        args = parsed
-                except (TypeError, ValueError, json.JSONDecodeError):
-                    _LOGGER.warning(
-                        "Failed to parse Anthropic OAuth tool input JSON for %s", name
-                    )
+            args = dict(start_input)
+
+        # Anthropic may send `{}` in content_block_start and stream the actual
+        # arguments later in input_json_delta events, so always parse deltas too.
+        input_json = "".join(tool_state.get("input_json_parts", []))
+        if input_json:
+            try:
+                parsed = json.loads(input_json)
+                if isinstance(parsed, dict):
+                    args = {**args, **parsed}
+            except (TypeError, ValueError, json.JSONDecodeError):
+                _LOGGER.warning(
+                    "Failed to parse Anthropic OAuth tool input JSON for %s", name
+                )
 
         return {
             "type": "tool_call",

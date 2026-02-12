@@ -10,6 +10,7 @@ from ..function_calling import FunctionCallHandler, FunctionCall
 from .compaction import compact_messages
 from .function_call_parser import FunctionCallParser
 from .response_parser import ResponseParser
+from .tool_call_codec import build_assistant_tool_message, normalize_tool_calls
 from .token_estimator import (
     DEFAULT_CONTEXT_WINDOW,
     compute_context_budget,
@@ -494,6 +495,8 @@ class QueryProcessor:
                         "message": f"Calling tools: {tool_names}...",
                     }
 
+                    normalized_tool_calls = normalize_tool_calls(accumulated_tool_calls)
+
                     # Convert to FunctionCall objects
                     function_calls = [
                         FunctionCall(
@@ -501,7 +504,7 @@ class QueryProcessor:
                             name=tc["name"],
                             arguments=tc.get("args", {}),
                         )
-                        for tc in accumulated_tool_calls
+                        for tc in normalized_tool_calls
                     ]
 
                     # Append assistant's message (the tool call) to conversation
@@ -514,46 +517,22 @@ class QueryProcessor:
                     tool_call_obj = accumulated_tool_calls[0].get("_raw_function_call")
 
                     if not tool_call_obj:
-                        # Anthropic providers: persist native tool_use shape with call IDs
-                        if accumulated_tool_calls[0].get("id"):
-                            tool_call_obj = {
-                                "tool_use": {
-                                    "id": accumulated_tool_calls[0].get("id", ""),
-                                    "name": accumulated_tool_calls[0]["name"],
-                                    "input": accumulated_tool_calls[0].get("args", {}),
-                                }
-                            }
-                            if len(accumulated_tool_calls) > 1:
-                                tool_call_obj["additional_tool_calls"] = [
-                                    {
-                                        "id": tc.get("id", ""),
-                                        "name": tc.get("name", ""),
-                                        "input": tc.get("args", {}),
-                                    }
-                                    for tc in accumulated_tool_calls[1:]
-                                ]
-
-                    if not tool_call_obj:
-                        # Fallback: reconstruct if _raw wasn't stored
-                        _LOGGER.warning(
-                            "Raw function call not found, reconstructing (may lose thought_signature)"
+                        assistant_tool_json = build_assistant_tool_message(
+                            normalized_tool_calls
                         )
-                        func_call_obj = {
-                            "name": accumulated_tool_calls[0]["name"],
-                            "args": accumulated_tool_calls[0].get("args", {}),
-                        }
-                        if accumulated_tool_calls[0].get("thought_signature"):
-                            func_call_obj["thoughtSignature"] = accumulated_tool_calls[
-                                0
-                            ]["thought_signature"]
-                        tool_call_obj = {"functionCall": func_call_obj}
-
-                    built_messages.append(
-                        {
-                            "role": "assistant",
-                            "content": json.dumps(tool_call_obj),
-                        }
-                    )
+                        built_messages.append(
+                            {
+                                "role": "assistant",
+                                "content": assistant_tool_json,
+                            }
+                        )
+                    else:
+                        built_messages.append(
+                            {
+                                "role": "assistant",
+                                "content": json.dumps(tool_call_obj),
+                            }
+                        )
 
                     # Execute tools INTERNALLY using ToolExecutor
                     async for status_event in ToolExecutor.execute_tool_calls(

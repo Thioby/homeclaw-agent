@@ -88,6 +88,35 @@ class ToolExecutor:
                     }
                 continue
 
+            validation_error = ToolExecutor._build_validation_error(fc, hass)
+            if validation_error is not None:
+                _LOGGER.warning(
+                    "Tool call validation failed before execution: %s args=%s",
+                    fc.name,
+                    fc.arguments,
+                )
+                error_msg = json.dumps(validation_error)
+                messages.append(
+                    {
+                        "role": "function",
+                        "name": fc.name,
+                        "tool_use_id": fc.id,
+                        "content": error_msg,
+                    }
+                )
+                if yield_mode == "status":
+                    yield {
+                        "type": "status",
+                        "message": f"✗ {fc.name} invalid arguments",
+                    }
+                elif yield_mode == "result":
+                    yield {
+                        "type": "tool_result",
+                        "name": fc.name,
+                        "result": error_msg,
+                    }
+                continue
+
             try:
                 _LOGGER.debug("Executing tool: %s with args: %s", fc.name, fc.arguments)
 
@@ -172,6 +201,35 @@ class ToolExecutor:
                         "name": fc.name,
                         "result": error_msg,
                     }
+
+    @staticmethod
+    def _build_validation_error(
+        function_call: FunctionCall,
+        hass: Any,
+    ) -> dict[str, Any] | None:
+        """Build a structured validation error before tool execution.
+
+        Returns None if the call is valid (or tool metadata is unavailable).
+        """
+        tool = ToolRegistry.get_tool(function_call.name, hass=hass)
+        if tool is None:
+            return None
+
+        validation_errors = tool.validate_parameters(function_call.arguments)
+        if not validation_errors:
+            return None
+
+        required_parameters = [
+            p.name for p in tool.parameters if p.required and p.default is None
+        ]
+        return {
+            "error": "Invalid tool arguments",
+            "tool": function_call.name,
+            "validation_errors": validation_errors,
+            "required_parameters": required_parameters,
+            "received_args": function_call.arguments,
+            "hint": "Retry this tool call with all required parameters.",
+        }
 
     @staticmethod
     def convert_tool_calls_to_function_calls(

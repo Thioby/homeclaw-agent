@@ -1,8 +1,9 @@
 """AI Provider registry for the plugin architecture."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -45,6 +46,17 @@ class AIProvider(ABC):
         Returns:
             The AI response as a string.
         """
+
+    async def get_response_stream(
+        self, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Default streaming wrapper for providers without native streaming.
+
+        Providers can override for true incremental output.
+        """
+        text = await self.get_response(messages, **kwargs)
+        if text:
+            yield {"type": "text", "content": text}
 
 
 class ProviderRegistry:

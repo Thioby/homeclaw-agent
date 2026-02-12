@@ -104,6 +104,35 @@ class TestOpenAIProviderBuildPayload:
         assert payload["messages"] == messages
         assert payload["tools"] == tools
 
+    def test_build_payload_converts_canonical_assistant_tool_calls(
+        self, hass: HomeAssistant
+    ) -> None:
+        """Canonical assistant tool_calls JSON should map to OpenAI tool_calls field."""
+        provider = OpenAIProvider(hass, {"token": "sk-test-key", "model": "gpt-4"})
+        messages = [
+            {
+                "role": "assistant",
+                "content": json.dumps(
+                    {
+                        "tool_calls": [
+                            {
+                                "id": "toolu_1",
+                                "name": "get_entity_state",
+                                "args": {"entity_id": "light.kitchen"},
+                            }
+                        ]
+                    }
+                ),
+            }
+        ]
+
+        payload = provider._build_payload(messages)
+        msg = payload["messages"][0]
+        assert msg["role"] == "assistant"
+        assert len(msg["tool_calls"]) == 1
+        assert msg["tool_calls"][0]["id"] == "toolu_1"
+        assert msg["tool_calls"][0]["function"]["name"] == "get_entity_state"
+
 
 class TestOpenAIProviderExtractResponse:
     """Tests for OpenAI provider response extraction."""

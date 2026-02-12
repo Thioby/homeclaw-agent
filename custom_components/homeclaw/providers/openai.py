@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+from ..core.tool_call_codec import extract_tool_calls_from_assistant_content
 from .base_client import BaseHTTPClient
 from .registry import ProviderRegistry
 
@@ -93,6 +94,40 @@ class OpenAIProvider(BaseHTTPClient):
             else:
                 # Strip _images key from non-image messages
                 clean = {k: v for k, v in msg.items() if k != "_images"}
+
+                # Convert canonical assistant tool-call JSON into OpenAI tool_calls.
+                if (
+                    clean.get("role") == "assistant"
+                    and isinstance(clean.get("content"), str)
+                    and clean.get("content")
+                ):
+                    try:
+                        parsed_content = json.loads(clean["content"])
+                        if isinstance(parsed_content, dict):
+                            calls = extract_tool_calls_from_assistant_content(
+                                parsed_content
+                            )
+                            if calls:
+                                clean = {
+                                    "role": "assistant",
+                                    "content": parsed_content.get("text", ""),
+                                    "tool_calls": [
+                                        {
+                                            "id": call.get("id", ""),
+                                            "type": "function",
+                                            "function": {
+                                                "name": call.get("name", ""),
+                                                "arguments": json.dumps(
+                                                    call.get("args", {})
+                                                ),
+                                            },
+                                        }
+                                        for call in calls
+                                    ],
+                                }
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        pass
+
                 converted.append(clean)
         return converted
 
