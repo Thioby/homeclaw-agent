@@ -3,7 +3,7 @@
   import { get } from 'svelte/store';
   import type { HomeAssistant } from '../types';
   import { appState } from '$lib/stores/appState';
-  import { uiState } from '$lib/stores/ui';
+  import { syncThemeFromPreferences, uiState } from '$lib/stores/ui';
   import { loadProviders } from '../services/provider.service';
   import { loadSessions } from '../services/session.service';
   
@@ -50,6 +50,7 @@
           loadProviders(hass),
           loadSessions(hass),
           loadIdentity(hass),
+          syncThemeFromPreferences(hass),
         ]);
         console.log('[HomeclawPanel] Initialization complete');
       } catch (error) {

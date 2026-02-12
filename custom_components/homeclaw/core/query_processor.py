@@ -497,7 +497,7 @@ class QueryProcessor:
                     # Convert to FunctionCall objects
                     function_calls = [
                         FunctionCall(
-                            id=tc.get("name", "unknown"),
+                            id=tc.get("id") or tc.get("name", "unknown"),
                             name=tc["name"],
                             arguments=tc.get("args", {}),
                         )
@@ -512,6 +512,26 @@ class QueryProcessor:
                     # Store the ORIGINAL tool call dict from Gemini stream
                     # This should contain the complete functionCall object with thought_signature
                     tool_call_obj = accumulated_tool_calls[0].get("_raw_function_call")
+
+                    if not tool_call_obj:
+                        # Anthropic providers: persist native tool_use shape with call IDs
+                        if accumulated_tool_calls[0].get("id"):
+                            tool_call_obj = {
+                                "tool_use": {
+                                    "id": accumulated_tool_calls[0].get("id", ""),
+                                    "name": accumulated_tool_calls[0]["name"],
+                                    "input": accumulated_tool_calls[0].get("args", {}),
+                                }
+                            }
+                            if len(accumulated_tool_calls) > 1:
+                                tool_call_obj["additional_tool_calls"] = [
+                                    {
+                                        "id": tc.get("id", ""),
+                                        "name": tc.get("name", ""),
+                                        "input": tc.get("args", {}),
+                                    }
+                                    for tc in accumulated_tool_calls[1:]
+                                ]
 
                     if not tool_call_obj:
                         # Fallback: reconstruct if _raw wasn't stored

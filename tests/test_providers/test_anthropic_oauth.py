@@ -286,6 +286,66 @@ class TestAnthropicOAuthProviderGetResponse:
             assert "tool_use" in response
             assert "get_weather" in response
 
+    @pytest.mark.asyncio
+    async def test_get_response_maps_additional_tool_calls(self, provider):
+        """Assistant JSON with additional tool calls should map to all tool_use blocks."""
+        messages = [
+            {
+                "role": "assistant",
+                "content": json.dumps(
+                    {
+                        "tool_use": {
+                            "id": "toolu_1",
+                            "name": "get_entity_state",
+                            "input": {"entity_id": "light.kitchen"},
+                        },
+                        "additional_tool_calls": [
+                            {
+                                "id": "toolu_2",
+                                "name": "get_entity_state",
+                                "input": {"entity_id": "switch.kettle"},
+                            }
+                        ],
+                    }
+                ),
+            },
+            {
+                "role": "function",
+                "name": "get_entity_state",
+                "tool_use_id": "toolu_1",
+                "content": '{"ok": true}',
+            },
+            {
+                "role": "function",
+                "name": "get_entity_state",
+                "tool_use_id": "toolu_2",
+                "content": '{"ok": true}',
+            },
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(
+            return_value=json.dumps({"content": [{"type": "text", "text": "done"}]})
+        )
+
+        with patch("aiohttp.ClientSession") as mock_session_class:
+            mock_session = MagicMock()
+            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session.__aexit__ = AsyncMock()
+            mock_session.post = MagicMock(
+                return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_response))
+            )
+            mock_session_class.return_value = mock_session
+
+            await provider.get_response(messages)
+
+            payload = mock_session.post.call_args.kwargs["json"]
+            assistant_blocks = payload["messages"][0]["content"]
+            assert len(assistant_blocks) == 2
+            assert assistant_blocks[0]["id"] == "toolu_1"
+            assert assistant_blocks[1]["id"] == "toolu_2"
+
 
 class TestAnthropicOAuthProviderConstants:
     """Tests for provider constants."""

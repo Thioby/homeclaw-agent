@@ -187,7 +187,7 @@ class ToolExecutor:
         """
         return [
             FunctionCall(
-                id=tc.get("name", "unknown"),
+                id=tc.get("id") or tc.get("name", "unknown"),
                 name=tc["name"],
                 arguments=tc.get("args", {}),
             )

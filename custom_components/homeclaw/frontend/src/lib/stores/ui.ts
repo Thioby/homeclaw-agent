@@ -1,4 +1,6 @@
 import { get, writable } from 'svelte/store';
+import type { HomeAssistant } from '$lib/types';
+import { appState } from '$lib/stores/appState';
 
 /**
  * UI state
@@ -9,6 +11,8 @@ export interface UIStateType {
   settingsOpen: boolean;
   theme: 'light' | 'dark' | 'system';
 }
+
+type ThemePreference = UIStateType['theme'];
 
 /**
  * Reference to the <homeclaw-panel> host element.
@@ -28,6 +32,10 @@ const initialState: UIStateType = {
 };
 
 export const uiState = writable<UIStateType>(initialState);
+
+function isValidTheme(theme: unknown): theme is ThemePreference {
+  return theme === 'light' || theme === 'dark' || theme === 'system';
+}
 
 /**
  * UI actions
@@ -73,6 +81,8 @@ export function setTheme(theme: 'light' | 'dark' | 'system'): void {
   } catch {
     // localStorage may be unavailable in some contexts
   }
+
+  void persistThemePreference(theme);
 }
 
 export function cycleTheme(): void {
@@ -100,11 +110,49 @@ function applyThemeToHost(theme: 'light' | 'dark' | 'system'): void {
   setTimeout(() => host.classList.remove('theme-transitioning'), 350);
 }
 
+async function persistThemePreference(theme: ThemePreference): Promise<void> {
+  const hass = get(appState).hass;
+  if (!hass) return;
+
+  try {
+    await hass.callWS({
+      type: 'homeclaw/preferences/set',
+      theme,
+    });
+  } catch (error) {
+    console.warn('[Theme] Could not persist theme preference:', error);
+  }
+}
+
+export async function syncThemeFromPreferences(
+  hass?: HomeAssistant | null,
+): Promise<void> {
+  const ha = hass ?? get(appState).hass;
+  if (!ha) return;
+
+  try {
+    const result = await ha.callWS({ type: 'homeclaw/preferences/get' });
+    const theme = result?.preferences?.theme;
+    if (!isValidTheme(theme)) return;
+
+    // Apply server preference and keep local cache in sync.
+    uiState.update(s => ({ ...s, theme }));
+    applyThemeToHost(theme);
+    try {
+      localStorage.setItem('homeclaw-theme', theme);
+    } catch {
+      // localStorage may be unavailable in some contexts
+    }
+  } catch (error) {
+    console.warn('[Theme] Could not load theme preference:', error);
+  }
+}
+
 // Initialize theme from localStorage
 function initTheme(): void {
   try {
     const saved = localStorage.getItem('homeclaw-theme');
-    if (saved === 'light' || saved === 'dark' || saved === 'system') {
+    if (isValidTheme(saved)) {
       uiState.update(s => ({ ...s, theme: saved }));
       // Defer applying to host until DOM is ready
       setTimeout(() => applyThemeToHost(saved), 0);

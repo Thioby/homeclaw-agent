@@ -93,6 +93,43 @@ class TestAnthropicProviderSystemMessage:
         assert system is None
         assert len(filtered_messages) == 2
 
+    def test_extract_system_with_additional_tool_calls(
+        self, hass: HomeAssistant
+    ) -> None:
+        """Assistant tool_use with additional calls should preserve all IDs."""
+        provider = AnthropicProvider(hass, {"api_key": "test-key"})
+
+        messages = [
+            {
+                "role": "assistant",
+                "content": json.dumps(
+                    {
+                        "tool_use": {
+                            "id": "toolu_1",
+                            "name": "get_entity_state",
+                            "input": {"entity_id": "light.kitchen"},
+                        },
+                        "additional_tool_calls": [
+                            {
+                                "id": "toolu_2",
+                                "name": "get_entity_state",
+                                "input": {"entity_id": "switch.kettle"},
+                            }
+                        ],
+                    }
+                ),
+            }
+        ]
+
+        filtered_messages, system = provider._extract_system(messages)
+
+        assert system is None
+        assert len(filtered_messages) == 1
+        assistant_content = filtered_messages[0]["content"]
+        assert len(assistant_content) == 2
+        assert assistant_content[0]["id"] == "toolu_1"
+        assert assistant_content[1]["id"] == "toolu_2"
+
 
 class TestAnthropicProviderPayload:
     """Tests for AnthropicProvider payload building."""

@@ -126,6 +126,7 @@ async def ws_get_preferences(
         vol.Required("type"): "homeclaw/preferences/set",
         vol.Optional("default_provider"): vol.Any(str, None),
         vol.Optional("default_model"): vol.Any(str, None),
+        vol.Optional("theme"): vol.Any("light", "dark", "system", None),
     }
 )
 @websocket_api.async_response
@@ -134,7 +135,7 @@ async def ws_set_preferences(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Set user preferences (default provider and model).
+    """Set user preferences (default provider, model, theme).
 
     Validates that the provider exists in models_config.json and the model
     belongs to that provider. Pass null/None to clear a preference.
@@ -146,6 +147,7 @@ async def ws_set_preferences(
 
         default_provider = msg.get("default_provider")
         default_model = msg.get("default_model")
+        theme = msg.get("theme")
 
         # Validate provider exists in config
         if default_provider is not None:
@@ -194,6 +196,8 @@ async def ws_set_preferences(
             prefs_update["default_provider"] = None
         if "default_model" in msg and msg["default_model"] is None:
             prefs_update["default_model"] = None
+        if "theme" in msg:
+            prefs_update["theme"] = theme
 
         if not prefs_update:
             connection.send_error(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -577,3 +579,66 @@ class TestAgenticLoop:
         assert result["success"] is True
         assert result["response"] == "Final result after two tools."
         assert provider.get_response.call_count == 3
+
+
+class StreamingToolProvider:
+    """Mock streaming provider that issues one tool call then final text."""
+
+    def __init__(self) -> None:
+        self.supports_tools = True
+        self.call_messages: list[list[dict[str, Any]]] = []
+
+    async def get_response_stream(self, messages: list[dict[str, Any]], **kwargs: Any):
+        """Yield tool call on first call, final text on second."""
+        self.call_messages.append(copy.deepcopy(messages))
+
+        if len(self.call_messages) == 1:
+            yield {
+                "type": "tool_call",
+                "id": "toolu_123",
+                "name": "get_entity_state",
+                "args": {"entity_id": "light.kitchen"},
+            }
+            return
+
+        yield {"type": "text", "content": "Done."}
+
+
+class TestProcessStreamToolIds:
+    """Tests for preserving tool call IDs in streaming loop."""
+
+    @pytest.mark.asyncio
+    async def test_process_stream_preserves_tool_use_id(self) -> None:
+        """Tool result should carry provider tool call ID, not tool name."""
+        from unittest.mock import patch
+
+        from custom_components.homeclaw.tools.base import ToolResult
+
+        provider = StreamingToolProvider()
+        processor = QueryProcessor(provider)
+        chunks: list[dict[str, Any]] = []
+
+        with patch(
+            "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
+            new_callable=AsyncMock,
+            return_value=ToolResult(output="ok", success=True),
+        ):
+            async for chunk in processor.process_stream(
+                query="Check kitchen light", messages=[], hass=MagicMock()
+            ):
+                chunks.append(chunk)
+
+        assert any(c.get("type") == "complete" for c in chunks)
+        assert len(provider.call_messages) >= 2
+
+        second_call_messages = provider.call_messages[1]
+        function_message = next(
+            m for m in second_call_messages if m.get("role") == "function"
+        )
+        assert function_message["tool_use_id"] == "toolu_123"
+
+        assistant_message = next(
+            m for m in second_call_messages if m.get("role") == "assistant"
+        )
+        parsed_assistant = json.loads(assistant_message["content"])
+        assert parsed_assistant["tool_use"]["id"] == "toolu_123"

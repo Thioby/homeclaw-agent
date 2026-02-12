@@ -171,6 +171,39 @@ class AnthropicOAuthProvider(AIProvider):
             return name[len(self.TOOL_PREFIX) :]
         return name
 
+    def _assistant_tool_use_blocks(
+        self, parsed_content: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Extract Anthropic tool_use blocks from stored assistant JSON."""
+        blocks: list[dict[str, Any]] = []
+
+        primary = parsed_content.get("tool_use")
+        if isinstance(primary, dict):
+            blocks.append(
+                {
+                    "type": "tool_use",
+                    "id": primary.get("id", ""),
+                    "name": self._unprefix_tool_name(primary.get("name", "")),
+                    "input": primary.get("input", {}),
+                }
+            )
+
+        additional = parsed_content.get("additional_tool_calls", [])
+        if isinstance(additional, list):
+            for extra in additional:
+                if not isinstance(extra, dict):
+                    continue
+                blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": extra.get("id", ""),
+                        "name": self._unprefix_tool_name(extra.get("name", "")),
+                        "input": extra.get("input", {}),
+                    }
+                )
+
+        return blocks
+
     def _convert_tools(
         self, openai_tools: list[dict[str, Any]] | None
     ) -> list[dict[str, Any]]:
@@ -228,7 +261,13 @@ class AnthropicOAuthProvider(AIProvider):
                 system_message = content
             elif role == "function":
                 # Tool result - Anthropic uses tool_result in user role
-                tool_use_id = message.get("tool_use_id", message.get("name", ""))
+                tool_use_id = message.get("tool_use_id")
+                if not tool_use_id:
+                    _LOGGER.warning(
+                        "Skipping tool_result without tool_use_id for tool '%s'",
+                        message.get("name", "unknown"),
+                    )
+                    continue
                 anthropic_messages.append(
                     {
                         "role": "user",
@@ -245,19 +284,12 @@ class AnthropicOAuthProvider(AIProvider):
                 # Check if this contains tool_use JSON
                 try:
                     parsed = json.loads(content)
-                    if "tool_use" in parsed:
-                        tool_use = parsed["tool_use"]
+                    tool_use_blocks = self._assistant_tool_use_blocks(parsed)
+                    if tool_use_blocks:
                         anthropic_messages.append(
                             {
                                 "role": "assistant",
-                                "content": [
-                                    {
-                                        "type": "tool_use",
-                                        "id": tool_use.get("id", ""),
-                                        "name": tool_use.get("name", ""),
-                                        "input": tool_use.get("input", {}),
-                                    }
-                                ],
+                                "content": tool_use_blocks,
                             }
                         )
                         continue
@@ -494,7 +526,13 @@ class AnthropicOAuthProvider(AIProvider):
             if role == "system":
                 system_message = content
             elif role == "function":
-                tool_use_id = message.get("tool_use_id", message.get("name", ""))
+                tool_use_id = message.get("tool_use_id")
+                if not tool_use_id:
+                    _LOGGER.warning(
+                        "Skipping tool_result without tool_use_id for tool '%s'",
+                        message.get("name", "unknown"),
+                    )
+                    continue
                 anthropic_messages.append(
                     {
                         "role": "user",
@@ -510,19 +548,12 @@ class AnthropicOAuthProvider(AIProvider):
             elif role == "assistant" and content:
                 try:
                     parsed = json.loads(content)
-                    if "tool_use" in parsed:
-                        tool_use = parsed["tool_use"]
+                    tool_use_blocks = self._assistant_tool_use_blocks(parsed)
+                    if tool_use_blocks:
                         anthropic_messages.append(
                             {
                                 "role": "assistant",
-                                "content": [
-                                    {
-                                        "type": "tool_use",
-                                        "id": tool_use.get("id", ""),
-                                        "name": tool_use.get("name", ""),
-                                        "input": tool_use.get("input", {}),
-                                    }
-                                ],
+                                "content": tool_use_blocks,
                             }
                         )
                         continue

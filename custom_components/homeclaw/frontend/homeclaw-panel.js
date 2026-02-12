@@ -7875,6 +7875,9 @@ const initialState$2 = {
   theme: "system"
 };
 const uiState = writable(initialState$2);
+function isValidTheme(theme) {
+  return theme === "light" || theme === "dark" || theme === "system";
+}
 function toggleSidebar() {
   uiState.update((state2) => ({ ...state2, sidebarOpen: !state2.sidebarOpen }));
 }
@@ -7903,6 +7906,7 @@ function setTheme(theme) {
     localStorage.setItem("homeclaw-theme", theme);
   } catch {
   }
+  void persistThemePreference(theme);
 }
 function cycleTheme() {
   const current = get(uiState).theme;
@@ -7923,10 +7927,39 @@ function applyThemeToHost(theme) {
   host.classList.add("theme-transitioning");
   setTimeout(() => host.classList.remove("theme-transitioning"), 350);
 }
+async function persistThemePreference(theme) {
+  const hass = get(appState).hass;
+  if (!hass) return;
+  try {
+    await hass.callWS({
+      type: "homeclaw/preferences/set",
+      theme
+    });
+  } catch (error) {
+    console.warn("[Theme] Could not persist theme preference:", error);
+  }
+}
+async function syncThemeFromPreferences(hass) {
+  const ha = hass ?? get(appState).hass;
+  if (!ha) return;
+  try {
+    const result = await ha.callWS({ type: "homeclaw/preferences/get" });
+    const theme = result?.preferences?.theme;
+    if (!isValidTheme(theme)) return;
+    uiState.update((s2) => ({ ...s2, theme }));
+    applyThemeToHost(theme);
+    try {
+      localStorage.setItem("homeclaw-theme", theme);
+    } catch {
+    }
+  } catch (error) {
+    console.warn("[Theme] Could not load theme preference:", error);
+  }
+}
 function initTheme() {
   try {
     const saved = localStorage.getItem("homeclaw-theme");
-    if (saved === "light" || saved === "dark" || saved === "system") {
+    if (isValidTheme(saved)) {
       uiState.update((s2) => ({ ...s2, theme: saved }));
       setTimeout(() => applyThemeToHost(saved), 0);
     }
@@ -7944,6 +7977,7 @@ const ui = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   openSidebar,
   setHostElement,
   setTheme,
+  syncThemeFromPreferences,
   toggleSettings,
   toggleSidebar,
   uiState
@@ -18213,7 +18247,8 @@ function HomeclawPanel$1($$anchor, $$props) {
         await Promise.all([
           loadProviders($$props.hass),
           loadSessions($$props.hass),
-          loadIdentity($$props.hass)
+          loadIdentity($$props.hass),
+          syncThemeFromPreferences($$props.hass)
         ]);
         console.log("[HomeclawPanel] Initialization complete");
       } catch (error) {
