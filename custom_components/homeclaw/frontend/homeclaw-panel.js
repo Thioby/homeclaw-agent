@@ -642,6 +642,27 @@ const componentCss = `
     font-size: 20px;
     color: #fff;
     flex-shrink: 0;
+    position: relative;
+  }
+
+  .voice-badge.svelte-114uzds {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color, #03a9f4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    border: 2px solid var(--card-background-color, #fff);
+  }
+
+  .voice-badge.svelte-114uzds svg:where(.svelte-114uzds) {
+    width: 10px;
+    height: 10px;
   }
 
   .session-content.svelte-114uzds {
@@ -14216,7 +14237,7 @@ async function generateSessionEmoji(hass, sessionId, title) {
   }
 }
 enable_legacy_mode_flag();
-var root_1$j = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`);
+var root_1$k = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`);
 var root_3$b = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`);
 var root_4$b = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`);
 var root$n = /* @__PURE__ */ from_html(`<div class="header svelte-1elxaub"><button class="header-btn back-btn svelte-1elxaub" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button> <div class="header-avatar svelte-1elxaub"><svg viewBox="0 0 24 24" fill="currentColor" class="svelte-1elxaub"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.07A7.001 7.001 0 0 1 7.07 19H6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h-1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zm-3 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm6 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"></path></svg></div> <div class="header-info svelte-1elxaub"><div class="header-title svelte-1elxaub"> </div> <div class="header-subtitle svelte-1elxaub">online</div></div> <div class="header-actions svelte-1elxaub"><button class="header-btn svelte-1elxaub" aria-label="Toggle theme"><!></button> <button class="header-btn svelte-1elxaub" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></button> <button class="header-btn delete-btn svelte-1elxaub" title="Clear chat" aria-label="Clear chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div></div>`);
@@ -14253,7 +14274,7 @@ function Header($$anchor, $$props) {
   var node = child(button_1);
   {
     var consequent = ($$anchor2) => {
-      var svg2 = root_1$j();
+      var svg2 = root_1$k();
       append($$anchor2, svg2);
     };
     var alternate_1 = ($$anchor2) => {
@@ -14332,7 +14353,8 @@ function formatSessionTime(timestamp) {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
 }
-var root$m = /* @__PURE__ */ from_html(`<div role="button" tabindex="0"><div class="session-avatar svelte-114uzds"><span> </span></div> <div class="session-content svelte-114uzds"><div class="session-top-row svelte-114uzds"><span class="session-name svelte-114uzds"> </span> <span class="session-time svelte-114uzds"> </span></div> <div class="session-bottom-row svelte-114uzds"><span class="session-preview svelte-114uzds"> </span></div></div> <button class="session-delete svelte-114uzds" aria-label="Delete session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-114uzds"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div>`);
+var root_1$j = /* @__PURE__ */ from_html(`<div class="voice-badge svelte-114uzds" title="Voice session" role="img" aria-label="Voice session"><svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10" class="svelte-114uzds"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"></path><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"></path></svg></div>`);
+var root$m = /* @__PURE__ */ from_html(`<div role="button" tabindex="0"><div class="session-avatar svelte-114uzds"><span> </span> <!></div> <div class="session-content svelte-114uzds"><div class="session-top-row svelte-114uzds"><span class="session-name svelte-114uzds"> </span> <span class="session-time svelte-114uzds"> </span></div> <div class="session-bottom-row svelte-114uzds"><span class="session-preview svelte-114uzds"> </span></div></div> <button class="session-delete svelte-114uzds" aria-label="Delete session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-114uzds"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div>`);
 function SessionItem($$anchor, $$props) {
   push($$props, true);
   const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
@@ -14356,7 +14378,9 @@ function SessionItem($$anchor, $$props) {
     ];
     return colors[Math.abs(hash) % colors.length];
   });
-  const avatarText = /* @__PURE__ */ user_derived(() => $$props.session.emoji || ($$props.session.title || "N")[0].toUpperCase());
+  const isVoice = /* @__PURE__ */ user_derived(() => $$props.session.title?.startsWith("Voice: ") ?? false);
+  const displayTitle = /* @__PURE__ */ user_derived(() => get$1(isVoice) ? $$props.session.title.slice(7) : $$props.session.title);
+  const avatarText = /* @__PURE__ */ user_derived(() => $$props.session.emoji || (get$1(displayTitle) || "N")[0].toUpperCase());
   async function handleClick() {
     const hass = get(appState).hass;
     if (hass && !get$1(isActive)) {
@@ -14377,23 +14401,33 @@ function SessionItem($$anchor, $$props) {
   var div_1 = child(div);
   var span = child(div_1);
   var text2 = child(span);
-  var div_2 = sibling(div_1, 2);
-  var div_3 = child(div_2);
-  var span_1 = child(div_3);
+  var node = sibling(span, 2);
+  {
+    var consequent = ($$anchor2) => {
+      var div_2 = root_1$j();
+      append($$anchor2, div_2);
+    };
+    if_block(node, ($$render) => {
+      if (get$1(isVoice)) $$render(consequent);
+    });
+  }
+  var div_3 = sibling(div_1, 2);
+  var div_4 = child(div_3);
+  var span_1 = child(div_4);
   var text_1 = child(span_1);
   var span_2 = sibling(span_1, 2);
   var text_2 = child(span_2);
-  var div_4 = sibling(div_3, 2);
-  var span_3 = child(div_4);
+  var div_5 = sibling(div_4, 2);
+  var span_3 = child(div_5);
   var text_3 = child(span_3);
-  var button = sibling(div_2, 2);
+  var button = sibling(div_3, 2);
   button.__click = handleDelete;
   template_effect(
     ($0) => {
       classes = set_class(div, 1, "session-item svelte-114uzds", null, classes, { active: get$1(isActive) });
       set_style(div_1, `background: ${get$1(avatarColor) ?? ""}`);
       set_text(text2, get$1(avatarText));
-      set_text(text_1, $$props.session.title || "New Conversation");
+      set_text(text_1, get$1(displayTitle) || "New Conversation");
       set_text(text_2, $0);
       set_text(text_3, $$props.session.preview || "Start typing...");
     },

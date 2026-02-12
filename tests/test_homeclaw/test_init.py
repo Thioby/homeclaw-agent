@@ -72,6 +72,9 @@ class TestAsyncSetupEntry:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.bus = MagicMock()
         hass.bus.async_fire = MagicMock()
+        # Conversation platform forwarding (added in Phase 1)
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
         return hass
 
     @pytest.fixture
@@ -364,6 +367,7 @@ class TestAsyncUnloadEntry:
         }
         hass.services = MagicMock()
         hass.services.async_remove = MagicMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
         return hass
 
     @pytest.mark.asyncio
@@ -449,6 +453,7 @@ class TestAsyncUnloadEntry:
         }
         mock_hass.services = MagicMock()
         mock_hass.services.async_remove = MagicMock()
+        mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         mock_entry = MagicMock(spec=ConfigEntry)
         mock_entry.data = {"ai_provider": "openai"}
@@ -496,6 +501,8 @@ class TestServiceHandlers:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.http = MagicMock()
         hass.http.async_register_static_paths = AsyncMock()
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
         return hass, mock_agent
 
     @pytest.mark.asyncio
@@ -546,6 +553,8 @@ class TestServiceHandlers:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.http = MagicMock()
         hass.http.async_register_static_paths = AsyncMock()
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         # Setup with mocked agent that will be cleared
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
@@ -951,6 +960,8 @@ class TestServiceHandlers:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.http = MagicMock()
         hass.http.async_register_static_paths = AsyncMock()
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
             mock_entry = MagicMock(spec=ConfigEntry)
@@ -1039,6 +1050,8 @@ class TestServiceHandlers:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.http = MagicMock()
         hass.http.async_register_static_paths = AsyncMock()
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
             mock_entry = MagicMock(spec=ConfigEntry)
@@ -1085,6 +1098,8 @@ class TestServiceHandlers:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.http = MagicMock()
         hass.http.async_register_static_paths = AsyncMock()
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
             mock_entry = MagicMock(spec=ConfigEntry)
@@ -1132,6 +1147,8 @@ class TestServiceHandlers:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.http = MagicMock()
         hass.http.async_register_static_paths = AsyncMock()
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
             mock_entry = MagicMock(spec=ConfigEntry)
@@ -1233,6 +1250,8 @@ class TestServiceHandlers:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.http = MagicMock()
         hass.http.async_register_static_paths = AsyncMock()
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
             mock_entry = MagicMock(spec=ConfigEntry)
@@ -1273,6 +1292,8 @@ class TestServiceHandlers:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.http = MagicMock()
         hass.http.async_register_static_paths = AsyncMock()
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
             mock_entry = MagicMock(spec=ConfigEntry)
@@ -1313,6 +1334,8 @@ class TestServiceHandlers:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.http = MagicMock()
         hass.http.async_register_static_paths = AsyncMock()
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
             mock_entry = MagicMock(spec=ConfigEntry)
@@ -1353,6 +1376,8 @@ class TestServiceHandlers:
         hass.config.path = MagicMock(return_value="/mock/path")
         hass.http = MagicMock()
         hass.http.async_register_static_paths = AsyncMock()
+        hass.config_entries.async_forward_entry_setups = AsyncMock()
+        hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
             mock_entry = MagicMock(spec=ConfigEntry)
@@ -1608,6 +1633,7 @@ class TestPanelHelpers:
         }
         mock_hass.services = MagicMock()
         mock_hass.services.async_remove = MagicMock()
+        mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         mock_entry = MagicMock(spec=ConfigEntry)
         mock_entry.data = {"ai_provider": "openai"}
@@ -1633,6 +1659,7 @@ class TestPanelHelpers:
             }
         }
         mock_hass.services = MagicMock()
+        mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
         mock_entry = MagicMock(spec=ConfigEntry)
         mock_entry.data = {"ai_provider": "openai"}

@@ -11,6 +11,8 @@
     ],
     "config_flow": true,
     "dependencies": [
+        "ai_task",
+        "conversation",
         "http"
     ],
     "documentation": "https://github.com/Thioby/homeclaw-agent",

@@ -142,10 +142,12 @@ class Agent:
 
         # Use session history from storage if provided, otherwise fall back
         # to the agent's in-memory conversation (which is per-provider, not per-session).
+        # Use `is not None` to allow empty lists (first turn of a new conversation)
+        # without falling back to global in-memory history.
         conversation_history = kwargs.pop("conversation_history", None)
         messages = (
             conversation_history
-            if conversation_history
+            if conversation_history is not None
             else self._conversation.get_messages()
         )
 

@@ -14,7 +14,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .agent_compat import HomeclawAgent
-from .const import CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED, DOMAIN
+from .const import CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED, DOMAIN, PLATFORMS
 from .websocket_api import async_register_websocket_commands
 
 _LOGGER = logging.getLogger(__name__)
@@ -393,6 +393,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.services.async_register(DOMAIN, "rag_reindex", async_handle_rag_reindex)
 
+    # Forward platform setups (conversation entity)
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     # Clean up old file uploads (> 7 days) at startup
     try:
         from .file_processor import cleanup_old_uploads
@@ -595,6 +598,10 @@ async def _shutdown_rag(hass: HomeAssistant) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    # Unload conversation platform
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
+
     # Shutdown proactive subsystem
     await _shutdown_proactive(hass)
 

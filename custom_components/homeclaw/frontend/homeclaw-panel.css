@@ -146,6 +146,27 @@
     font-size: 20px;
     color: #fff;
     flex-shrink: 0;
+    position: relative;
+  }
+
+  .voice-badge.svelte-114uzds {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color, #03a9f4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    border: 2px solid var(--card-background-color, #fff);
+  }
+
+  .voice-badge.svelte-114uzds svg:where(.svelte-114uzds) {
+    width: 10px;
+    height: 10px;
   }
 
   .session-content.svelte-114uzds {

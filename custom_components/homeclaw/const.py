@@ -1,6 +1,9 @@
 """Constants for the Homeclaw integration."""
 
+from homeassistant.const import Platform
+
 DOMAIN = "homeclaw"
+PLATFORMS = (Platform.CONVERSATION, Platform.AI_TASK)
 CONF_API_KEY = "api_key"
 CONF_WEATHER_ENTITY = "weather_entity"
 

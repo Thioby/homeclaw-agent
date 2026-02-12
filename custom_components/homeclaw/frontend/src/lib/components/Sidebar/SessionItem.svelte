@@ -21,8 +21,12 @@
     return colors[Math.abs(hash) % colors.length];
   });
 
+  // Detect voice sessions by title prefix
+  const isVoice = $derived(session.title?.startsWith('Voice: ') ?? false);
+  const displayTitle = $derived(isVoice ? session.title!.slice(7) : session.title);
+
   // Avatar displays emoji if available, otherwise first letter
-  const avatarText = $derived(session.emoji || (session.title || 'N')[0].toUpperCase());
+  const avatarText = $derived(session.emoji || (displayTitle || 'N')[0].toUpperCase());
 
   async function handleClick() {
     const hass = get(appState).hass;
@@ -51,10 +55,18 @@
 >
   <div class="session-avatar" style="background: {avatarColor}">
     <span>{avatarText}</span>
+    {#if isVoice}
+      <div class="voice-badge" title="Voice session" role="img" aria-label="Voice session">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+      </div>
+    {/if}
   </div>
   <div class="session-content">
     <div class="session-top-row">
-      <span class="session-name">{session.title || 'New Conversation'}</span>
+      <span class="session-name">{displayTitle || 'New Conversation'}</span>
       <span class="session-time">{formatSessionTime(session.updated_at)}</span>
     </div>
     <div class="session-bottom-row">
@@ -103,6 +115,27 @@
     font-size: 20px;
     color: #fff;
     flex-shrink: 0;
+    position: relative;
+  }
+
+  .voice-badge {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary-color, #03a9f4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    border: 2px solid var(--card-background-color, #fff);
+  }
+
+  .voice-badge svg {
+    width: 10px;
+    height: 10px;
   }
 
   .session-content {
