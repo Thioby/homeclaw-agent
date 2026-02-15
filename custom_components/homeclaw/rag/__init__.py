@@ -170,6 +170,56 @@ class RAGManager:
             _LOGGER.warning("Session indexing failed for %s: %s", session_id, e)
             return 0
 
+    async def sanitize_and_index_session(
+        self,
+        session_id: str,
+        messages: list[dict[str, str]],
+        provider: Any,
+        model: str | None = None,
+    ) -> int:
+        """Sanitize a session via LLM and then index the cleaned version.
+
+        Uses an LLM to strip ephemeral state data (sensor readings, entity
+        states) from the conversation, keeping only durable context
+        (preferences, decisions, actions). The cleaned messages are then
+        indexed into the RAG session store.
+
+        Args:
+            session_id: Session identifier.
+            messages: Raw message dicts with 'role' and 'content' keys.
+            provider: AI provider instance for sanitization LLM call.
+            model: Optional model override for the LLM call.
+
+        Returns:
+            Number of chunks indexed (0 if sanitization or indexing failed).
+        """
+        self._ensure_initialized()
+
+        session_indexer = self._lifecycle.session_indexer
+        if not session_indexer:
+            _LOGGER.debug("Session indexer not available, skipping sanitization")
+            return 0
+
+        try:
+            from .session_sanitizer import sanitize_session_messages
+
+            sanitized = await sanitize_session_messages(messages, provider, model)
+
+            if not sanitized:
+                _LOGGER.debug("Sanitization returned empty result for %s", session_id)
+                return 0
+
+            return await session_indexer.index_session(
+                session_id=session_id,
+                messages=sanitized,
+                force=True,
+            )
+        except Exception as e:
+            _LOGGER.warning(
+                "Sanitize-and-index failed for session %s: %s", session_id, e
+            )
+            return 0
+
     async def remove_session_index(self, session_id: str) -> None:
         """Remove indexed session data when a session is deleted.
 

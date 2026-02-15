@@ -128,9 +128,147 @@ async def ws_create_session(
         )
         _LOGGER.info("Session created: %s for user %s", session.session_id, user_id)
         connection.send_result(msg["id"], asdict(session))
+
+        # Async: sanitize and index the user's previous session into RAG
+        hass.async_create_task(
+            _sanitize_previous_session(hass, user_id, storage, session.session_id)
+        )
     except Exception as err:
         _LOGGER.exception("Failed to create session for user %s", user_id)
         connection.send_error(msg["id"], ERR_STORAGE_ERROR, "Failed to create session")
+
+
+async def _sanitize_previous_session(
+    hass: HomeAssistant,
+    user_id: str,
+    storage: Any,
+    new_session_id: str,
+) -> None:
+    """Sanitize and index the user's previous session into RAG.
+
+    Called as a background task after creating a new session.
+    Finds the most recent session before the new one, sanitizes it
+    via LLM to remove ephemeral state data, and indexes the cleaned
+    version into the RAG session store.
+
+    Args:
+        hass: Home Assistant instance.
+        user_id: The user's ID.
+        storage: SessionStorage instance for the user.
+        new_session_id: The newly created session ID (to exclude it).
+    """
+    if DOMAIN not in hass.data:
+        return
+
+    rag_manager = hass.data[DOMAIN].get("rag_manager")
+    if not rag_manager or not rag_manager.is_initialized:
+        return
+
+    try:
+        # Find the previous session (most recent that isn't the new one)
+        sessions = await storage.list_sessions()
+        previous = None
+        for s in sessions:
+            if s.session_id != new_session_id:
+                previous = s
+                break  # list_sessions returns sorted by updated_at desc
+
+        if not previous:
+            _LOGGER.debug("No previous session to sanitize for user %s", user_id)
+            return
+
+        # Load messages from the previous session
+        messages = await storage.get_session_messages(previous.session_id)
+        msg_dicts = [
+            {"role": m.role, "content": m.content}
+            for m in messages
+            if m.role in ("user", "assistant") and m.status == "completed"
+        ]
+
+        if len(msg_dicts) < 4:
+            _LOGGER.debug(
+                "Previous session %s has only %d messages, skipping sanitization",
+                previous.session_id,
+                len(msg_dicts),
+            )
+            return
+
+        # Get provider/model for sanitization from user preferences
+        provider, model = await _get_sanitization_provider(hass, storage)
+        if not provider:
+            _LOGGER.debug("No AI provider available for session sanitization")
+            return
+
+        chunks = await rag_manager.sanitize_and_index_session(
+            session_id=previous.session_id,
+            messages=msg_dicts,
+            provider=provider,
+            model=model,
+        )
+
+        _LOGGER.info(
+            "Sanitized and indexed previous session %s: %d chunks (user %s)",
+            previous.session_id,
+            chunks,
+            user_id,
+        )
+
+    except Exception as e:
+        _LOGGER.warning("Background session sanitization failed: %s", e)
+
+
+async def _get_sanitization_provider(
+    hass: HomeAssistant,
+    storage: Any,
+) -> tuple[Any, str | None]:
+    """Get the AI provider and model for session sanitization.
+
+    Priority:
+    1. rag_optimizer_provider/model from user preferences
+    2. default_provider/model from user preferences
+    3. First available provider from configured agents
+
+    Args:
+        hass: Home Assistant instance.
+        storage: SessionStorage for reading preferences.
+
+    Returns:
+        Tuple of (provider_instance, model_name) or (None, None).
+    """
+    agents = hass.data.get(DOMAIN, {}).get("agents", {})
+    if not agents:
+        return None, None
+
+    # Read user preferences
+    try:
+        prefs = await storage.get_preferences()
+    except Exception:
+        prefs = {}
+
+    # Priority 1: RAG optimizer config
+    provider_name = prefs.get("rag_optimizer_provider")
+    model = prefs.get("rag_optimizer_model")
+
+    # Priority 2: Default provider
+    if not provider_name:
+        provider_name = prefs.get("default_provider")
+        model = prefs.get("default_model")
+
+    # Priority 3: First available
+    if not provider_name or provider_name not in agents:
+        provider_name = next(iter(agents))
+        model = None
+
+    agent_compat = agents.get(provider_name)
+    if not agent_compat:
+        return None, None
+
+    # Access the raw AIProvider from the agent wrapper
+    provider = getattr(agent_compat, "_provider", None)
+    if not provider:
+        provider = getattr(getattr(agent_compat, "_agent", None), "_provider", None)
+
+    return provider, model
 
 
 @websocket_api.websocket_command(

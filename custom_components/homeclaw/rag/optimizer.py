@@ -52,6 +52,7 @@ Rules:
 6. Output ONLY the condensed chunks, one per line, separated by "---" on its own line.
 7. Do NOT add commentary, headers, or explanations outside the chunks.
 8. Do NOT translate — keep the original language of the input.
+9. CRITICAL: Remove ALL ephemeral entity state data — sensor readings (temperatures, humidity, power, lux), on/off status reports, and current values. Entity states change constantly; storing old values creates misleading context. Keep entity names and relationships but strip their state values.
 
 If the input is already concise, return it with minimal changes."""
 

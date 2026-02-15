@@ -372,8 +372,10 @@ class HomeclawConversationEntity(
         reading them aloud or pausing unnaturally.
         """
         async for delta in stream:
-            if "content" in delta:
-                content = delta["content"]
+            # Create a copy to avoid mutating the original delta
+            sanitized_delta = dict(delta)
+            if "content" in sanitized_delta:
+                content = sanitized_delta["content"]
                 if content:
                     # 1. Remove emojis (Unicode range)
                     content = re.sub(r"[\U00010000-\U0010ffff]", "", content)
@@ -387,8 +389,8 @@ class HomeclawConversationEntity(
                     )
                     # 3. Strip headers
                     content = re.sub(r"^#+\s+", "", content, flags=re.MULTILINE)
-                    delta["content"] = content
-            yield delta
+                    sanitized_delta["content"] = content
+            yield sanitized_delta
 
     async def _transform_provider_stream(
         self,
@@ -427,10 +429,11 @@ class HomeclawConversationEntity(
                     continue
 
                 if not assistant_started:
-                    yield {"role": "assistant"}
+                    # Combine role and first content chunk to safely trigger TTS
+                    yield {"role": "assistant", "content": content}
                     assistant_started = True
-
-                yield {"content": content}
+                else:
+                    yield {"content": content}
 
             elif isinstance(chunk, StatusEvent):
                 _LOGGER.debug("Tool status: %s", chunk.message)
@@ -452,42 +455,20 @@ class HomeclawConversationEntity(
             
             elif isinstance(chunk, ToolCallEvent):
                 _LOGGER.debug("Tool call event: %s(%s)", chunk.tool_name, chunk.tool_args)
-                
-                if not assistant_started:
-                    yield {"role": "assistant"}
-                    assistant_started = True
-
-                # Signal the tool call to HA so it shows up in UI
-                tool_calls = [
-                    llm.ToolInput(
-                        id=chunk.tool_call_id,
-                        tool_name=chunk.tool_name,
-                        tool_args=chunk.tool_args,
-                        external=True, # We handle execution internally
-                    )
-                ]
-                yield {"tool_calls": tool_calls}
+                # We skip yielding tool_calls to Assist here to prevent it from 
+                # buffering or breaking the text stream/TTS.
 
             elif isinstance(chunk, ToolResultEvent):
                 _LOGGER.debug("Tool result event: %s -> %s...", chunk.tool_name, str(chunk.tool_result)[:50])
-                # Append tool result to chat log history directly
-                # This ensures the tool result is recorded, even if we are currently
-                # updating the Assistant message.
-                chat_log.async_add_tool_result_content(
-                    conversation.ToolResultContent(
-                        agent_id=self.entity_id,
-                        tool_call_id=chunk.tool_call_id,
-                        tool_name=chunk.tool_name,
-                        tool_result={"result": chunk.tool_result},
-                    )
-                )
+                # We skip adding results to chat_log during the stream to avoid
+                # InvalidStateError in Assist Pipeline. Internal tool history
+                # is managed by QueryProcessor.
 
         # HA requires at least one AssistantContent in chat_log. If the stream
         # produced no text (e.g. tools-only response or empty stream), emit
         # a minimal assistant delta so ChatLog doesn't raise.
         if not assistant_started:
-            yield {"role": "assistant"}
-            yield {"content": ""}
+            yield {"role": "assistant", "content": ""}
 
     def _convert_chat_log_to_messages(
         self,

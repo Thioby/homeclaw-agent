@@ -72,18 +72,11 @@ async def _rag_post_conversation(
     except Exception as learn_err:
         _LOGGER.debug("RAG learn_from_conversation failed: %s", learn_err)
 
-    # 2. Session indexing (conversation history as RAG source)
-    try:
-        messages = await storage.get_session_messages(session_id)
-        msg_dicts = [
-            {"role": m.role, "content": m.content}
-            for m in messages
-            if m.role in ("user", "assistant") and m.status == "completed"
-        ]
-        if msg_dicts:
-            await rag_manager.index_session(session_id, msg_dicts)
-    except Exception as idx_err:
-        _LOGGER.debug("RAG session indexing failed: %s", idx_err)
+    # 2. Session indexing — DISABLED (moved to session creation)
+    # Sessions are now sanitized via LLM and indexed when the user creates
+    # a new session (see ws_handlers/sessions.py _sanitize_previous_session).
+    # This removes ephemeral state data (temperatures, on/off reports) that
+    # would otherwise mislead the agent with stale values.
 
     # 3. Explicit command capture (safety net for "zapamiętaj"/"remember")
     # All other memory capture is handled by the LLM via memory_store tool
@@ -575,7 +568,11 @@ async def ws_send_message_stream(
                     _LOGGER.debug("Starting to consume stream chunks...")
                     async for event in agent_stream(msg["message"], **kwargs):
                         # Handle both dataclass events and legacy dict chunks
-                        chunk = asdict(event) if hasattr(event, "__dataclass_fields__") else event
+                        chunk = (
+                            asdict(event)
+                            if hasattr(event, "__dataclass_fields__")
+                            else event
+                        )
                         _LOGGER.debug(
                             "Received chunk from agent: type=%s", chunk.get("type")
                         )
