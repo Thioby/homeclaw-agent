@@ -118,7 +118,7 @@ class Agent:
 
     async def process_query_stream(
         self, query: str, **kwargs: Any
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    ) -> AsyncGenerator[Any, None]:  # Yields AgentEvent
         """Stream a user query response through the AI provider.
 
         Delegates to QueryProcessor and updates conversation history on completion.
@@ -128,15 +128,10 @@ class Agent:
             **kwargs: Additional arguments passed to the processor (e.g., tools).
 
         Yields:
-            Dict chunks with:
-                - type: "text" | "tool_call" | "tool_result" | "error" | "complete"
-                - content: The text content (for type="text")
-                - name: Tool name (for type="tool_call" | "tool_result")
-                - args: Tool arguments (for type="tool_call")
-                - result: Tool result (for type="tool_result")
-                - message: Error message (for type="error")
-                - messages: Updated message list (for type="complete")
+            AgentEvent objects.
         """
+        from .events import TextEvent, CompletionEvent
+
         accumulated_text = ""
         success = False
 
@@ -163,9 +158,9 @@ class Agent:
             **kwargs,
         ):
             # Track accumulated text for conversation history
-            if chunk.get("type") == "text":
-                accumulated_text += chunk.get("content", "")
-            elif chunk.get("type") == "complete":
+            if isinstance(chunk, TextEvent):
+                accumulated_text += chunk.content
+            elif isinstance(chunk, CompletionEvent):
                 success = True
 
             # Yield all chunks to caller

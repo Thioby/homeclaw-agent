@@ -287,7 +287,7 @@ class QueryProcessor:
         system_prompt: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         **kwargs: Any,
-    ) -> AsyncGenerator[dict[str, Any], None]:
+    ) -> AsyncGenerator[Any, None]:  # Typed as Any to support AgentEvent
         """Process a user query and stream the AI response.
 
         Args:
@@ -298,25 +298,24 @@ class QueryProcessor:
             **kwargs: Additional arguments passed to the provider.
 
         Yields:
-            Dict chunks with:
-                - type: "text" | "tool_call" | "tool_result" | "error" | "complete"
-                - content: The text content (for type="text")
-                - name: Tool name (for type="tool_call" | "tool_result")
-                - args: Tool arguments (for type="tool_call")
-                - result: Tool result (for type="tool_result")
-                - message: Error message (for type="error")
-                - messages: Updated message list (for type="complete")
+            AgentEvent objects (TextEvent, ToolCallEvent, etc.)
         """
+        from .events import (
+            TextEvent,
+            ToolCallEvent,
+            ToolResultEvent,
+            StatusEvent,
+            ErrorEvent,
+            CompletionEvent,
+        )
+
         # Sanitize the query
         sanitized_query = self._sanitize_query(query)
 
         # Check for empty query (allow empty text if attachments are present)
         attachments = kwargs.get("attachments")
         if not sanitized_query and not attachments:
-            yield {
-                "type": "error",
-                "message": "Query is empty or contains only whitespace",
-            }
+            yield ErrorEvent(message="Query is empty or contains only whitespace")
             return
 
         # Default to a generic prompt for image-only messages
@@ -399,10 +398,10 @@ class QueryProcessor:
                         except (json.JSONDecodeError, ValueError):
                             prefixed_text = ""
                         if prefixed_text:
-                            yield {"type": "text", "content": prefixed_text}
+                            yield TextEvent(content=prefixed_text)
                     else:
                         # No tool call — yield the full response as text
-                        yield {"type": "text", "content": response_text}
+                        yield TextEvent(content=response_text)
 
                     if not function_calls:
                         # No function call, return the response
@@ -418,10 +417,7 @@ class QueryProcessor:
                             {"role": "assistant", "content": response_text}
                         )
 
-                        yield {
-                            "type": "complete",
-                            "messages": updated_messages,
-                        }
+                        yield CompletionEvent(messages=updated_messages)
                         return
 
                     # Handle function calls (same as non-streaming)
@@ -430,6 +426,7 @@ class QueryProcessor:
                     )
 
                     # Use ToolExecutor to execute tools and yield results
+                    # Note: We use "result" mode which yields dicts, so we must map them.
                     async for tool_event in ToolExecutor.execute_tool_calls(
                         function_calls,
                         hass,
@@ -437,7 +434,18 @@ class QueryProcessor:
                         yield_mode="result",
                         denied_tools=denied_tools,
                     ):
-                        yield tool_event
+                        if tool_event.get("type") == "tool_call":
+                            yield ToolCallEvent(
+                                tool_name=tool_event["name"],
+                                tool_args=tool_event.get("args", {}),
+                                tool_call_id=tool_event.get("id", "unknown"),
+                            )
+                        elif tool_event.get("type") == "tool_result":
+                            yield ToolResultEvent(
+                                tool_name=tool_event["name"],
+                                tool_result=tool_event["result"],
+                                tool_call_id=tool_event.get("id", "unknown"),
+                            )
 
                     # Re-check context budget after tool results were appended
                     built_messages = await self._recompact_if_needed(
@@ -466,9 +474,13 @@ class QueryProcessor:
                     built_messages, **provider_kwargs
                 ):
                     if chunk.get("type") == "text":
-                        # Stream text chunks directly to client
-                        accumulated_text += chunk["content"]
-                        yield chunk
+                        # Emit incremental text immediately for Assist Voice
+                        # and chat delta streaming.
+                        content = chunk.get("content", "")
+                        if not content:
+                            continue
+                        accumulated_text += content
+                        yield TextEvent(content=content)
                     elif chunk.get("type") == "tool_call":
                         # Accumulate tool calls but DON'T send to client yet
                         accumulated_tool_calls.append(chunk)
@@ -476,7 +488,7 @@ class QueryProcessor:
                             "Tool call detected in stream: %s", chunk.get("name")
                         )
                     elif chunk.get("type") == "error":
-                        yield chunk
+                        yield ErrorEvent(message=chunk.get("message", "Unknown error"))
                         return
 
                 # After streaming completes, check for tool calls
@@ -490,10 +502,7 @@ class QueryProcessor:
                     tool_names = ", ".join(
                         tc.get("name", "unknown") for tc in accumulated_tool_calls
                     )
-                    yield {
-                        "type": "status",
-                        "message": f"Calling tools: {tool_names}...",
-                    }
+                    yield StatusEvent(message=f"Calling tools: {tool_names}...")
 
                     normalized_tool_calls = normalize_tool_calls(accumulated_tool_calls)
 
@@ -506,6 +515,14 @@ class QueryProcessor:
                         )
                         for tc in normalized_tool_calls
                     ]
+
+                    # Emit ToolCallEvents for each tool
+                    for fc in function_calls:
+                        yield ToolCallEvent(
+                            tool_name=fc.name,
+                            tool_args=fc.arguments,
+                            tool_call_id=fc.id,
+                        )
 
                     # Append assistant's message (the tool call) to conversation
                     # CRITICAL: Must preserve the EXACT format returned by Gemini, including thought_signature
@@ -535,16 +552,26 @@ class QueryProcessor:
                         )
 
                     # Execute tools INTERNALLY using ToolExecutor
-                    async for status_event in ToolExecutor.execute_tool_calls(
+                    # Use "result" mode to get results, but map to Events.
+                    # Note: We rely on "result" mode because "status" mode only yields text statuses.
+                    # We want structured results.
+                    async for tool_event in ToolExecutor.execute_tool_calls(
                         function_calls,
                         hass,
                         built_messages,
-                        yield_mode="status",
+                        yield_mode="result",
                         denied_tools=denied_tools,
                     ):
-                        yield status_event
+                        if tool_event.get("type") == "tool_result":
+                             yield ToolResultEvent(
+                                tool_name=tool_event["name"],
+                                tool_result=tool_event["result"],
+                                tool_call_id=tool_event.get("id", "unknown"),
+                            )
+                        # We might want to yield status events here too, but "result" mode doesn't give them.
+                        # For now, we just yield the result.
 
-                        # Re-check context budget after tool results were appended
+                    # Re-check context budget after tool results were appended
                     built_messages = await self._recompact_if_needed(
                         built_messages, context_window=context_window
                     )
@@ -566,6 +593,7 @@ class QueryProcessor:
                     current_iteration,
                     len(accumulated_text),
                 )
+
                 updated_messages = list(built_messages)
                 if (
                     system_prompt
@@ -578,10 +606,7 @@ class QueryProcessor:
                     {"role": "assistant", "content": accumulated_text}
                 )
 
-                yield {
-                    "type": "complete",
-                    "messages": updated_messages,
-                }
+                yield CompletionEvent(messages=updated_messages)
                 return
 
             # Max iterations reached — force a final response without tools
@@ -599,28 +624,22 @@ class QueryProcessor:
                         built_messages, **provider_kwargs_final
                     ):
                         if chunk.get("type") == "text":
-                            yield chunk
+                            yield TextEvent(content=chunk.get("content", ""))
                 else:
                     final_text = await self.provider.get_response(
                         built_messages, **provider_kwargs_final
                     )
                     if final_text:
-                        yield {"type": "text", "content": final_text}
+                        yield TextEvent(content=final_text)
 
-                yield {"type": "complete", "messages": list(built_messages)}
+                yield CompletionEvent(messages=list(built_messages))
             except Exception as final_err:
                 _LOGGER.error("Final forced response also failed: %s", final_err)
-                yield {
-                    "type": "error",
-                    "message": "Maximum iterations reached without final response",
-                }
+                yield ErrorEvent(message="Maximum iterations reached without final response")
 
         except Exception as e:
             _LOGGER.error("Error processing streaming query: %s", str(e))
-            yield {
-                "type": "error",
-                "message": str(e),
-            }
+            yield ErrorEvent(message=str(e))
 
     async def process(
         self,

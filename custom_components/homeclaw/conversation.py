@@ -15,6 +15,7 @@ chunk format to HA ChatLog delta format for real-time streaming to the UI.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
@@ -24,7 +25,7 @@ from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import DOMAIN
@@ -46,8 +47,8 @@ async def async_setup_entry(
 ) -> None:
     """Set up Homeclaw conversation entities from a config entry."""
     provider = config_entry.data.get("ai_provider", "unknown")
-    agent: HomeclawAgent | None = hass.data.get(DOMAIN, {}).get("agents", {}).get(
-        provider
+    agent: HomeclawAgent | None = (
+        hass.data.get(DOMAIN, {}).get("agents", {}).get(provider)
     )
     if agent is None:
         _LOGGER.warning(
@@ -56,9 +57,7 @@ async def async_setup_entry(
         )
         return
 
-    async_add_entities(
-        [HomeclawConversationEntity(config_entry, provider, agent)]
-    )
+    async_add_entities([HomeclawConversationEntity(config_entry, provider, agent)])
 
 
 class HomeclawConversationEntity(
@@ -92,9 +91,7 @@ class HomeclawConversationEntity(
         # -> full entity_id: conversation.homeclaw_openai_conversation
         self._attr_name = "Conversation"
         self._attr_unique_id = f"{config_entry.entry_id}-conversation"
-        self._attr_supported_features = (
-            conversation.ConversationEntityFeature.CONTROL
-        )
+        self._attr_supported_features = conversation.ConversationEntityFeature.CONTROL
         self._attr_device_info = dr.DeviceInfo(
             identifiers={(DOMAIN, config_entry.entry_id)},
             name=f"Homeclaw {provider_name.replace('_', ' ').title()}",
@@ -141,9 +138,7 @@ class HomeclawConversationEntity(
             if chat_log.content and isinstance(
                 chat_log.content[0], conversation.SystemContent
             ):
-                chat_log.content[0] = conversation.SystemContent(
-                    content=system_prompt
-                )
+                chat_log.content[0] = conversation.SystemContent(content=system_prompt)
 
             # Voice session persistence: get or create a Homeclaw session
             hc_session_id = await self._get_or_create_voice_session(
@@ -190,14 +185,17 @@ class HomeclawConversationEntity(
                 user_input.text, **stream_kwargs
             )
 
-            # Transform provider chunks to ChatLog delta format and feed
-            # into the ChatLog streaming infrastructure
+            # Transform and sanitize provider stream for ChatLog.
+            # During tool execution the generator simply suspends — no
+            # deltas flow, so the TTS pipeline stays idle until real
+            # text arrives (matching the OpenAI reference pattern).
+            delta_stream = self._transform_provider_stream(provider_stream, chat_log)
+            sanitized_stream = self._tts_sanitizer_stream(delta_stream)
+
             async for _content in chat_log.async_add_delta_content_stream(
                 self.entity_id,
-                self._transform_provider_stream(provider_stream),
+                sanitized_stream,
             ):
-                # Each yielded content is either AssistantContent or
-                # ToolResultContent that was added to the chat_log.
                 pass
 
             # Save assistant response to SessionStorage
@@ -364,9 +362,38 @@ class HomeclawConversationEntity(
                 return content.content
         return ""
 
+    @staticmethod
+    async def _tts_sanitizer_stream(
+        stream: AsyncGenerator[dict[str, Any], None],
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Sanitize text chunks for TTS in real-time.
+
+        Removes emojis and markdown markers to prevent the TTS engine from
+        reading them aloud or pausing unnaturally.
+        """
+        async for delta in stream:
+            if "content" in delta:
+                content = delta["content"]
+                if content:
+                    # 1. Remove emojis (Unicode range)
+                    content = re.sub(r"[\U00010000-\U0010ffff]", "", content)
+                    # 2. Strip common markdown formatting
+                    content = (
+                        content.replace("**", "")
+                        .replace("__", "")
+                        .replace("*", "")
+                        .replace("_", "")
+                        .replace("`", "")
+                    )
+                    # 3. Strip headers
+                    content = re.sub(r"^#+\s+", "", content, flags=re.MULTILINE)
+                    delta["content"] = content
+            yield delta
+
     async def _transform_provider_stream(
         self,
-        stream: AsyncGenerator[dict[str, Any], None],
+        stream: AsyncGenerator[Any, None],
+        chat_log: conversation.ChatLog,
     ) -> AsyncGenerator[
         conversation.AssistantContentDeltaDict
         | conversation.ToolResultContentDeltaDict,
@@ -374,66 +401,86 @@ class HomeclawConversationEntity(
     ]:
         """Transform Homeclaw provider stream to HA ChatLog delta format.
 
-        Homeclaw's Agent.process_query_stream() yields:
-            {"type": "text", "content": "..."}       - streaming text chunk
-            {"type": "tool_call", "name": "...", ...} - tool call (accumulated internally)
-            {"type": "tool_result", "name": "...", "result": "..."} - tool result
-            {"type": "status", "message": "..."}     - tool execution status
-            {"type": "error", "message": "..."}      - error
-            {"type": "complete", ...}                 - stream end
+        Converts Homeclaw chunk events to ChatLog delta dicts. Only text
+        content is forwarded; status/tool events are handled internally by
+        process_query_stream. The {"role": "assistant"} marker is emitted
+        once, alongside the first real text chunk.
 
-        ChatLog expects AssistantContentDeltaDict:
-            {"role": "assistant"}            - start new assistant message
-            {"content": "..."}               - text content delta
-            {"tool_calls": [llm.ToolInput]}  - tool calls (external=True)
-
-        Tool calls are handled internally by Homeclaw's ToolExecutor.
-        We stream text chunks to the UI and skip status/tool events.
-        When the provider loops (tool call -> execute -> new response),
-        text from subsequent iterations is concatenated into the same
-        assistant message in the ChatLog.
+        During tool execution the generator simply suspends (no yields),
+        keeping the TTS pipeline idle until real text arrives.
         """
+        from .core.events import (
+            TextEvent,
+            StatusEvent,
+            ErrorEvent,
+            CompletionEvent,
+            ToolCallEvent,
+            ToolResultEvent,
+        )
+
         assistant_started = False
 
         async for chunk in stream:
-            chunk_type = chunk.get("type")
-
-            if chunk_type == "text":
-                content = chunk.get("content", "")
+            if isinstance(chunk, TextEvent):
+                content = chunk.content
                 if not content:
                     continue
 
-                # Start a new assistant message on first text chunk
                 if not assistant_started:
                     yield {"role": "assistant"}
                     assistant_started = True
 
                 yield {"content": content}
 
-            elif chunk_type == "status":
-                # Tool execution status — internal to Homeclaw, skip for ChatLog
-                _LOGGER.debug(
-                    "Tool status: %s", chunk.get("message", "")
-                )
+            elif isinstance(chunk, StatusEvent):
+                _LOGGER.debug("Tool status: %s", chunk.message)
 
-            elif chunk_type == "error":
-                # Error during processing — log details but don't expose to user
-                error_msg = chunk.get("message", "Unknown error")
+            elif isinstance(chunk, ErrorEvent):
+                error_msg = chunk.message
                 _LOGGER.error("Provider stream error: %s", error_msg)
 
                 if not assistant_started:
                     yield {"role": "assistant"}
                     assistant_started = True
 
-                yield {"content": "Sorry, I encountered an error processing your request."}
+                yield {
+                    "content": "Sorry, I encountered an error processing your request."
+                }
 
-            elif chunk_type == "complete":
-                # Stream finished — nothing to yield
+            elif isinstance(chunk, CompletionEvent):
                 _LOGGER.debug("Provider stream complete")
+            
+            elif isinstance(chunk, ToolCallEvent):
+                _LOGGER.debug("Tool call event: %s(%s)", chunk.tool_name, chunk.tool_args)
+                
+                if not assistant_started:
+                    yield {"role": "assistant"}
+                    assistant_started = True
 
-            # "tool_call" and "tool_result" types are handled internally
-            # by Homeclaw's process_query_stream tool loop. They don't
-            # need to be forwarded to ChatLog since tools are external.
+                # Signal the tool call to HA so it shows up in UI
+                tool_calls = [
+                    llm.ToolInput(
+                        id=chunk.tool_call_id,
+                        tool_name=chunk.tool_name,
+                        tool_args=chunk.tool_args,
+                        external=True, # We handle execution internally
+                    )
+                ]
+                yield {"tool_calls": tool_calls}
+
+            elif isinstance(chunk, ToolResultEvent):
+                _LOGGER.debug("Tool result event: %s -> %s...", chunk.tool_name, str(chunk.tool_result)[:50])
+                # Append tool result to chat log history directly
+                # This ensures the tool result is recorded, even if we are currently
+                # updating the Assistant message.
+                chat_log.async_add_tool_result_content(
+                    conversation.ToolResultContent(
+                        agent_id=self.entity_id,
+                        tool_call_id=chunk.tool_call_id,
+                        tool_name=chunk.tool_name,
+                        tool_result={"result": chunk.tool_result},
+                    )
+                )
 
         # HA requires at least one AssistantContent in chat_log. If the stream
         # produced no text (e.g. tools-only response or empty stream), emit
@@ -465,9 +512,7 @@ class HomeclawConversationEntity(
                 messages.append({"role": "user", "content": content.content})
             elif isinstance(content, conversation.AssistantContent):
                 if content.content:
-                    messages.append(
-                        {"role": "assistant", "content": content.content}
-                    )
+                    messages.append({"role": "assistant", "content": content.content})
 
         # Remove the last user message to avoid duplication — HA adds the current
         # user utterance to chat_log before _async_handle_message, but

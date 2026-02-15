@@ -573,7 +573,9 @@ async def ws_send_message_stream(
                     )
 
                     _LOGGER.debug("Starting to consume stream chunks...")
-                    async for chunk in agent_stream(msg["message"], **kwargs):
+                    async for event in agent_stream(msg["message"], **kwargs):
+                        # Handle both dataclass events and legacy dict chunks
+                        chunk = asdict(event) if hasattr(event, "__dataclass_fields__") else event
                         _LOGGER.debug(
                             "Received chunk from agent: type=%s", chunk.get("type")
                         )
