@@ -40,21 +40,32 @@ SESSION_CONDENSE_PROMPT = """You are a precise information condenser for a Home 
 
 Your task: Take multiple conversation chunks from the same session and produce a CONDENSED set of summary chunks.
 
-CRITICAL RULE — LANGUAGE PRESERVATION:
-You MUST write the output in the SAME LANGUAGE as the input text. If the conversation is in Polish, output in Polish. If in English, output in English. If mixed, preserve each part's language. NEVER translate or switch languages.
+CRITICAL RULE #1 — REMOVE ALL ENTITY STATE DATA:
+You MUST strip every piece of ephemeral entity state from the output. This is the most important rule. Entity states change constantly; old values create dangerously misleading context.
 
-Rules:
-1. Preserve ALL actionable information: entity names, entity IDs, user preferences, decisions, commands given, and outcomes.
-2. Preserve the chronological flow — summaries should reflect the order of events.
+Remove ALL of the following — no exceptions:
+- Sensor readings: temperatures ("22.5°C", "23 stopni"), humidity ("65%"), power ("150W"), energy ("2.5 kWh"), lux, pressure, any numeric sensor value
+- Entity state reports: "is on", "is off", "jest włączone", "jest wyłączone", "open", "closed", "unavailable"
+- Status listings: "currently X shows Y", "temperature in room is Z", "the light is on"
+- Device status summaries: any paragraph listing what is on/off or current readings
+- State-based answers: "the bedroom is 22 degrees", "humidity is at 65%"
+
+Keep entity NAMES, IDs, locations, and relationships — just strip their current/past state values.
+
+CRITICAL RULE #2 — LANGUAGE PRESERVATION:
+Write the output in the SAME LANGUAGE as the input. If Polish, output Polish. If English, output English. NEVER translate.
+
+Other rules:
+1. Preserve user preferences, decisions, commands given, and outcomes (but NOT state reports that accompanied them).
+2. Preserve the chronological flow.
 3. Remove redundancy: greetings, repetitive confirmations, filler language.
 4. Keep technical details (entity_id formats like "light.living_room", automation names, service calls).
 5. Each summary chunk should be 200-400 characters — dense but readable.
 6. Output ONLY the condensed chunks, one per line, separated by "---" on its own line.
 7. Do NOT add commentary, headers, or explanations outside the chunks.
 8. Do NOT translate — keep the original language of the input.
-9. CRITICAL: Remove ALL ephemeral entity state data — sensor readings (temperatures, humidity, power, lux), on/off status reports, and current values. Entity states change constantly; storing old values creates misleading context. Keep entity names and relationships but strip their state values.
 
-If the input is already concise, return it with minimal changes."""
+If the input is already concise, return it after removing any entity state data."""
 
 # System prompt for memory condensation
 MEMORY_CONDENSE_PROMPT = """You are a precise information condenser for a Home Assistant AI assistant's long-term memory system.
@@ -232,6 +243,8 @@ class RAGOptimizer:
         provider: Any,  # AIProvider
         model: str | None = None,
         progress_callback: ProgressCallback | None = None,
+        *,
+        force: bool = False,
     ) -> OptimizationResult:
         """Optimize session chunks by condensing them per session.
 
@@ -239,6 +252,7 @@ class RAGOptimizer:
             provider: AI provider instance to use for condensation.
             model: Model to use (provider default if None).
             progress_callback: Async callback for progress updates.
+            force: If True, re-optimize ALL sessions regardless of chunk count.
 
         Returns:
             OptimizationResult with stats about the optimization.
@@ -248,10 +262,11 @@ class RAGOptimizer:
 
         try:
             session_groups = await self._get_session_chunk_groups()
+            min_chunks = 1 if force else MIN_CHUNKS_TO_OPTIMIZE
             optimizable = {
                 sid: count
                 for sid, count in session_groups.items()
-                if count >= MIN_CHUNKS_TO_OPTIMIZE
+                if count >= min_chunks
             }
 
             if not optimizable:
@@ -490,6 +505,8 @@ class RAGOptimizer:
         model: str | None = None,
         user_id: str | None = None,
         progress_callback: ProgressCallback | None = None,
+        *,
+        force: bool = False,
     ) -> OptimizationResult:
         """Run full optimization (sessions + memories).
 
@@ -498,6 +515,7 @@ class RAGOptimizer:
             model: Model to use.
             user_id: User ID for memory optimization.
             progress_callback: Async callback for progress updates.
+            force: If True, re-optimize ALL sessions regardless of chunk count.
 
         Returns:
             Combined OptimizationResult.
@@ -511,7 +529,7 @@ class RAGOptimizer:
             progress_callback, "phase", "Phase 1: Optimizing session chunks..."
         )
         session_result = await self.optimize_sessions(
-            provider, model, progress_callback
+            provider, model, progress_callback, force=force
         )
 
         # Phase 2: Memories

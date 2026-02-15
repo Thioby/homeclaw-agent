@@ -126,6 +126,8 @@ async def ws_get_preferences(
         vol.Required("type"): "homeclaw/preferences/set",
         vol.Optional("default_provider"): vol.Any(str, None),
         vol.Optional("default_model"): vol.Any(str, None),
+        vol.Optional("rag_optimizer_provider"): vol.Any(str, None),
+        vol.Optional("rag_optimizer_model"): vol.Any(str, None),
         vol.Optional("theme"): vol.Any("light", "dark", "system", None),
     }
 )
@@ -198,6 +200,25 @@ async def ws_set_preferences(
             prefs_update["default_model"] = None
         if "theme" in msg:
             prefs_update["theme"] = theme
+
+        # RAG optimizer provider/model (used by auto-sanitization and manual optimize)
+        rag_provider = msg.get("rag_optimizer_provider")
+        rag_model = msg.get("rag_optimizer_model")
+
+        if "rag_optimizer_provider" in msg:
+            if rag_provider is not None:
+                config = await hass.async_add_executor_job(load_models_config)
+                if rag_provider not in config:
+                    connection.send_error(
+                        msg["id"],
+                        ERR_INVALID_INPUT,
+                        f"Unknown RAG optimizer provider: {rag_provider}",
+                    )
+                    return
+            prefs_update["rag_optimizer_provider"] = rag_provider
+
+        if "rag_optimizer_model" in msg:
+            prefs_update["rag_optimizer_model"] = rag_model
 
         if not prefs_update:
             connection.send_error(

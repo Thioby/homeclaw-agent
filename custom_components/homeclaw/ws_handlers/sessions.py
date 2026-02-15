@@ -213,6 +213,20 @@ async def _sanitize_previous_session(
             user_id,
         )
 
+        # Check if we need to archive old sessions (auto-compression)
+        try:
+            archive_result = await rag_manager.archive_old_sessions(
+                provider=provider, model=model
+            )
+            if archive_result:
+                _LOGGER.info(
+                    "Auto-archived %d old sessions (%d chunks) into summary",
+                    archive_result.get("sessions_archived", 0),
+                    archive_result.get("chunks_removed", 0),
+                )
+        except Exception as archive_err:
+            _LOGGER.debug("Auto-archival check failed (non-critical): %s", archive_err)
+
     except Exception as e:
         _LOGGER.warning("Background session sanitization failed: %s", e)
 

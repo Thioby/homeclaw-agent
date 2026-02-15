@@ -410,6 +410,7 @@ async def ws_rag_optimize_analyze(
         vol.Required("provider"): vol.In(VALID_PROVIDERS),
         vol.Required("model"): str,
         vol.Optional("scope", default="all"): vol.In(["all", "sessions", "memories"]),
+        vol.Optional("force", default=False): bool,
     }
 )
 @websocket_api.async_response
@@ -433,6 +434,7 @@ async def ws_rag_optimize_run(
     provider_name = msg["provider"]
     model = msg["model"]
     scope = msg.get("scope", "all")
+    force = msg.get("force", False)
 
     # Get the AI provider instance
     agents = hass.data.get(DOMAIN, {}).get("agents", {})
@@ -478,7 +480,7 @@ async def ws_rag_optimize_run(
         # Run optimization based on scope
         if scope == "sessions":
             result = await optimizer.optimize_sessions(
-                provider, model, progress_callback
+                provider, model, progress_callback, force=force
             )
         elif scope == "memories":
             result = await optimizer.optimize_memories(
@@ -486,7 +488,7 @@ async def ws_rag_optimize_run(
             )
         else:
             result = await optimizer.optimize_all(
-                provider, model, user_id, progress_callback
+                provider, model, user_id, progress_callback, force=force
             )
 
         result_data = {"success": True, **result.to_dict()}

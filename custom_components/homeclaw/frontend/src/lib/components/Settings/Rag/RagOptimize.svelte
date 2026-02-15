@@ -15,17 +15,55 @@
   let optimizeProvider = $state<string>('');
   let optimizeModel = $state<string>('');
   let optimizeScope = $state<'all' | 'sessions' | 'memories'>('all');
+  let optimizeForce = $state(false);
   let optimizeModels = $state<ModelOption[]>([]);
   let optimizeModelsLoading = $state(false);
   let optimizing = $state(false);
   let optimizeProgress = $state<ProgressEvent[]>([]);
   let optimizeResult = $state<OptimizationResult | null>(null);
   let optimizeProgressPct = $state(0);
+  let prefsLoaded = $state(false);
 
   // Load on mount
   $effect(() => {
     if (!analysis) loadAnalysis();
+    if (!prefsLoaded) loadSavedPrefs();
   });
+
+  async function loadSavedPrefs() {
+    const hass = getHass();
+    if (!hass) return;
+    prefsLoaded = true;
+    try {
+      const result = await hass.callWS({ type: 'homeclaw/preferences/get' });
+      const prefs = result?.preferences || {};
+      const savedProvider = prefs.rag_optimizer_provider;
+      const savedModel = prefs.rag_optimizer_model;
+      if (savedProvider) {
+        optimizeProvider = savedProvider;
+        await loadModelsForProvider(savedProvider);
+        if (savedModel) {
+          optimizeModel = savedModel;
+        }
+      }
+    } catch (e) {
+      console.warn('[RagOptimize] Could not load saved preferences:', e);
+    }
+  }
+
+  async function saveOptimizerPrefs() {
+    const hass = getHass();
+    if (!hass) return;
+    try {
+      await hass.callWS({
+        type: 'homeclaw/preferences/set',
+        rag_optimizer_provider: optimizeProvider || null,
+        rag_optimizer_model: optimizeModel || null,
+      });
+    } catch (e) {
+      console.warn('[RagOptimize] Could not save optimizer preferences:', e);
+    }
+  }
 
   async function loadAnalysis() {
     const hass = getHass();
@@ -70,13 +108,18 @@
     }
   }
 
-  function handleProviderChange() {
+  async function handleProviderChange() {
     optimizeModel = '';
     if (optimizeProvider) {
-      loadModelsForProvider(optimizeProvider);
+      await loadModelsForProvider(optimizeProvider);
     } else {
       optimizeModels = [];
     }
+    saveOptimizerPrefs();
+  }
+
+  function handleModelChange() {
+    saveOptimizerPrefs();
   }
 
   async function runOptimization() {
@@ -118,6 +161,7 @@
           provider: optimizeProvider,
           model: optimizeModel,
           scope: optimizeScope,
+          force: optimizeForce,
         }
       );
     } catch (e: any) {
@@ -206,6 +250,7 @@
               id="opt-model"
               class="filter-select"
               bind:value={optimizeModel}
+              onchange={handleModelChange}
               disabled={!optimizeProvider || optimizeModelsLoading}
             >
               {#if optimizeModelsLoading}
@@ -227,6 +272,14 @@
               <option value="sessions">Sessions only</option>
               <option value="memories">Memories only</option>
             </select>
+          </div>
+
+          <div class="form-row checkbox-row">
+            <label for="opt-force">
+              <input type="checkbox" id="opt-force" bind:checked={optimizeForce} />
+              Force re-optimize all
+            </label>
+            <span class="hint">Re-process sessions that were already optimized</span>
           </div>
         </div>
       </div>
@@ -407,6 +460,30 @@
   }
   .form-row .filter-select {
     flex: 1;
+  }
+  .checkbox-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .checkbox-row label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    min-width: unset;
+  }
+  .checkbox-row input[type='checkbox'] {
+    accent-color: #ff9800;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+  .hint {
+    font-size: 11px;
+    color: var(--secondary-text-color);
+    opacity: 0.7;
+    padding-left: 22px;
   }
   .btn {
     padding: 6px 14px;

@@ -8,10 +8,12 @@ import { PROVIDERS } from '$lib/types';
  * Provider and model management service
  */
 
-/** User preferences (default provider + model) */
+/** User preferences (default provider + model + RAG optimizer) */
 export interface UserPreferences {
   default_provider?: string | null;
   default_model?: string | null;
+  rag_optimizer_provider?: string | null;
+  rag_optimizer_model?: string | null;
 }
 
 /** Cached providers config from backend */

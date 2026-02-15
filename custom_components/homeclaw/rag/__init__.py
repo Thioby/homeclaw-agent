@@ -220,6 +220,39 @@ class RAGManager:
             )
             return 0
 
+    async def archive_old_sessions(
+        self,
+        provider: Any,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        """Archive old session chunks into a single knowledge summary.
+
+        Checks if the number of indexed sessions exceeds the configured
+        limit. If so, collects chunks from sessions older than 7 days,
+        summarizes them via LLM, and replaces them with one dense chunk.
+
+        Args:
+            provider: AI provider instance for LLM summarization.
+            model: Optional model override for the LLM call.
+
+        Returns:
+            Dict with archival stats, or empty dict if not needed.
+        """
+        self._ensure_initialized()
+
+        try:
+            from .session_archiver import archive_old_sessions
+
+            return await archive_old_sessions(
+                store=self._lifecycle.store,
+                embedding_provider=self._lifecycle.embedding_provider,
+                provider=provider,
+                model=model,
+            )
+        except Exception as e:
+            _LOGGER.warning("Session archival failed: %s", e)
+            return {}
+
     async def remove_session_index(self, session_id: str) -> None:
         """Remove indexed session data when a session is deleted.
 

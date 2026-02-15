@@ -7573,6 +7573,24 @@ function bind_value(input, get2, set2 = get2) {
     }
   });
 }
+function bind_checked(input, get2, set2 = get2) {
+  listen_to_event_and_reset_event(input, "change", (is_reset) => {
+    var value = is_reset ? input.defaultChecked : input.checked;
+    set2(value);
+  });
+  if (
+    // If we are hydrating and the value has since changed,
+    // then use the update value from the input instead.
+    // If defaultChecked is set, then checked == defaultChecked
+    untrack(get2) == null
+  ) {
+    set2(input.checked);
+  }
+  render_effect(() => {
+    var value = get2();
+    input.checked = Boolean(value);
+  });
+}
 function is_numberlike_input(input) {
   var type = input.type;
   return type === "number" || type === "range";
@@ -17016,7 +17034,7 @@ var root_7$1 = /* @__PURE__ */ from_html(`<option> </option>`);
 var root_8$1 = /* @__PURE__ */ from_html(`<option>Loading models...</option>`);
 var root_10$1 = /* @__PURE__ */ from_html(`<option>Select provider first</option>`);
 var root_12$1 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_4$2 = /* @__PURE__ */ from_html(`<div class="card savings-card svelte-10ewjma"><h3 class="svelte-10ewjma">Estimated Savings</h3> <div class="kv-grid svelte-10ewjma"><!> <!></div></div> <div class="card svelte-10ewjma"><h3 class="svelte-10ewjma">Optimization Settings</h3> <div class="opt-form svelte-10ewjma"><div class="form-row svelte-10ewjma"><label for="opt-provider" class="svelte-10ewjma">Provider</label> <select id="opt-provider" class="filter-select svelte-10ewjma"><option>Select provider...</option><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-model" class="svelte-10ewjma">Model</label> <select id="opt-model" class="filter-select svelte-10ewjma"><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-scope" class="svelte-10ewjma">Scope</label> <select id="opt-scope" class="filter-select svelte-10ewjma"><option>All (sessions + memories)</option><option>Sessions only</option><option>Memories only</option></select></div></div></div> <button class="btn primary optimize-btn svelte-10ewjma"><!></button>`, 1);
+var root_4$2 = /* @__PURE__ */ from_html(`<div class="card savings-card svelte-10ewjma"><h3 class="svelte-10ewjma">Estimated Savings</h3> <div class="kv-grid svelte-10ewjma"><!> <!></div></div> <div class="card svelte-10ewjma"><h3 class="svelte-10ewjma">Optimization Settings</h3> <div class="opt-form svelte-10ewjma"><div class="form-row svelte-10ewjma"><label for="opt-provider" class="svelte-10ewjma">Provider</label> <select id="opt-provider" class="filter-select svelte-10ewjma"><option>Select provider...</option><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-model" class="svelte-10ewjma">Model</label> <select id="opt-model" class="filter-select svelte-10ewjma"><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-scope" class="svelte-10ewjma">Scope</label> <select id="opt-scope" class="filter-select svelte-10ewjma"><option>All (sessions + memories)</option><option>Sessions only</option><option>Memories only</option></select></div> <div class="form-row checkbox-row svelte-10ewjma"><label for="opt-force" class="svelte-10ewjma"><input type="checkbox" id="opt-force" class="svelte-10ewjma"/> Force re-optimize all</label> <span class="hint svelte-10ewjma">Re-process sessions that were already optimized</span></div></div></div> <button class="btn primary optimize-btn svelte-10ewjma"><!></button>`, 1);
 var root_15 = /* @__PURE__ */ from_html(`<div class="card svelte-10ewjma"><p class="no-savings svelte-10ewjma">RAG database is already compact. No optimization needed.</p></div>`);
 var root_17$1 = /* @__PURE__ */ from_html(`<div class="progress-bar-container svelte-10ewjma"><div class="progress-bar svelte-10ewjma"></div></div>`);
 var root_18$1 = /* @__PURE__ */ from_html(`<div> </div>`);
@@ -17037,15 +17055,51 @@ function RagOptimize($$anchor, $$props) {
   let optimizeProvider = /* @__PURE__ */ state("");
   let optimizeModel = /* @__PURE__ */ state("");
   let optimizeScope = /* @__PURE__ */ state("all");
+  let optimizeForce = /* @__PURE__ */ state(false);
   let optimizeModels = /* @__PURE__ */ state(proxy([]));
   let optimizeModelsLoading = /* @__PURE__ */ state(false);
   let optimizing = /* @__PURE__ */ state(false);
   let optimizeProgress = /* @__PURE__ */ state(proxy([]));
   let optimizeResult = /* @__PURE__ */ state(null);
   let optimizeProgressPct = /* @__PURE__ */ state(0);
+  let prefsLoaded = /* @__PURE__ */ state(false);
   user_effect(() => {
     if (!get$1(analysis)) loadAnalysis();
+    if (!get$1(prefsLoaded)) loadSavedPrefs();
   });
+  async function loadSavedPrefs() {
+    const hass = getHass();
+    if (!hass) return;
+    set(prefsLoaded, true);
+    try {
+      const result = await hass.callWS({ type: "homeclaw/preferences/get" });
+      const prefs = result?.preferences || {};
+      const savedProvider = prefs.rag_optimizer_provider;
+      const savedModel = prefs.rag_optimizer_model;
+      if (savedProvider) {
+        set(optimizeProvider, savedProvider, true);
+        await loadModelsForProvider(savedProvider);
+        if (savedModel) {
+          set(optimizeModel, savedModel, true);
+        }
+      }
+    } catch (e2) {
+      console.warn("[RagOptimize] Could not load saved preferences:", e2);
+    }
+  }
+  async function saveOptimizerPrefs() {
+    const hass = getHass();
+    if (!hass) return;
+    try {
+      await hass.callWS({
+        type: "homeclaw/preferences/set",
+        rag_optimizer_provider: get$1(optimizeProvider) || null,
+        rag_optimizer_model: get$1(optimizeModel) || null
+      });
+    } catch (e2) {
+      console.warn("[RagOptimize] Could not save optimizer preferences:", e2);
+    }
+  }
   async function loadAnalysis() {
     const hass = getHass();
     if (!hass) return;
@@ -17083,13 +17137,17 @@ function RagOptimize($$anchor, $$props) {
       set(optimizeModelsLoading, false);
     }
   }
-  function handleProviderChange() {
+  async function handleProviderChange() {
     set(optimizeModel, "");
     if (get$1(optimizeProvider)) {
-      loadModelsForProvider(get$1(optimizeProvider));
+      await loadModelsForProvider(get$1(optimizeProvider));
     } else {
       set(optimizeModels, [], true);
     }
+    saveOptimizerPrefs();
+  }
+  function handleModelChange() {
+    saveOptimizerPrefs();
   }
   async function runOptimization() {
     const hass = getHass();
@@ -17123,7 +17181,8 @@ function RagOptimize($$anchor, $$props) {
           type: "homeclaw/rag/optimize/run",
           provider: get$1(optimizeProvider),
           model: get$1(optimizeModel),
-          scope: get$1(optimizeScope)
+          scope: get$1(optimizeScope),
+          force: get$1(optimizeForce)
         }
       );
     } catch (e2) {
@@ -17219,6 +17278,7 @@ function RagOptimize($$anchor, $$props) {
               });
               var div_9 = sibling(div_8, 2);
               var select_1 = sibling(child(div_9), 2);
+              select_1.__change = handleModelChange;
               var node_6 = child(select_1);
               {
                 var consequent_3 = ($$anchor5) => {
@@ -17276,6 +17336,9 @@ function RagOptimize($$anchor, $$props) {
               option_6.value = option_6.__value = "sessions";
               var option_7 = sibling(option_6);
               option_7.value = option_7.__value = "memories";
+              var div_11 = sibling(div_10, 2);
+              var label = child(div_11);
+              var input = child(label);
               var button = sibling(div_6, 2);
               button.__click = runOptimization;
               var node_9 = child(button);
@@ -17300,11 +17363,12 @@ function RagOptimize($$anchor, $$props) {
               bind_select_value(select, () => get$1(optimizeProvider), ($$value) => set(optimizeProvider, $$value));
               bind_select_value(select_1, () => get$1(optimizeModel), ($$value) => set(optimizeModel, $$value));
               bind_select_value(select_2, () => get$1(optimizeScope), ($$value) => set(optimizeScope, $$value));
+              bind_checked(input, () => get$1(optimizeForce), ($$value) => set(optimizeForce, $$value));
               append($$anchor4, fragment_2);
             };
             var alternate_3 = ($$anchor4) => {
-              var div_11 = root_15();
-              append($$anchor4, div_11);
+              var div_12 = root_15();
+              append($$anchor4, div_12);
             };
             if_block(node_2, ($$render) => {
               if (get$1(analysis).potential_chunk_savings > 0 || get$1(analysis).potential_memory_savings > 0) $$render(consequent_6);
@@ -17314,26 +17378,26 @@ function RagOptimize($$anchor, $$props) {
           var node_10 = sibling(node_2, 2);
           {
             var consequent_8 = ($$anchor4) => {
-              var div_12 = root_16();
-              var node_11 = sibling(child(div_12), 2);
+              var div_13 = root_16();
+              var node_11 = sibling(child(div_13), 2);
               {
                 var consequent_7 = ($$anchor5) => {
-                  var div_13 = root_17$1();
-                  var div_14 = child(div_13);
-                  template_effect(() => set_style(div_14, `width: ${get$1(optimizeProgressPct) ?? ""}%`));
-                  append($$anchor5, div_13);
+                  var div_14 = root_17$1();
+                  var div_15 = child(div_14);
+                  template_effect(() => set_style(div_15, `width: ${get$1(optimizeProgressPct) ?? ""}%`));
+                  append($$anchor5, div_14);
                 };
                 if_block(node_11, ($$render) => {
                   if (get$1(optimizing)) $$render(consequent_7);
                 });
               }
-              var div_15 = sibling(node_11, 2);
-              each(div_15, 21, () => get$1(optimizeProgress), index, ($$anchor5, event2) => {
-                var div_16 = root_18$1();
+              var div_16 = sibling(node_11, 2);
+              each(div_16, 21, () => get$1(optimizeProgress), index, ($$anchor5, event2) => {
+                var div_17 = root_18$1();
                 let classes;
-                var text_11 = child(div_16);
+                var text_11 = child(div_17);
                 template_effect(() => {
-                  classes = set_class(div_16, 1, "progress-line svelte-10ewjma", null, classes, {
+                  classes = set_class(div_17, 1, "progress-line svelte-10ewjma", null, classes, {
                     phase: get$1(event2).type === "phase",
                     done: get$1(event2).type === "session_done" || get$1(event2).type === "category_done",
                     "error-line": get$1(event2).type === "session_error" || get$1(event2).type === "category_error",
@@ -17341,9 +17405,9 @@ function RagOptimize($$anchor, $$props) {
                   });
                   set_text(text_11, get$1(event2).message);
                 });
-                append($$anchor5, div_16);
+                append($$anchor5, div_17);
               });
-              append($$anchor4, div_12);
+              append($$anchor4, div_13);
             };
             if_block(node_10, ($$render) => {
               if (get$1(optimizing) || get$1(optimizeProgress).length > 0) $$render(consequent_8);
@@ -17352,10 +17416,10 @@ function RagOptimize($$anchor, $$props) {
           var node_12 = sibling(node_10, 2);
           {
             var consequent_12 = ($$anchor4) => {
-              var div_17 = root_19$1();
+              var div_18 = root_19$1();
               let classes_1;
-              var div_18 = sibling(child(div_17), 2);
-              var node_13 = child(div_18);
+              var div_19 = sibling(child(div_18), 2);
+              var node_13 = child(div_19);
               {
                 var consequent_9 = ($$anchor5) => {
                   var fragment_7 = root_20$1();
@@ -17395,29 +17459,29 @@ function RagOptimize($$anchor, $$props) {
               var text_16 = child(span_11);
               var span_12 = sibling(span_11, 3);
               var text_17 = child(span_12);
-              var node_15 = sibling(div_18, 2);
+              var node_15 = sibling(div_19, 2);
               {
                 var consequent_11 = ($$anchor5) => {
-                  var div_19 = root_22$1();
-                  var node_16 = sibling(child(div_19), 2);
+                  var div_20 = root_22$1();
+                  var node_16 = sibling(child(div_20), 2);
                   each(node_16, 17, () => get$1(optimizeResult).errors, index, ($$anchor6, err) => {
-                    var div_20 = root_23();
-                    var text_18 = child(div_20);
+                    var div_21 = root_23();
+                    var text_18 = child(div_21);
                     template_effect(() => set_text(text_18, get$1(err)));
-                    append($$anchor6, div_20);
+                    append($$anchor6, div_21);
                   });
-                  append($$anchor5, div_19);
+                  append($$anchor5, div_20);
                 };
                 if_block(node_15, ($$render) => {
                   if (get$1(optimizeResult).errors.length > 0) $$render(consequent_11);
                 });
               }
               template_effect(() => {
-                classes_1 = set_class(div_17, 1, "card result-card svelte-10ewjma", null, classes_1, { "has-errors": get$1(optimizeResult).errors.length > 0 });
+                classes_1 = set_class(div_18, 1, "card result-card svelte-10ewjma", null, classes_1, { "has-errors": get$1(optimizeResult).errors.length > 0 });
                 set_text(text_16, `${get$1(optimizeResult).duration_seconds ?? ""}s`);
                 set_text(text_17, get$1(optimizeResult).sessions_processed);
               });
-              append($$anchor4, div_17);
+              append($$anchor4, div_18);
             };
             if_block(node_12, ($$render) => {
               if (get$1(optimizeResult)) $$render(consequent_12);
@@ -17439,8 +17503,8 @@ function RagOptimize($$anchor, $$props) {
           var node_17 = first_child(fragment_9);
           {
             var consequent_14 = ($$anchor4) => {
-              var div_21 = root_25();
-              append($$anchor4, div_21);
+              var div_22 = root_25();
+              append($$anchor4, div_22);
             };
             if_block(
               node_17,
