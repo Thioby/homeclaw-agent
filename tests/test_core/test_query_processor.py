@@ -628,7 +628,7 @@ class TestProcessStreamToolIds:
             ):
                 chunks.append(chunk)
 
-        assert any(c.get("type") == "complete" for c in chunks)
+        assert any(getattr(c, "type", None) == "complete" for c in chunks)
         assert len(provider.call_messages) >= 2
 
         second_call_messages = provider.call_messages[1]

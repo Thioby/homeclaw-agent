@@ -2,7 +2,7 @@
 
 Tests cover:
 - IdentitySetTool: set all fields, partial update, mark onboarding complete, missing manager, error
-- Helper functions: _get_identity_manager, _get_current_user_id
+- Helper functions: _get_identity_manager, _get_user_id_from_context
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from custom_components.homeclaw.const import DOMAIN
 from custom_components.homeclaw.memory.identity_store import AgentIdentity
 from custom_components.homeclaw.tools.identity import (
     IdentitySetTool,
-    _get_current_user_id,
+    _get_user_id_from_context,
     _get_identity_manager,
 )
 
@@ -25,7 +25,12 @@ from custom_components.homeclaw.tools.identity import (
 
 
 def _make_hass(*, with_rag=True, with_identity=True, user_id=None):
-    """Create a mock hass object with optional RAG/identity setup."""
+    """Create a mock hass object with optional RAG/identity setup.
+
+    Note: ``user_id`` is no longer stored in ``hass.data`` — it is now
+    passed as ``_user_id`` kwarg through tool execution context.
+    The parameter is kept for test readability but is unused by hass.data.
+    """
     hass = MagicMock()
     hass.data = {}
 
@@ -42,9 +47,6 @@ def _make_hass(*, with_rag=True, with_identity=True, user_id=None):
         hass.data[DOMAIN] = {"rag_manager": rag_manager}
     else:
         hass.data[DOMAIN] = {}
-
-    if user_id:
-        hass.data[DOMAIN]["_current_user_id"] = user_id
 
     return hass
 
@@ -108,28 +110,24 @@ class TestGetIdentityManager:
         assert _get_identity_manager(hass) is None
 
 
-# --- _get_current_user_id tests ---
+# --- _get_user_id_from_context tests ---
 
 
-class TestGetCurrentUserId:
-    """Tests for the _get_current_user_id helper."""
+class TestGetUserIdFromContext:
+    """Tests for the _get_user_id_from_context helper."""
 
-    def test_returns_user_id(self):
-        hass = _make_hass(user_id="user-42")
-        assert _get_current_user_id(hass) == "user-42"
+    def test_returns_user_id_from_kwargs(self):
+        assert _get_user_id_from_context({"_user_id": "user-42"}) == "user-42"
 
-    def test_returns_default_when_no_hass(self):
-        assert _get_current_user_id(None) == "default"
+    def test_returns_default_when_no_user_id(self):
+        assert _get_user_id_from_context({}) == "default"
 
-    def test_returns_default_when_no_domain(self):
-        hass = MagicMock()
-        hass.data = {}
-        assert _get_current_user_id(hass) == "default"
+    def test_returns_default_for_empty_string(self):
+        # Empty string is a valid value, not missing
+        assert _get_user_id_from_context({"_user_id": ""}) == ""
 
-    def test_returns_default_when_key_missing(self):
-        hass = _make_hass()
-        # No _current_user_id set
-        assert _get_current_user_id(hass) == "default"
+    def test_returns_default_when_no_context_key(self):
+        assert _get_user_id_from_context({"other_key": "value"}) == "default"
 
 
 # --- IdentitySetTool tests ---
@@ -159,6 +157,7 @@ class TestIdentitySetTool:
             user_name="Artur",
             user_info="Lives in Warsaw",
             language="pl",
+            _user_id="user-1",
         )
 
         assert result.success is True
@@ -191,7 +190,7 @@ class TestIdentitySetTool:
         tool = IdentitySetTool()
         tool.hass = hass
 
-        result = await tool.execute(agent_name="Luna")
+        result = await tool.execute(agent_name="Luna", _user_id="user-1")
 
         assert result.success is True
         output = json.loads(result.output)
@@ -218,7 +217,7 @@ class TestIdentitySetTool:
         tool.hass = hass
 
         result = await tool.execute(
-            agent_name="Luna", mark_onboarding_complete=True
+            agent_name="Luna", mark_onboarding_complete=True, _user_id="user-1"
         )
 
         assert result.success is True
@@ -242,7 +241,7 @@ class TestIdentitySetTool:
         tool = IdentitySetTool()
         tool.hass = hass
 
-        result = await tool.execute(agent_name="Luna")
+        result = await tool.execute(agent_name="Luna", _user_id="user-1")
 
         assert result.success is True
 
@@ -257,7 +256,7 @@ class TestIdentitySetTool:
         tool = IdentitySetTool()
         tool.hass = hass
 
-        result = await tool.execute(agent_name="Luna")
+        result = await tool.execute(agent_name="Luna", _user_id="user-1")
 
         assert result.success is False
         assert "not available" in result.output
@@ -271,7 +270,7 @@ class TestIdentitySetTool:
         tool = IdentitySetTool()
         tool.hass = hass
 
-        result = await tool.execute(agent_name="Luna")
+        result = await tool.execute(agent_name="Luna", _user_id="user-1")
 
         assert result.success is False
         assert result.error == "identity_not_initialized"
@@ -287,7 +286,7 @@ class TestIdentitySetTool:
         tool = IdentitySetTool()
         tool.hass = hass
 
-        result = await tool.execute(agent_name="Luna")
+        result = await tool.execute(agent_name="Luna", _user_id="user-1")
 
         assert result.success is False
         assert "Failed to set identity" in result.output
@@ -307,7 +306,7 @@ class TestIdentitySetTool:
         tool = IdentitySetTool()
         tool.hass = hass
 
-        result = await tool.execute(mark_onboarding_complete=True)
+        result = await tool.execute(mark_onboarding_complete=True, _user_id="user-1")
 
         assert result.success is True
         output = json.loads(result.output)
@@ -336,7 +335,7 @@ class TestIdentitySetTool:
         tool = IdentitySetTool()
         tool.hass = hass
 
-        result = await tool.execute(agent_personality="Warm")
+        result = await tool.execute(agent_personality="Warm", _user_id="user-1")
 
         assert result.success is True
         output = json.loads(result.output)

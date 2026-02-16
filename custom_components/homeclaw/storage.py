@@ -20,7 +20,11 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 # Storage configuration
+# NOTE: STORAGE_VERSION is the HA Store schema version — changing it requires
+# implementing Store._async_migrate_func which is complex.  We keep it at 1
+# and handle our own data-level versioning via data["version"] inside _load().
 STORAGE_VERSION = 1
+DATA_VERSION = 2  # Internal data schema version (v2 adds Session.metadata)
 STORAGE_KEY = "homeclaw_user_data"
 
 # Limits
@@ -74,6 +78,7 @@ class Session:
     message_count: int = 0
     preview: str = ""
     emoji: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class SessionStorage:
@@ -106,10 +111,11 @@ class SessionStorage:
         if self._data is None:
             loaded = await self._store.async_load()
             self._data = loaded or {
-                "version": STORAGE_VERSION,
+                "version": DATA_VERSION,
                 "sessions": [],
                 "messages": {},
             }
+            await self._migrate_v1_to_v2()
             await self._migrate_legacy_data()
             await self._cleanup_old_sessions()
         return self._data
@@ -118,6 +124,35 @@ class SessionStorage:
         """Save data to store."""
         if self._data:
             await self._store.async_save(self._data)
+
+    async def _migrate_v1_to_v2(self) -> None:
+        """Migrate storage from v1 to v2: add metadata field to sessions.
+
+        v2 adds a ``metadata`` dict to each Session. Existing v1 sessions
+        get an empty ``metadata: {}``.  This is a non-destructive migration.
+        """
+        if self._data is None:
+            return
+
+        stored_version = self._data.get("version", 1)
+        if stored_version >= 2:
+            return  # Already migrated
+
+        migrated_count = 0
+        for session in self._data.get("sessions", []):
+            if "metadata" not in session:
+                session["metadata"] = {}
+                migrated_count += 1
+
+        self._data["version"] = DATA_VERSION
+
+        if migrated_count:
+            _LOGGER.info(
+                "Migrated %d sessions from v1 to v2 (added metadata) for user %s",
+                migrated_count,
+                self.user_id,
+            )
+            await self._save()
 
     async def _migrate_legacy_data(self) -> None:
         """Migrate from legacy prompt history if exists.
@@ -544,7 +579,7 @@ class SessionStorage:
         Use with caution - this permanently removes all data.
         """
         self._data = {
-            "version": STORAGE_VERSION,
+            "version": DATA_VERSION,
             "sessions": [],
             "messages": {},
         }

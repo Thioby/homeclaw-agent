@@ -167,10 +167,8 @@ class SchedulerTool(Tool):
                 notify = params.get("notify", True)
                 one_shot = params.get("one_shot", False)
 
-                # Get user_id from hass.data if available
-                user_id = ""
-                if self.hass:
-                    user_id = self.hass.data.get(DOMAIN, {}).get("_current_user_id", "")
+                # Get user_id from tool execution context
+                user_id = params.get("_user_id", "")
 
                 provider = params.get("provider")
 

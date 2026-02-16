@@ -36,16 +36,13 @@ def _get_memory_manager(hass: Any) -> Any | None:
     return getattr(rag_manager, "memory_manager", None)
 
 
-def _get_current_user_id(hass: Any) -> str:
-    """Get the current user ID from conversation context.
+def _get_user_id_from_context(kwargs: dict[str, Any]) -> str:
+    """Extract user ID from tool execution context.
 
-    The websocket handler stores the current user_id in hass.data[DOMAIN]
-    before tool execution. Falls back to 'default' if not available.
+    ToolExecutor injects ``_user_id`` into params for per-request scoping.
+    Falls back to 'default' if not available (e.g. in tests without context).
     """
-    if not hass or DOMAIN not in hass.data:
-        return "default"
-
-    return hass.data[DOMAIN].get("_current_user_id", "default")
+    return kwargs.get("_user_id", "default")
 
 
 @ToolRegistry.register
@@ -110,7 +107,7 @@ class MemoryStoreTool(Tool):
         category = kwargs.get("category", "fact")
         importance = kwargs.get("importance", 0.8)
         ttl_days = kwargs.get("ttl_days")
-        user_id = _get_current_user_id(self.hass)
+        user_id = _get_user_id_from_context(kwargs)
 
         try:
             # Clamp importance
@@ -200,7 +197,7 @@ class MemoryRecallTool(Tool):
             )
 
         limit = kwargs.get("limit", 5)
-        user_id = _get_current_user_id(self.hass)
+        user_id = _get_user_id_from_context(kwargs)
 
         try:
             limit = max(1, min(20, int(limit)))
@@ -287,7 +284,7 @@ class MemoryForgetTool(Tool):
 
         memory_id = kwargs.get("memory_id")
         query = kwargs.get("query")
-        user_id = _get_current_user_id(self.hass)
+        user_id = _get_user_id_from_context(kwargs)
 
         if not memory_id and not query:
             return ToolResult(

@@ -70,10 +70,8 @@ class SubagentSpawnTool(Tool):
                 error="SubagentManager not initialized",
             )
 
-        # Get current user_id
-        user_id = ""
-        if self.hass:
-            user_id = self.hass.data.get(DOMAIN, {}).get("_current_user_id", "")
+        # Get user_id from tool execution context
+        user_id = params.get("_user_id", "")
 
         try:
             task_id = await manager.spawn(
@@ -152,9 +150,8 @@ class SubagentStatusTool(Tool):
                 error="SubagentManager not initialized",
             )
 
-        user_id = ""
-        if self.hass:
-            user_id = self.hass.data.get(DOMAIN, {}).get("_current_user_id", "")
+        # Get user_id from tool execution context
+        user_id = params.get("_user_id", "")
 
         try:
             if action == "list":

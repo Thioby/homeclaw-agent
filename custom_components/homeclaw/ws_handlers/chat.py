@@ -264,10 +264,6 @@ async def ws_send_message(
 
         # Call AI agent
         try:
-            # Set current user ID for memory tools to access
-            if DOMAIN in hass.data:
-                hass.data[DOMAIN]["_current_user_id"] = user_id
-
             if DOMAIN in hass.data and provider in hass.data[DOMAIN].get("agents", {}):
                 agent = hass.data[DOMAIN]["agents"][provider]
 
@@ -319,10 +315,6 @@ async def ws_send_message(
             assistant_message.status = "error"
             assistant_message.error_message = str(ai_err)
             _LOGGER.error("AI error for session %s: %s", session_id, ai_err)
-        finally:
-            # Clear current user ID after tool execution
-            if DOMAIN in hass.data:
-                hass.data[DOMAIN].pop("_current_user_id", None)
 
         # Save assistant message
         await storage.add_message(session_id, assistant_message)
@@ -499,10 +491,6 @@ async def ws_send_message_stream(
         stream_error = None
 
         try:
-            # Set current user ID for memory tools to access
-            if DOMAIN in hass.data:
-                hass.data[DOMAIN]["_current_user_id"] = user_id
-
             if DOMAIN in hass.data and provider in hass.data[DOMAIN].get("agents", {}):
                 agent = hass.data[DOMAIN]["agents"][provider]
 
@@ -654,10 +642,6 @@ async def ws_send_message_stream(
         except Exception as ai_err:
             _LOGGER.error("AI streaming error for session %s: %s", session_id, ai_err)
             stream_error = str(ai_err)
-        finally:
-            # Clear current user ID after tool execution
-            if DOMAIN in hass.data:
-                hass.data[DOMAIN].pop("_current_user_id", None)
 
         # Update assistant message with final content
         _LOGGER.info(

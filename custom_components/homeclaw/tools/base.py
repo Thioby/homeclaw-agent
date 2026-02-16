@@ -425,8 +425,13 @@ class ToolRegistry:
                 tool_id=tool_id,
             )
 
-        # Validate parameters
-        errors = tool.validate_parameters(params)
+        # Separate internal context keys (prefixed with _) from tool params.
+        # _user_id is injected by ToolExecutor for per-request context passing.
+        context_keys = {k: v for k, v in params.items() if k.startswith("_")}
+        public_params = {k: v for k, v in params.items() if not k.startswith("_")}
+
+        # Validate only public parameters (context keys are internal)
+        errors = tool.validate_parameters(public_params)
         if errors:
             raise ToolExecutionError(
                 f"Invalid parameters: {'; '.join(errors)}",
@@ -434,9 +439,9 @@ class ToolRegistry:
                 details={"validation_errors": errors},
             )
 
-        # Execute the tool
+        # Execute the tool — pass both public params and context keys
         try:
-            result = await tool.execute(**params)
+            result = await tool.execute(**public_params, **context_keys)
             _LOGGER.debug(f"Tool {tool_id} executed successfully")
             return result
         except ToolExecutionError:

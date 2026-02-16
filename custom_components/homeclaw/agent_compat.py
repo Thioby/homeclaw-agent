@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from .core.agent import Agent
 from .core.conversation import ConversationManager
@@ -331,6 +331,156 @@ class HomeclawAgent:
                 "success": False,
                 "error": str(e),
             }
+
+    # === PUBLIC API — channels and MessageIntake use ONLY these ===
+
+    async def stream_query(
+        self,
+        text: str,
+        *,
+        user_id: str,
+        session_id: str = "",
+        model: str | None = None,
+        conversation_history: list[dict] | None = None,
+        attachments: list | None = None,
+        channel_source: str = "panel",
+    ) -> AsyncGenerator[Any, None]:
+        """Public streaming entry point.
+
+        Builds all kwargs internally — callers never need to access
+        ``_get_tools_for_provider``, ``_get_rag_context``, ``_get_system_prompt``,
+        or ``get_context_window`` directly.
+
+        Args:
+            text: User message text.
+            user_id: HA user ID (or shadow user ID for external channels).
+            session_id: Session ID for context.
+            model: Optional model override.
+            conversation_history: Optional conversation history from storage.
+            attachments: Optional list of ProcessedAttachment objects.
+            channel_source: Origin channel (``"panel"``, ``"telegram"``, etc.).
+
+        Yields:
+            AgentEvent objects (TextEvent, ToolCallEvent, StatusEvent, etc.).
+        """
+        kwargs = self.build_query_kwargs(
+            text,
+            user_id=user_id,
+            session_id=session_id,
+            model=model,
+            conversation_history=conversation_history,
+            attachments=attachments,
+            channel_source=channel_source,
+        )
+
+        # Add async parts: RAG context + system prompt
+        if self._rag_manager:
+            rag_context = await self._get_rag_context(text, user_id=user_id)
+            if rag_context:
+                kwargs["rag_context"] = rag_context
+
+        system_prompt = await self._get_system_prompt(user_id)
+        if system_prompt:
+            kwargs["system_prompt"] = system_prompt
+
+        async for event in self._agent.process_query_stream(text, **kwargs):
+            yield event
+
+    def build_query_kwargs(
+        self,
+        text: str,
+        *,
+        user_id: str,
+        session_id: str = "",
+        model: str | None = None,
+        conversation_history: list[dict] | None = None,
+        attachments: list | None = None,
+        channel_source: str = "panel",
+    ) -> dict[str, Any]:
+        """Build kwargs dict for process_query / process_query_stream.
+
+        Encapsulates all the boilerplate: tools, RAG context lookup, system
+        prompt, context window, memory flush. No ``_agent`` access needed.
+
+        Args:
+            text: User message text.
+            user_id: HA user ID.
+            session_id: Session ID.
+            model: Optional model override.
+            conversation_history: Optional history from storage.
+            attachments: Optional attachments.
+            channel_source: Origin channel identifier.
+
+        Returns:
+            Dict of kwargs ready for ``process_query()`` or ``stream_query()``.
+        """
+        from .models import get_context_window
+
+        kwargs: dict[str, Any] = {
+            "hass": self.hass,
+            "user_id": user_id,
+            "session_id": session_id,
+        }
+
+        if model:
+            kwargs["model"] = model
+        if conversation_history is not None:
+            kwargs["conversation_history"] = conversation_history
+        if attachments:
+            kwargs["attachments"] = attachments
+
+        # Tools
+        tools = self._get_tools_for_provider()
+        if tools:
+            kwargs["tools"] = tools
+
+        # Context window for compaction
+        kwargs["context_window"] = get_context_window(self._provider_name, model)
+
+        # Memory flush for pre-compaction capture
+        if self._rag_manager and self._rag_manager.is_initialized:
+            mem_mgr = getattr(self._rag_manager, "_memory_manager", None)
+            if mem_mgr:
+                kwargs["memory_flush_fn"] = mem_mgr.flush_from_messages
+
+        return kwargs
+
+    @property
+    def provider_name(self) -> str:
+        """Public read-only access to the provider name."""
+        return self._provider_name
+
+    @property
+    def rag_manager(self) -> Any:
+        """Public read-only access to the RAG manager (may be None)."""
+        return self._rag_manager
+
+    async def get_system_prompt_for_user(self, user_id: str) -> str:
+        """Public method to get the full system prompt for a user.
+
+        Includes identity context, onboarding state, and current time.
+
+        Args:
+            user_id: HA user ID.
+
+        Returns:
+            Full system prompt string.
+        """
+        return await self._get_system_prompt(user_id)
+
+    async def get_rag_context(
+        self, query: str, user_id: str | None = None
+    ) -> str | None:
+        """Public method to retrieve RAG context for a query.
+
+        Args:
+            query: User query text.
+            user_id: Optional user ID for memory recall.
+
+        Returns:
+            RAG context string, or None if unavailable.
+        """
+        return await self._get_rag_context(query, user_id=user_id)
 
     async def create_automation(self, automation_config: dict) -> dict[str, Any]:
         """Create a new automation."""

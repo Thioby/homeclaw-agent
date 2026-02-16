@@ -471,6 +471,7 @@ class QueryProcessor:
                         built_messages,
                         yield_mode="result",
                         denied_tools=denied_tools,
+                        user_id=user_id,
                     ):
                         if tool_event.get("type") == "tool_call":
                             yield ToolCallEvent(
@@ -599,6 +600,7 @@ class QueryProcessor:
                         built_messages,
                         yield_mode="result",
                         denied_tools=denied_tools,
+                        user_id=user_id,
                     ):
                         if tool_event.get("type") == "tool_result":
                             yield ToolResultEvent(
@@ -818,6 +820,7 @@ class QueryProcessor:
                     built_messages,
                     yield_mode="none",
                     denied_tools=denied_tools_p,
+                    user_id=user_id_p,
                 ):
                     pass  # ToolExecutor with yield_mode="none" shouldn't yield anything
 

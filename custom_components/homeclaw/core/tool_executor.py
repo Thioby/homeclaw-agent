@@ -38,6 +38,7 @@ class ToolExecutor:
         messages: list[dict[str, Any]],
         yield_mode: str = "none",
         denied_tools: frozenset[str] | None = None,
+        user_id: str = "",
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Execute a list of tool calls and add results to messages.
 
@@ -51,6 +52,9 @@ class ToolExecutor:
                 - "result": Yield tool_result messages (for non-streaming fallback in process_stream)
             denied_tools: Optional frozenset of tool IDs that are blocked from execution.
                 If a function call matches, a rejection error is returned instead of executing.
+            user_id: User ID for the current request. Passed to tools as
+                ``_user_id`` so they can scope per-user actions (memory, identity)
+                without relying on a shared global.
 
         Yields:
             Dict with type="status" or type="tool_result" depending on yield_mode.
@@ -132,9 +136,13 @@ class ToolExecutor:
                         "args": fc.arguments,
                     }
 
-                # Execute the tool
+                # Execute the tool — inject _user_id into params so tools
+                # can scope per-user actions without a shared global.
+                exec_params = dict(fc.arguments)
+                if user_id:
+                    exec_params["_user_id"] = user_id
                 result = await ToolRegistry.execute_tool(
-                    tool_id=fc.name, params=fc.arguments, hass=hass
+                    tool_id=fc.name, params=exec_params, hass=hass
                 )
                 result_str = json.dumps(result.to_dict())
 

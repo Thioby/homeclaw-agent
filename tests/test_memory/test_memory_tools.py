@@ -4,7 +4,7 @@ Tests cover:
 - MemoryStoreTool: store success, duplicate, missing manager, error, importance clamping
 - MemoryRecallTool: search results, empty results, missing manager, limit clamping, error
 - MemoryForgetTool: delete by id, delete by query, no params, missing manager, no matches, error
-- Helper functions: _get_memory_manager, _get_current_user_id
+- Helper functions: _get_memory_manager, _get_user_id_from_context
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from custom_components.homeclaw.tools.memory import (
     MemoryForgetTool,
     MemoryRecallTool,
     MemoryStoreTool,
-    _get_current_user_id,
+    _get_user_id_from_context,
     _get_memory_manager,
 )
 
@@ -47,9 +47,6 @@ def _make_hass(*, with_rag=True, with_memory=True, user_id=None):
         hass.data[DOMAIN] = {"rag_manager": rag_manager}
     else:
         hass.data[DOMAIN] = {}
-
-    if user_id:
-        hass.data[DOMAIN]["_current_user_id"] = user_id
 
     return hass
 
@@ -113,28 +110,23 @@ class TestGetMemoryManager:
         assert _get_memory_manager(hass) is None
 
 
-# --- _get_current_user_id tests ---
+# --- _get_user_id_from_context tests ---
 
 
-class TestGetCurrentUserId:
-    """Tests for the _get_current_user_id helper."""
+class TestGetUserIdFromContext:
+    """Tests for the _get_user_id_from_context helper."""
 
-    def test_returns_user_id(self):
-        hass = _make_hass(user_id="user-42")
-        assert _get_current_user_id(hass) == "user-42"
+    def test_returns_user_id_from_kwargs(self):
+        assert _get_user_id_from_context({"_user_id": "user-42"}) == "user-42"
 
-    def test_returns_default_when_no_hass(self):
-        assert _get_current_user_id(None) == "default"
+    def test_returns_default_when_no_user_id(self):
+        assert _get_user_id_from_context({}) == "default"
 
-    def test_returns_default_when_no_domain(self):
-        hass = MagicMock()
-        hass.data = {}
-        assert _get_current_user_id(hass) == "default"
+    def test_returns_default_when_no_context_key(self):
+        assert _get_user_id_from_context({"other_key": "value"}) == "default"
 
-    def test_returns_default_when_key_missing(self):
-        hass = _make_hass()
-        # No _current_user_id set
-        assert _get_current_user_id(hass) == "default"
+    def test_returns_empty_string_if_set(self):
+        assert _get_user_id_from_context({"_user_id": ""}) == ""
 
 
 # --- MemoryStoreTool tests ---
@@ -151,7 +143,10 @@ class TestMemoryStoreTool:
 
         tool = MemoryStoreTool(hass=hass)
         result = await tool.execute(
-            text="User prefers dark mode", category="preference", importance=0.9
+            text="User prefers dark mode",
+            category="preference",
+            importance=0.9,
+            _user_id="user-1",
         )
 
         assert result.success is True
@@ -176,7 +171,7 @@ class TestMemoryStoreTool:
         mm.store_memory = AsyncMock(return_value=None)  # duplicate
 
         tool = MemoryStoreTool(hass=hass)
-        result = await tool.execute(text="Already stored")
+        result = await tool.execute(text="Already stored", _user_id="user-1")
 
         assert result.success is True  # not an error, just a "not stored"
         data = json.loads(result.output)
@@ -187,7 +182,7 @@ class TestMemoryStoreTool:
     async def test_store_no_memory_manager(self):
         hass = _make_hass(with_rag=False)
         tool = MemoryStoreTool(hass=hass)
-        result = await tool.execute(text="Something")
+        result = await tool.execute(text="Something", _user_id="user-1")
 
         assert result.success is False
         assert result.error == "memory_not_initialized"
@@ -200,7 +195,7 @@ class TestMemoryStoreTool:
         mm.store_memory = AsyncMock(return_value="mem-xyz")
 
         tool = MemoryStoreTool(hass=hass)
-        result = await tool.execute(text="Some fact")
+        result = await tool.execute(text="Some fact", _user_id="user-1")
 
         mm.store_memory.assert_awaited_once_with(
             text="Some fact",
@@ -218,7 +213,7 @@ class TestMemoryStoreTool:
         mm.store_memory = AsyncMock(return_value="mem-1")
 
         tool = MemoryStoreTool(hass=hass)
-        await tool.execute(text="Important", importance=5.0)
+        await tool.execute(text="Important", importance=5.0, _user_id="user-1")
 
         # Should clamp to 1.0
         call_kwargs = mm.store_memory.call_args[1]
@@ -231,7 +226,7 @@ class TestMemoryStoreTool:
         mm.store_memory = AsyncMock(return_value="mem-1")
 
         tool = MemoryStoreTool(hass=hass)
-        await tool.execute(text="Not important", importance=-0.5)
+        await tool.execute(text="Not important", importance=-0.5, _user_id="user-1")
 
         call_kwargs = mm.store_memory.call_args[1]
         assert call_kwargs["importance"] == 0.0
@@ -243,19 +238,20 @@ class TestMemoryStoreTool:
         mm.store_memory = AsyncMock(side_effect=RuntimeError("DB error"))
 
         tool = MemoryStoreTool(hass=hass)
-        result = await tool.execute(text="Something")
+        result = await tool.execute(text="Something", _user_id="user-1")
 
         assert result.success is False
         assert "DB error" in result.error
 
     @pytest.mark.asyncio
     async def test_store_default_user(self):
-        """When no _current_user_id, falls back to 'default'."""
-        hass = _make_hass()  # no user_id
+        """When no _user_id in context, falls back to 'default'."""
+        hass = _make_hass()
         mm = hass.data[DOMAIN]["rag_manager"].memory_manager
         mm.store_memory = AsyncMock(return_value="mem-1")
 
         tool = MemoryStoreTool(hass=hass)
+        # No _user_id passed — should fall back to "default"
         await tool.execute(text="Test")
 
         call_kwargs = mm.store_memory.call_args[1]
@@ -280,7 +276,7 @@ class TestMemoryRecallTool:
         )
 
         tool = MemoryRecallTool(hass=hass)
-        result = await tool.execute(query="light preferences")
+        result = await tool.execute(query="light preferences", _user_id="user-1")
 
         assert result.success is True
         data = json.loads(result.output)
@@ -302,7 +298,7 @@ class TestMemoryRecallTool:
         mm.search_memories = AsyncMock(return_value=[])
 
         tool = MemoryRecallTool(hass=hass)
-        result = await tool.execute(query="nonexistent topic")
+        result = await tool.execute(query="nonexistent topic", _user_id="user-1")
 
         assert result.success is True
         data = json.loads(result.output)
@@ -313,7 +309,7 @@ class TestMemoryRecallTool:
     async def test_recall_no_memory_manager(self):
         hass = _make_hass(with_rag=False)
         tool = MemoryRecallTool(hass=hass)
-        result = await tool.execute(query="anything")
+        result = await tool.execute(query="anything", _user_id="user-1")
 
         assert result.success is False
         assert result.error == "memory_not_initialized"
@@ -325,7 +321,7 @@ class TestMemoryRecallTool:
         mm.search_memories = AsyncMock(return_value=[])
 
         tool = MemoryRecallTool(hass=hass)
-        await tool.execute(query="test", limit=10)
+        await tool.execute(query="test", limit=10, _user_id="user-1")
 
         mm.search_memories.assert_awaited_once_with(
             query="test",
@@ -340,7 +336,7 @@ class TestMemoryRecallTool:
         mm.search_memories = AsyncMock(return_value=[])
 
         tool = MemoryRecallTool(hass=hass)
-        await tool.execute(query="test", limit=100)
+        await tool.execute(query="test", limit=100, _user_id="user-1")
 
         # Should clamp to 20
         call_kwargs = mm.search_memories.call_args[1]
@@ -353,7 +349,7 @@ class TestMemoryRecallTool:
         mm.search_memories = AsyncMock(return_value=[])
 
         tool = MemoryRecallTool(hass=hass)
-        await tool.execute(query="test", limit=0)
+        await tool.execute(query="test", limit=0, _user_id="user-1")
 
         call_kwargs = mm.search_memories.call_args[1]
         assert call_kwargs["limit"] == 1
@@ -365,7 +361,7 @@ class TestMemoryRecallTool:
         mm.search_memories = AsyncMock(side_effect=RuntimeError("Search failed"))
 
         tool = MemoryRecallTool(hass=hass)
-        result = await tool.execute(query="test")
+        result = await tool.execute(query="test", _user_id="user-1")
 
         assert result.success is False
         assert "Search failed" in result.error
@@ -384,7 +380,7 @@ class TestMemoryForgetTool:
         mm.forget_memory = AsyncMock(return_value=True)
 
         tool = MemoryForgetTool(hass=hass)
-        result = await tool.execute(memory_id="mem-123")
+        result = await tool.execute(memory_id="mem-123", _user_id="user-1")
 
         assert result.success is True
         data = json.loads(result.output)
@@ -399,7 +395,7 @@ class TestMemoryForgetTool:
         mm.forget_memory = AsyncMock(return_value=False)
 
         tool = MemoryForgetTool(hass=hass)
-        result = await tool.execute(memory_id="nonexistent")
+        result = await tool.execute(memory_id="nonexistent", _user_id="user-1")
 
         assert result.success is True  # not an error, just 0 deleted
         data = json.loads(result.output)
@@ -420,7 +416,7 @@ class TestMemoryForgetTool:
         mm.forget_memory = AsyncMock(return_value=True)
 
         tool = MemoryForgetTool(hass=hass)
-        result = await tool.execute(query="warm lights")
+        result = await tool.execute(query="warm lights", _user_id="user-1")
 
         assert result.success is True
         data = json.loads(result.output)
@@ -442,7 +438,7 @@ class TestMemoryForgetTool:
         )
 
         tool = MemoryForgetTool(hass=hass)
-        result = await tool.execute(query="something unrelated")
+        result = await tool.execute(query="something unrelated", _user_id="user-1")
 
         data = json.loads(result.output)
         assert data["deleted_count"] == 0
@@ -451,7 +447,7 @@ class TestMemoryForgetTool:
     async def test_forget_no_params(self):
         hass = _make_hass(user_id="user-1")
         tool = MemoryForgetTool(hass=hass)
-        result = await tool.execute()
+        result = await tool.execute(_user_id="user-1")
 
         assert result.success is False
         assert result.error == "missing_parameter"
@@ -460,7 +456,7 @@ class TestMemoryForgetTool:
     async def test_forget_no_memory_manager(self):
         hass = _make_hass(with_rag=False)
         tool = MemoryForgetTool(hass=hass)
-        result = await tool.execute(memory_id="mem-1")
+        result = await tool.execute(memory_id="mem-1", _user_id="user-1")
 
         assert result.success is False
         assert result.error == "memory_not_initialized"
@@ -472,7 +468,7 @@ class TestMemoryForgetTool:
         mm.forget_memory = AsyncMock(side_effect=RuntimeError("Delete failed"))
 
         tool = MemoryForgetTool(hass=hass)
-        result = await tool.execute(memory_id="mem-1")
+        result = await tool.execute(memory_id="mem-1", _user_id="user-1")
 
         assert result.success is False
         assert "Delete failed" in result.error
@@ -491,7 +487,7 @@ class TestMemoryForgetTool:
         mm.forget_memory = AsyncMock(side_effect=[True, False])
 
         tool = MemoryForgetTool(hass=hass)
-        result = await tool.execute(query="test")
+        result = await tool.execute(query="test", _user_id="user-1")
 
         data = json.loads(result.output)
         assert data["deleted_count"] == 1
