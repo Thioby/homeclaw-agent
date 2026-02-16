@@ -913,7 +913,7 @@ async def async_step_discord(self, user_input):
 | ----- | ----- | ------ | ------------ |
 | **0. Pre-requisites** ✅ | Fix `_current_user_id` race, add `Session.metadata`, expose public API on `HomeclawAgent`, storage migration v1→v2 | 1-2 days | None |
 | **1. MessageIntake** ✅ | Extract shared setup into `channels/intake.py`. Refactor `chat.py` to use it. All existing tests pass. | 1-2 days | Phase 0 |
-| **2. Channel ABC + Manager** | `channels/base.py` (ABC, dataclasses, rate limiter), `channels/manager.py` (ChannelManager). Wire into `__init__.py`. | 1 day | Phase 1 |
+| **2. Channel ABC + Manager** ✅ | `channels/base.py` (ABC, dataclasses, rate limiter), `channels/manager.py` (ChannelManager). Wire into `__init__.py`. | 1 day | Phase 1 |
 | **3. TelegramChannel** | `channels/telegram.py` — HA event hooks, auto-sessions, send_message, typing, allowlist, rate limits. | 1-2 days | Phase 2 + `telegram_bot` in HA |
 | **4. Discord Gateway** | `channels/discord/gateway.py` — lightweight WS client (port from OpenClaw). `channels/discord/rest.py` — REST client. | 2-3 days | Phase 2 |
 | **5. DiscordChannel** | `channels/discord/__init__.py` — wire gateway + rest + AI pipeline. Semaphore, session mgmt. | 1-2 days | Phase 4 + bot token |

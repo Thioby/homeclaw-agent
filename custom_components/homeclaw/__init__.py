@@ -407,6 +407,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # --- Proactive subsystem: heartbeat + scheduler + subagent ---
     await _initialize_proactive(hass)
 
+    # --- External channels subsystem ---
+    await _initialize_channels(hass, entry)
+
     # Register WebSocket API commands (only once)
     if not hass.data[DOMAIN].get("_ws_registered"):
         async_register_websocket_commands(hass)
@@ -580,6 +583,60 @@ async def _shutdown_proactive(hass: HomeAssistant) -> None:
     domain_data.pop("_proactive_initialized", None)
 
 
+async def _initialize_channels(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Initialize the external channels subsystem (Telegram, Discord, etc.).
+
+    Creates a ChannelManager with a MessageIntake and starts all enabled
+    channels.  Uses graceful degradation — if initialization fails, the
+    integration continues without external channels.
+    """
+    if hass.data.get(DOMAIN, {}).get("channel_manager"):
+        _LOGGER.debug("Channel manager already initialized, skipping")
+        return
+
+    try:
+        from .channels.intake import MessageIntake
+        from .channels.manager import ChannelManager
+
+        intake = MessageIntake(hass)
+        manager = ChannelManager(hass, intake)
+
+        # Channel config: base from entry.data, overridden by entry.options
+        channel_config = {**entry.data, **entry.options}
+        await manager.async_setup(channel_config)
+
+        hass.data[DOMAIN]["channel_manager"] = manager
+
+        active = manager.active_channels
+        if active:
+            _LOGGER.info("Channel manager initialized with channels: %s", active)
+        else:
+            _LOGGER.debug("Channel manager initialized, no channels enabled")
+
+    except Exception as err:
+        _LOGGER.warning(
+            "Channel subsystem initialization failed: %s. "
+            "Agent will work without external channels.",
+            err,
+        )
+
+
+async def _shutdown_channels(hass: HomeAssistant) -> None:
+    """Shutdown the channel subsystem gracefully."""
+    if DOMAIN not in hass.data:
+        return
+
+    manager = hass.data[DOMAIN].get("channel_manager")
+    if manager:
+        try:
+            await manager.async_teardown()
+            _LOGGER.debug("Channel manager shut down successfully")
+        except Exception as err:
+            _LOGGER.warning("Error shutting down channel manager: %s", err)
+        finally:
+            hass.data[DOMAIN].pop("channel_manager", None)
+
+
 async def _shutdown_rag(hass: HomeAssistant) -> None:
     """Shutdown the RAG system gracefully."""
     if DOMAIN not in hass.data:
@@ -601,6 +658,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Unload conversation platform
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
+
+    # Shutdown channels subsystem
+    await _shutdown_channels(hass)
 
     # Shutdown proactive subsystem
     await _shutdown_proactive(hass)
