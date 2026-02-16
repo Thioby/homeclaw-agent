@@ -40,6 +40,9 @@ SCHEDULER_STORAGE_VERSION = 2
 MAX_JOBS = 50
 MAX_JOB_HISTORY = 100
 MIN_INTERVAL_SECONDS = 60
+SCHEDULER_MAX_ITERATIONS = (
+    25  # Higher than default (20) — scheduled prompts often need many tool calls
+)
 
 
 def _validate_cron(expression: str) -> str:
@@ -417,7 +420,7 @@ class SchedulerService:
         """
         start_time = time.monotonic()
 
-        agent = self._get_agent(provider)
+        agent = self._get_agent(provider, user_id=user_id)
         if not agent:
             return {"success": False, "error": "No AI agent available"}
 
@@ -435,10 +438,12 @@ class SchedulerService:
                 conversation_history=[],
                 user_id=user_id,
                 system_prompt=system_prompt,
+                max_iterations=SCHEDULER_MAX_ITERATIONS,
             )
 
             # HomeclawAgent.process_query returns "answer", not "response"
             response = result.get("answer", "") or result.get("response", "")
+            error = result.get("error", "")
             duration_ms = int((time.monotonic() - start_time) * 1000)
 
             if notify:
@@ -455,6 +460,7 @@ class SchedulerService:
             return {
                 "success": result.get("success", False),
                 "response": response,
+                "error": error,
                 "duration_ms": duration_ms,
             }
 
@@ -639,8 +645,14 @@ class SchedulerService:
                 err,
             )
 
-    def _get_agent(self, provider: str | None = None) -> Any:
-        """Get an AI agent instance."""
+    def _get_agent(self, provider: str | None = None, user_id: str = "") -> Any:
+        """Get an AI agent instance, respecting user's default provider.
+
+        Resolution order:
+        1. Explicit ``provider`` argument (from job config).
+        2. User's ``default_provider`` preference (from storage).
+        3. First available agent (fallback).
+        """
         domain_data = self._hass.data.get(DOMAIN, {})
         agents = domain_data.get("agents", {})
         if not agents:
@@ -648,6 +660,19 @@ class SchedulerService:
 
         if provider and provider in agents:
             return agents[provider]
+
+        # Try user's default provider from preferences
+        if user_id:
+            cache_key = f"{DOMAIN}_storage_{user_id}"
+            storage = self._hass.data.get(cache_key)
+            if storage and hasattr(storage, "_data") and storage._data:
+                prefs = storage._data.get("preferences", {})
+                default_provider = prefs.get("default_provider")
+                if default_provider and default_provider in agents:
+                    _LOGGER.debug(
+                        "Scheduler using user default provider: %s", default_provider
+                    )
+                    return agents[default_provider]
 
         # Return first available
         return next(iter(agents.values()), None)

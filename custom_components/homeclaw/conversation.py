@@ -192,6 +192,12 @@ class HomeclawConversationEntity(
             delta_stream = self._transform_provider_stream(provider_stream, chat_log)
             sanitized_stream = self._tts_sanitizer_stream(delta_stream)
 
+            _LOGGER.debug(
+                "Starting ChatLog delta stream: entity_id=%s conversation_id=%s user_id=%s",
+                self.entity_id,
+                user_input.conversation_id,
+                user_id,
+            )
             async for _content in chat_log.async_add_delta_content_stream(
                 self.entity_id,
                 sanitized_stream,
@@ -372,6 +378,7 @@ class HomeclawConversationEntity(
         reading them aloud or pausing unnaturally.
         """
         async for delta in stream:
+            _LOGGER.debug("TTS sanitizer input delta: %s", delta)
             # Create a copy to avoid mutating the original delta
             sanitized_delta = dict(delta)
             if "content" in sanitized_delta:
@@ -390,6 +397,7 @@ class HomeclawConversationEntity(
                     # 3. Strip headers
                     content = re.sub(r"^#+\s+", "", content, flags=re.MULTILINE)
                     sanitized_delta["content"] = content
+            _LOGGER.debug("TTS sanitizer output delta: %s", sanitized_delta)
             yield sanitized_delta
 
     async def _transform_provider_stream(
@@ -405,8 +413,11 @@ class HomeclawConversationEntity(
 
         Converts Homeclaw chunk events to ChatLog delta dicts. Only text
         content is forwarded; status/tool events are handled internally by
-        process_query_stream. The {"role": "assistant"} marker is emitted
-        once, alongside the first real text chunk.
+        process_query_stream.
+
+        Important: we intentionally stream content-only deltas here (without
+        role) so Assist does not start TTS streaming mid-response. This keeps
+        text incremental in UI while TTS runs only after the full response.
 
         During tool execution the generator simply suspends (no yields),
         keeping the TTS pipeline idle until real text arrives.
@@ -420,55 +431,68 @@ class HomeclawConversationEntity(
             ToolResultEvent,
         )
 
-        assistant_started = False
+        emitted_content = False
 
         async for chunk in stream:
             if isinstance(chunk, TextEvent):
                 content = chunk.content
                 if not content:
+                    _LOGGER.debug(
+                        "Transform stream: skipped empty TextEvent content"
+                    )
                     continue
 
-                if not assistant_started:
-                    # Combine role and first content chunk to safely trigger TTS
-                    yield {"role": "assistant", "content": content}
-                    assistant_started = True
-                else:
-                    yield {"content": content}
+                delta = {"content": content}
+                _LOGGER.debug(
+                    "Transform stream emit text delta len=%s content=%r",
+                    len(content),
+                    content[:160],
+                )
+                yield delta
+                emitted_content = True
 
             elif isinstance(chunk, StatusEvent):
-                _LOGGER.debug("Tool status: %s", chunk.message)
+                _LOGGER.debug("Transform stream status event: %s", chunk.message)
 
             elif isinstance(chunk, ErrorEvent):
                 error_msg = chunk.message
-                _LOGGER.error("Provider stream error: %s", error_msg)
+                _LOGGER.error("Transform stream error event: %s", error_msg)
 
-                if not assistant_started:
-                    yield {"role": "assistant"}
-                    assistant_started = True
-
-                yield {
+                delta = {
                     "content": "Sorry, I encountered an error processing your request."
                 }
+                _LOGGER.debug("Transform stream emit error delta: %s", delta)
+                yield delta
+                emitted_content = True
 
             elif isinstance(chunk, CompletionEvent):
-                _LOGGER.debug("Provider stream complete")
-            
+                _LOGGER.debug("Transform stream completion event")
+
             elif isinstance(chunk, ToolCallEvent):
-                _LOGGER.debug("Tool call event: %s(%s)", chunk.tool_name, chunk.tool_args)
-                # We skip yielding tool_calls to Assist here to prevent it from 
+                _LOGGER.debug(
+                    "Transform stream tool call event: %s(%s)",
+                    chunk.tool_name,
+                    chunk.tool_args,
+                )
+                # We skip yielding tool_calls to Assist here to prevent it from
                 # buffering or breaking the text stream/TTS.
 
             elif isinstance(chunk, ToolResultEvent):
-                _LOGGER.debug("Tool result event: %s -> %s...", chunk.tool_name, str(chunk.tool_result)[:50])
+                _LOGGER.debug(
+                    "Transform stream tool result event: %s -> %s...",
+                    chunk.tool_name,
+                    str(chunk.tool_result)[:80],
+                )
                 # We skip adding results to chat_log during the stream to avoid
                 # InvalidStateError in Assist Pipeline. Internal tool history
                 # is managed by QueryProcessor.
 
-        # HA requires at least one AssistantContent in chat_log. If the stream
-        # produced no text (e.g. tools-only response or empty stream), emit
-        # a minimal assistant delta so ChatLog doesn't raise.
-        if not assistant_started:
-            yield {"role": "assistant", "content": ""}
+        # Ensure at least one delta carries content so ChatLog can build an
+        # AssistantContent entry even for tools-only/empty output.
+        if not emitted_content:
+            delta = {"content": " "}
+            _LOGGER.debug("Transform stream emit fallback delta: %s", delta)
+            yield delta
 
     def _convert_chat_log_to_messages(
         self,

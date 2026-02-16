@@ -136,7 +136,7 @@ async def compact_messages(
             len(history),
             MIN_RECENT_MESSAGES + 2,
         )
-        return _truncation_fallback(messages, available)
+        return truncation_fallback(messages, available)
 
     # Keep the most recent messages intact
     split_point = len(history) - MIN_RECENT_MESSAGES
@@ -161,7 +161,7 @@ async def compact_messages(
 
     if not summary_text:
         _LOGGER.warning("Summarization failed, using truncation fallback")
-        return _truncation_fallback(messages, available)
+        return truncation_fallback(messages, available)
 
     # --- Phase 3: Rebuild message list ---
     compacted: list[dict[str, Any]] = []
@@ -196,7 +196,7 @@ async def compact_messages(
             new_estimated,
             available,
         )
-        return _truncation_fallback(compacted, available)
+        return truncation_fallback(compacted, available)
 
     _LOGGER.info(
         "Compaction complete: %d -> %d messages, %d -> %d estimated tokens",
@@ -269,7 +269,7 @@ async def _summarize_messages(
         return None
 
 
-def _truncation_fallback(
+def truncation_fallback(
     messages: list[dict[str, Any]],
     budget_tokens: int,
 ) -> list[dict[str, Any]]:

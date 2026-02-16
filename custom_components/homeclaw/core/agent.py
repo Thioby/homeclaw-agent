@@ -49,7 +49,7 @@ class Agent:
         dashboard_manager: DashboardManager | None = None,
         control_manager: ControlManager | None = None,
         system_prompt: str | None = None,
-        max_iterations: int = 10,
+        max_iterations: int = 20,
     ) -> None:
         """Initialize the Agent orchestrator.
 
@@ -62,7 +62,7 @@ class Agent:
             dashboard_manager: Optional DashboardManager for dashboard operations.
             control_manager: Optional ControlManager for service calls.
             system_prompt: Optional system prompt for AI context.
-            max_iterations: Maximum tool call iterations (default 10).
+            max_iterations: Maximum tool call iterations (default 20).
         """
         self.hass = hass
         self.provider = provider
@@ -91,6 +91,9 @@ class Agent:
         Args:
             query: The user's query text.
             **kwargs: Additional arguments passed to the processor (e.g., tools).
+                max_iterations (int): Override the default tool-call iteration
+                    limit for this single call.  Passed through to
+                    ``QueryProcessor.process()`` without mutating shared state.
 
         Returns:
             Dict with:
@@ -103,6 +106,7 @@ class Agent:
             kwargs.pop("system_prompt_override", None) or self._system_prompt
         )
 
+        # max_iterations stays in kwargs and is consumed by QueryProcessor
         result = await self._query_processor.process(
             query=query,
             messages=self._conversation.get_messages(),

@@ -46,6 +46,20 @@ Adding New Tools:
                 return ToolResult(output="Success", metadata={})
 """
 
+# Import tools to trigger registration
+# Each tool module uses @ToolRegistry.register decorator
+from . import (
+    context7,
+    ha_native,
+    identity,
+    integration_manager,
+    memory,
+    scheduler,
+    subagent,
+    webfetch,
+    websearch,
+)
+
 # Export base classes and utilities
 from .base import (
     Tool,
@@ -55,17 +69,6 @@ from .base import (
     ToolRegistry,
     ToolResult,
 )
-
-# Import tools to trigger registration
-# Each tool module uses @ToolRegistry.register decorator
-from . import webfetch
-from . import websearch
-from . import context7
-from . import ha_native
-from . import memory
-from . import identity
-from . import scheduler
-from . import subagent
 
 __all__ = [
     # Base classes
@@ -84,6 +87,7 @@ __all__ = [
     "identity",
     "scheduler",
     "subagent",
+    "integration_manager",
 ]
 
 

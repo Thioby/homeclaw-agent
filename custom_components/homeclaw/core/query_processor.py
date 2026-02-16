@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from ..function_calling import FunctionCallHandler, FunctionCall
-from .compaction import compact_messages
+from .compaction import compact_messages, truncation_fallback
 from .function_call_parser import FunctionCallParser
 from .response_parser import ResponseParser
 from .tool_call_codec import build_assistant_tool_message, normalize_tool_calls
@@ -235,11 +235,15 @@ class QueryProcessor:
         *,
         context_window: int = DEFAULT_CONTEXT_WINDOW,
     ) -> list[dict[str, Any]]:
-        """Re-compact messages if tool results pushed us over the context budget.
+        """Trim messages if tool results pushed us over the context budget.
 
         Called inside the tool call loop after tool results are appended.
-        Uses truncation-only compaction (no AI summarization, no memory flush)
-        to avoid expensive LLM calls mid-loop.
+        Unlike full compaction (which summarises old messages via AI), this
+        method only **truncates long tool result contents** to avoid
+        discarding tool call/result pairs that the model needs to remember
+        what it has already done.  This prevents the "Gemini loop" bug
+        where summarisation removes earlier tool results, causing the model
+        to re-issue the same tool calls.
 
         Args:
             messages: Current message list (may include tool results).
@@ -256,15 +260,44 @@ class QueryProcessor:
             return messages
 
         _LOGGER.warning(
-            "Tool loop re-compaction: %d tokens > %d budget, running compact_messages",
+            "Tool loop re-compaction: %d tokens > %d budget, truncating tool results",
             estimated,
             available,
         )
-        return await compact_messages(
-            messages,
-            context_window=context_window,
-            provider=self.provider,
+
+        # Strategy: truncate the longest tool/function result messages first.
+        # We never remove messages — only shorten their content.
+        MAX_TOOL_RESULT_CHARS = 2000
+        MIN_TOOL_RESULT_CHARS = 200
+
+        result = list(messages)
+        limit = MAX_TOOL_RESULT_CHARS
+
+        while limit >= MIN_TOOL_RESULT_CHARS:
+            for msg in result:
+                role = msg.get("role", "")
+                if role in ("tool", "function"):
+                    content = msg.get("content", "")
+                    if len(content) > limit:
+                        msg["content"] = content[:limit] + "\n... [truncated]"
+            estimated = estimate_messages_tokens(result)
+            if estimated <= available:
+                _LOGGER.info(
+                    "Tool result truncation brought tokens to %d (budget %d, limit %d chars)",
+                    estimated,
+                    available,
+                    limit,
+                )
+                return result
+            limit //= 2
+
+        # Last resort: drop oldest non-system, non-user messages from the beginning
+        _LOGGER.warning(
+            "Tool result truncation insufficient (%d > %d), falling back to message trimming",
+            estimated,
+            available,
         )
+        return truncation_fallback(result, available)
 
     def _detect_function_call(self, response_text: str) -> list[FunctionCall] | None:
         """Detect and parse function calls from response text.
@@ -296,10 +329,15 @@ class QueryProcessor:
             system_prompt: Optional system message for context.
             tools: Optional list of tools available to the AI.
             **kwargs: Additional arguments passed to the provider.
+                max_iterations (int): Override the instance default for this call.
 
         Yields:
             AgentEvent objects (TextEvent, ToolCallEvent, etc.)
         """
+        # Per-call iteration limit (avoids mutating shared state)
+        effective_max_iterations: int = kwargs.pop(
+            "max_iterations", self.max_iterations
+        )
         from .events import (
             TextEvent,
             ToolCallEvent,
@@ -369,7 +407,7 @@ class QueryProcessor:
         current_iteration = 0
 
         try:
-            while current_iteration < self.max_iterations:
+            while current_iteration < effective_max_iterations:
                 # Check if provider supports streaming
                 if not hasattr(self.provider, "get_response_stream"):
                     # Fall back to non-streaming
@@ -563,7 +601,7 @@ class QueryProcessor:
                         denied_tools=denied_tools,
                     ):
                         if tool_event.get("type") == "tool_result":
-                             yield ToolResultEvent(
+                            yield ToolResultEvent(
                                 tool_name=tool_event["name"],
                                 tool_result=tool_event["result"],
                                 tool_call_id=tool_event.get("id", "unknown"),
@@ -582,7 +620,7 @@ class QueryProcessor:
                         "Tool execution complete, starting iteration %d/%d. "
                         "Text accumulated so far: %d chars",
                         current_iteration,
-                        self.max_iterations,
+                        effective_max_iterations,
                         len(accumulated_text),
                     )
                     continue
@@ -612,7 +650,7 @@ class QueryProcessor:
             # Max iterations reached — force a final response without tools
             _LOGGER.warning(
                 "Max iterations (%d) reached. Forcing final text response (no tools).",
-                self.max_iterations,
+                effective_max_iterations,
             )
             try:
                 # One last call WITHOUT tools so the model MUST produce text
@@ -635,7 +673,9 @@ class QueryProcessor:
                 yield CompletionEvent(messages=list(built_messages))
             except Exception as final_err:
                 _LOGGER.error("Final forced response also failed: %s", final_err)
-                yield ErrorEvent(message="Maximum iterations reached without final response")
+                yield ErrorEvent(
+                    message="Maximum iterations reached without final response"
+                )
 
         except Exception as e:
             _LOGGER.error("Error processing streaming query: %s", str(e))
@@ -657,6 +697,7 @@ class QueryProcessor:
             system_prompt: Optional system message for context.
             tools: Optional list of tools available to the AI.
             **kwargs: Additional arguments passed to the provider.
+                max_iterations (int): Override the instance default for this call.
 
         Returns:
             Dict with:
@@ -665,6 +706,10 @@ class QueryProcessor:
                 - messages: Updated message list including response (on success).
                 - error: Error message (on failure).
         """
+        # Per-call iteration limit (avoids mutating shared state)
+        effective_max_iterations: int = kwargs.pop(
+            "max_iterations", self.max_iterations
+        )
         # Sanitize the query
         sanitized_query = self._sanitize_query(query)
 
@@ -725,7 +770,7 @@ class QueryProcessor:
         current_iteration = 0
 
         try:
-            while current_iteration < self.max_iterations:
+            while current_iteration < effective_max_iterations:
                 # Call the provider
                 provider_kwargs: dict[str, Any] = {**kwargs}
                 if effective_tools_p is not None:

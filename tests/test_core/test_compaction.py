@@ -9,7 +9,7 @@ import pytest
 from custom_components.homeclaw.core.compaction import (
     COMPACTION_TRIGGER_RATIO,
     MIN_RECENT_MESSAGES,
-    _truncation_fallback,
+    truncation_fallback,
     compact_messages,
 )
 from custom_components.homeclaw.core.token_estimator import (
@@ -202,7 +202,7 @@ class TestTruncationFallback:
 
     def test_keeps_system_and_user_query(self):
         messages = _make_full_conversation(10, content_len=100)
-        result = _truncation_fallback(messages, budget_tokens=500)
+        result = truncation_fallback(messages, budget_tokens=500)
 
         assert result[0]["role"] == "system"
         assert result[-1]["role"] == "user"
@@ -212,20 +212,20 @@ class TestTruncationFallback:
         messages = _make_full_conversation(20, content_len=100)
         # Use a budget small enough that truncation must drop some messages
         # 20 history msgs * ~110 chars = ~2200 chars = ~550 tokens, plus system ~230 chars
-        result = _truncation_fallback(messages, budget_tokens=300)
+        result = truncation_fallback(messages, budget_tokens=300)
 
         # Result should be shorter than input but include the last user message
         assert len(result) < len(messages)
         assert result[-1] == messages[-1]
 
     def test_empty_messages(self):
-        result = _truncation_fallback([], budget_tokens=1000)
+        result = truncation_fallback([], budget_tokens=1000)
         assert result == []
 
     def test_very_small_budget(self):
         """With tiny budget, should still keep system + user query at minimum."""
         messages = _make_full_conversation(10, content_len=100)
-        result = _truncation_fallback(messages, budget_tokens=50)
+        result = truncation_fallback(messages, budget_tokens=50)
 
         # At minimum: system + user query
         assert len(result) >= 2

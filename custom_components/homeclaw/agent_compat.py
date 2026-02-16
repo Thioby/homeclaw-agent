@@ -223,6 +223,7 @@ class HomeclawAgent:
         session_id: str = "",
         denied_tools: frozenset[str] | None = None,
         system_prompt: str | None = None,
+        max_iterations: int | None = None,
     ) -> dict[str, Any]:
         """Process a user query through the AI provider.
 
@@ -238,6 +239,7 @@ class HomeclawAgent:
             session_id: Session ID for memory flush context.
             denied_tools: Optional frozenset of tool names to block from execution.
             system_prompt: Optional system prompt override (e.g. for subagent/heartbeat).
+            max_iterations: Override max tool-call iterations (default: agent's own limit).
         """
         # If external conversation history provided, use it
         if conversation_history:
@@ -303,17 +305,26 @@ class HomeclawAgent:
         if system_prompt:
             kwargs["system_prompt_override"] = system_prompt
 
+        # Pass max_iterations through kwargs (consumed by QueryProcessor.process)
+        # — no shared state mutation, safe for concurrent async calls
+        if max_iterations is not None:
+            kwargs["max_iterations"] = max_iterations
+
         try:
             result = await self._agent.process_query(user_query, **kwargs)
 
             # Transform to old response format
-            return {
+            response = {
                 "success": result.get("success", True),
                 "answer": result.get("response", ""),
                 "automation": result.get("automation"),
                 "dashboard": result.get("dashboard"),
                 "debug": result.get("debug") if debug else None,
             }
+            # Propagate error from QueryProcessor (e.g. max iterations reached)
+            if result.get("error"):
+                response["error"] = result["error"]
+            return response
         except Exception as e:
             _LOGGER.error("Error processing query: %s", e)
             return {
