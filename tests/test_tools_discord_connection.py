@@ -202,6 +202,10 @@ class TestConfirmDiscordPairing:
             == "ha-user-1"
         )
         assert (
+            homeclaw_entry.options["channel_discord"]["user_mapping"]["discord-user-1"]
+            == "ha-user-1"
+        )
+        assert (
             "discord-user-1" in homeclaw_entry.options["channel_discord"]["allowed_ids"]
         )
 

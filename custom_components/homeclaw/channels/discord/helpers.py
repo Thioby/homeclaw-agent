@@ -53,12 +53,27 @@ def is_group_allowed(config: dict[str, Any], sender_id: str, channel_id: str) ->
 
 
 def is_dm_allowed(config: dict[str, Any], sender_id: str, channel_id: str) -> bool:
-    """Check Discord DM access under dm_policy."""
+    """Check Discord DM access under dm_policy.
+
+    A sender is allowed when ANY of these are true:
+    - dm_policy is ``"open"``
+    - sender_id is in ``allowed_ids``
+    - sender_id exists as a key in ``user_mapping`` or ``external_user_mapping``
+      (meaning they completed pairing)
+    """
     policy = str(config.get("dm_policy", "pairing")).lower()
     if policy == "disabled":
         return False
     if policy == "open":
         return True
+
+    sid = str(sender_id)
+
+    # Check user_mapping / external_user_mapping — paired users are always allowed.
+    for mapping_key in ("user_mapping", "external_user_mapping"):
+        mapping = config.get(mapping_key)
+        if isinstance(mapping, dict) and sid in mapping:
+            return True
 
     # pairing/allowlist fallback: allow only explicit IDs.
     raw = config.get("allowed_ids", [])
@@ -67,7 +82,7 @@ def is_dm_allowed(config: dict[str, Any], sender_id: str, channel_id: str) -> bo
     allowed = {str(v) for v in raw if str(v).strip()}
     if not allowed:
         return False
-    return str(sender_id) in allowed or str(channel_id) in allowed
+    return sid in allowed or str(channel_id) in allowed
 
 
 def get_storage(hass: HomeAssistant, user_id: str) -> SessionStorage:

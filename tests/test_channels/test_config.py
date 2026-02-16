@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
 from custom_components.homeclaw.channels.config import build_channel_runtime_config
+
+
+def _as_hass(value: Any) -> Any:
+    return cast(Any, value)
 
 
 class _FakeConfigEntries:
@@ -33,7 +38,7 @@ class TestBuildChannelRuntimeConfig:
         hass = _FakeHass()
 
         config = await build_channel_runtime_config(
-            hass,
+            _as_hass(hass),
             {
                 "discord_bot_token": "abc123",
             },
@@ -47,7 +52,7 @@ class TestBuildChannelRuntimeConfig:
         entry = SimpleNamespace(data={"api_token": "ha-token"})
         hass = _FakeHass([entry])
 
-        config = await build_channel_runtime_config(hass, {})
+        config = await build_channel_runtime_config(_as_hass(hass), {})
 
         discord = config["channel_discord"]
         assert discord["bot_token"] == "ha-token"
@@ -56,7 +61,7 @@ class TestBuildChannelRuntimeConfig:
     async def test_explicit_disabled_wins_even_with_token(self):
         hass = _FakeHass()
         config = await build_channel_runtime_config(
-            hass,
+            _as_hass(hass),
             {
                 "channel_discord": {"enabled": False},
                 "discord_bot_token": "abc123",
@@ -71,7 +76,7 @@ class TestBuildChannelRuntimeConfig:
         hass = _FakeHass()
 
         config = await build_channel_runtime_config(
-            hass,
+            _as_hass(hass),
             {
                 "discord_auto_respond_channels": "c1,c2\nc3",
                 "discord_allowed_ids": ["u1", "  u2  ", ""],
@@ -86,7 +91,7 @@ class TestBuildChannelRuntimeConfig:
         hass = _FakeHass([SimpleNamespace(data={"api_token": "ha-token"})])
 
         config = await build_channel_runtime_config(
-            hass,
+            _as_hass(hass),
             {
                 "channel_discord": {
                     "enabled": True,
@@ -100,3 +105,21 @@ class TestBuildChannelRuntimeConfig:
         assert discord["enabled"] is True
         assert discord["bot_token"] == "custom-token"
         assert discord["group_policy"] == "open"
+
+    async def test_merges_external_user_mapping_into_channel_config(self):
+        hass = _FakeHass()
+
+        config = await build_channel_runtime_config(
+            _as_hass(hass),
+            {
+                "external_user_mapping": {"d1": "ha1"},
+                "channel_discord": {
+                    "user_mapping": {"d2": "ha2"},
+                },
+            },
+        )
+
+        discord = config["channel_discord"]
+        assert discord["user_mapping"]["d1"] == "ha1"
+        assert discord["user_mapping"]["d2"] == "ha2"
+        assert discord["external_user_mapping"]["d1"] == "ha1"

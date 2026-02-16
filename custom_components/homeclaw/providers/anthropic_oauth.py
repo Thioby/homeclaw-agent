@@ -44,7 +44,6 @@ class AnthropicOAuthProvider(AIProvider):
     ANTHROPIC_VERSION = "2023-06-01"
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
     DEFAULT_MAX_TOKENS = 8192
-    TOOL_PREFIX = "mcp_"
 
     def __init__(self, hass: HomeAssistant, config: dict[str, Any]) -> None:
         """Initialize the Anthropic OAuth provider.
@@ -126,24 +125,10 @@ class AnthropicOAuthProvider(AIProvider):
     def _transform_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Transform request payload for OAuth compatibility.
 
-        Adds mcp_ prefix to tool names as required by Claude Code OAuth.
+        Replaces OpenCode references in system prompt with Claude Code
+        (required for OAuth access).
         """
         payload = copy.deepcopy(payload)
-
-        # Add prefix to tool definitions
-        if "tools" in payload:
-            payload["tools"] = [
-                {**t, "name": f"{self.TOOL_PREFIX}{t['name']}"}
-                for t in payload["tools"]
-            ]
-
-        # Add prefix to tool_use blocks in messages
-        if "messages" in payload:
-            for msg in payload["messages"]:
-                if isinstance(msg.get("content"), list):
-                    for block in msg["content"]:
-                        if block.get("type") == "tool_use" and "name" in block:
-                            block["name"] = f"{self.TOOL_PREFIX}{block['name']}"
 
         # Replace OpenCode references in system prompt
         if "system" in payload:
@@ -162,16 +147,6 @@ class AnthropicOAuthProvider(AIProvider):
 
         return payload
 
-    def _transform_response(self, text: str) -> str:
-        """Transform response to remove mcp_ prefix from tool names."""
-        return re.sub(r'"name"\s*:\s*"mcp_([^"]+)"', r'"name": "\1"', text)
-
-    def _unprefix_tool_name(self, name: str) -> str:
-        """Remove mcp_ prefix from tool names returned by OAuth API."""
-        if name.startswith(self.TOOL_PREFIX):
-            return name[len(self.TOOL_PREFIX) :]
-        return name
-
     def _assistant_tool_use_blocks(
         self, parsed_content: dict[str, Any]
     ) -> list[dict[str, Any]]:
@@ -183,7 +158,7 @@ class AnthropicOAuthProvider(AIProvider):
                 {
                     "type": "tool_use",
                     "id": call.get("id", ""),
-                    "name": self._unprefix_tool_name(call.get("name", "")),
+                    "name": call.get("name", ""),
                     "input": call.get("args", {}),
                 }
             )
@@ -354,8 +329,6 @@ class AnthropicOAuthProvider(AIProvider):
                         f"Anthropic OAuth API error {resp.status}: {response_text[:200]}"
                     )
 
-                # Transform response to remove mcp_ prefix
-                response_text = self._transform_response(response_text)
                 data = json.loads(response_text)
 
                 # Extract text from content blocks
@@ -451,7 +424,7 @@ class AnthropicOAuthProvider(AIProvider):
                 index = int(event_data.get("index", 0))
                 pending_tools[index] = {
                     "id": block.get("id", ""),
-                    "name": self._unprefix_tool_name(block.get("name", "")),
+                    "name": block.get("name", ""),
                     "input": block.get("input"),
                     "input_json_parts": [],
                 }

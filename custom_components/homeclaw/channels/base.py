@@ -317,7 +317,10 @@ class Channel(ABC):
         Returns:
             HA user ID string (mapped or shadow).
         """
-        mapped = self._config.get("user_mapping", {}).get(str(sender_id))
+        mapping = self._config.get("user_mapping")
+        if not isinstance(mapping, dict):
+            mapping = self._config.get("external_user_mapping", {})
+        mapped = mapping.get(str(sender_id)) if isinstance(mapping, dict) else None
         if mapped:
             return mapped
         return f"{self.id}_{sender_id}"

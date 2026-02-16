@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import secrets
 import re
 from datetime import datetime, timedelta, timezone
@@ -10,6 +11,8 @@ from typing import Any
 from ..config import build_channel_runtime_config
 from ...const import DOMAIN
 from .helpers import normalize_id_list
+
+_LOGGER = logging.getLogger(__name__)
 
 _PAIRING_KEY = f"{DOMAIN}_discord_pairing_requests"
 _PAIR_CODE_RE = re.compile(r"(?:^|\s)(?:pair\s+)?(\d{6})(?:\s|$)", re.IGNORECASE)
@@ -78,6 +81,11 @@ async def persist_pairing(
     mapping = dict(options.get("external_user_mapping", {}) or {})
     mapping[str(sender_id)] = ha_user_id
 
+    channel_mapping = dict(channel_cfg.get("user_mapping", {}) or {})
+    channel_mapping[str(sender_id)] = ha_user_id
+    channel_cfg["user_mapping"] = channel_mapping
+    channel_cfg["external_user_mapping"] = channel_mapping
+
     options["channel_discord"] = channel_cfg
     options["external_user_mapping"] = mapping
     hass.config_entries.async_update_entry(entry, options=options)
@@ -89,7 +97,19 @@ async def persist_pairing(
     )
     if channel and hasattr(channel, "_config"):
         channel._config.update(runtime.get("channel_discord", {}))
-        channel._config["external_user_mapping"] = mapping
+        channel._config["user_mapping"] = channel_mapping
+        channel._config["external_user_mapping"] = channel_mapping
+        _LOGGER.debug(
+            "persist_pairing: runtime config updated for sender=%s", sender_id
+        )
+    else:
+        _LOGGER.warning(
+            "persist_pairing: could not update runtime config — "
+            "channel_manager=%s channel=%s. "
+            "Config entry was updated but in-memory config is stale until restart.",
+            "found" if manager else "missing",
+            "found" if channel else "missing",
+        )
 
     return {
         "sender_id": str(sender_id),

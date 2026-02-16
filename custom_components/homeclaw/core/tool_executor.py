@@ -89,6 +89,7 @@ class ToolExecutor:
                         "type": "tool_result",
                         "name": fc.name,
                         "result": error_msg,
+                        "id": fc.id,
                     }
                 continue
 
@@ -118,6 +119,7 @@ class ToolExecutor:
                         "type": "tool_result",
                         "name": fc.name,
                         "result": error_msg,
+                        "id": fc.id,
                     }
                 continue
 
@@ -134,6 +136,7 @@ class ToolExecutor:
                         "type": "tool_call",
                         "name": fc.name,
                         "args": fc.arguments,
+                        "id": fc.id,
                     }
 
                 # Execute the tool — inject _user_id into params so tools
@@ -182,6 +185,7 @@ class ToolExecutor:
                         "type": "tool_result",
                         "name": fc.name,
                         "result": result_str,
+                        "id": fc.id,
                     }
 
             except Exception as e:
@@ -208,6 +212,7 @@ class ToolExecutor:
                         "type": "tool_result",
                         "name": fc.name,
                         "result": error_msg,
+                        "id": fc.id,
                     }
 
     @staticmethod

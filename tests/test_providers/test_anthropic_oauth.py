@@ -123,8 +123,8 @@ class TestAnthropicOAuthProviderTokenManagement:
 class TestAnthropicOAuthProviderTransformations:
     """Tests for request/response transformations."""
 
-    def test_transform_request_adds_tool_prefix(self, provider):
-        """Test that mcp_ prefix is added to tool names."""
+    def test_transform_request_preserves_tool_names(self, provider):
+        """Test that tool names are passed through unchanged."""
         payload = {
             "tools": [
                 {"name": "get_weather", "description": "Get weather"},
@@ -133,7 +133,7 @@ class TestAnthropicOAuthProviderTransformations:
 
         result = provider._transform_request(payload)
 
-        assert result["tools"][0]["name"] == "mcp_get_weather"
+        assert result["tools"][0]["name"] == "get_weather"
 
     def test_transform_request_replaces_opencode(self, provider):
         """Test that OpenCode references are replaced in system prompt."""
@@ -144,13 +144,17 @@ class TestAnthropicOAuthProviderTransformations:
         assert "OpenCode" not in result["system"]
         assert "Claude Code" in result["system"]
 
-    def test_transform_response_removes_prefix(self, provider):
-        """Test that mcp_ prefix is removed from response."""
-        text = '{"name": "mcp_get_weather", "input": {}}'
+    def test_transform_request_does_not_add_prefix(self, provider):
+        """Test that no mcp_ prefix is added to tool names (prefix was removed)."""
+        payload = {
+            "tools": [
+                {"name": "call_service", "description": "Call HA service"},
+            ]
+        }
 
-        result = provider._transform_response(text)
+        result = provider._transform_request(payload)
 
-        assert '"name": "get_weather"' in result
+        assert result["tools"][0]["name"] == "call_service"
 
 
 class TestAnthropicOAuthProviderToolConversion:
@@ -373,11 +377,6 @@ class TestAnthropicOAuthProviderConstants:
 class TestAnthropicOAuthProviderStreaming:
     """Tests for Anthropic OAuth streaming event parsing."""
 
-    def test_unprefix_tool_name(self, provider):
-        """Tool names from stream should be de-prefixed."""
-        assert provider._unprefix_tool_name("mcp_get_weather") == "get_weather"
-        assert provider._unprefix_tool_name("get_weather") == "get_weather"
-
     def test_extract_stream_chunks_text_delta(self, provider):
         """Text stream delta should map to text chunk."""
         pending_tools = {}
@@ -399,7 +398,7 @@ class TestAnthropicOAuthProviderStreaming:
             "content_block": {
                 "type": "tool_use",
                 "id": "tool_1",
-                "name": "mcp_get_weather",
+                "name": "get_weather",
             },
         }
         delta_event = {
@@ -437,7 +436,7 @@ class TestAnthropicOAuthProviderStreaming:
             "content_block": {
                 "type": "tool_use",
                 "id": "tool_3",
-                "name": "mcp_get_entity_state",
+                "name": "get_entity_state",
                 "input": {},
             },
         }
@@ -469,7 +468,7 @@ class TestAnthropicOAuthProviderStreaming:
             "tool_calls": [
                 {
                     "id": "toolu_1",
-                    "name": "mcp_get_entity_state",
+                    "name": "get_entity_state",
                     "args": {"entity_id": "light.kitchen"},
                 }
             ]

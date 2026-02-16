@@ -104,6 +104,28 @@ class TestDiscordGateway:
         await gateway._handle_payload(payload)
         assert seen["called"] is True
 
+    async def test_dispatch_drops_duplicate_sequence(self, gateway):
+        calls = {"count": 0}
+
+        async def _on_message(_message):
+            calls["count"] += 1
+
+        gateway._on_message = _on_message
+        first = '{"op": 0, "t": "MESSAGE_CREATE", "s": 10, "d": {"id": "m1"}}'
+        dup = '{"op": 0, "t": "MESSAGE_CREATE", "s": 10, "d": {"id": "m1"}}'
+
+        await gateway._handle_payload(first)
+        await gateway._handle_payload(dup)
+
+        assert calls["count"] == 1
+
+    async def test_invalid_session_resets_last_dispatched_seq(self, gateway):
+        gateway._last_dispatched_seq = 99
+        payload = f'{{"op": {OP_INVALID_SESSION}, "d": false}}'
+        with pytest.raises(_ReconnectRequested):
+            await gateway._handle_payload(payload)
+        assert gateway._last_dispatched_seq is None
+
     async def test_reconnect_opcode_raises(self, gateway):
         payload = f'{{"op": {OP_RECONNECT}, "d": null}}'
         with pytest.raises(_ReconnectRequested):

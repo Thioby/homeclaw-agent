@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import collections
 import logging
 import re
 import uuid
@@ -33,6 +34,8 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+_SEEN_IDS_MAX = 1000
+
 
 @ChannelRegistry.register("discord")
 class DiscordChannel(Channel):
@@ -54,6 +57,9 @@ class DiscordChannel(Channel):
         self._task: asyncio.Task[None] | None = None
         self._semaphore = asyncio.Semaphore(
             max(1, int(config.get("max_concurrent", 3)))
+        )
+        self._seen_message_ids: collections.OrderedDict[str, None] = (
+            collections.OrderedDict()
         )
 
     async def async_setup(self) -> None:
@@ -120,11 +126,25 @@ class DiscordChannel(Channel):
             "Discord bot connected as %s", user_info.get("username", "unknown")
         )
 
+    def _mark_seen(self, message_id: str) -> bool:
+        """Record message ID and return True if already seen (duplicate)."""
+        if message_id in self._seen_message_ids:
+            return True
+        self._seen_message_ids[message_id] = None
+        while len(self._seen_message_ids) > _SEEN_IDS_MAX:
+            self._seen_message_ids.popitem(last=False)
+        return False
+
     async def _handle_gateway_message(self, message: dict[str, Any]) -> None:
         """Handle MESSAGE_CREATE from gateway and dispatch processing task."""
+        msg_id = message.get("id")
+        if msg_id and self._mark_seen(str(msg_id)):
+            _LOGGER.debug("Discord drop: duplicate message id=%s", msg_id)
+            return
+
         _LOGGER.debug(
             "Discord MESSAGE_CREATE id=%s channel=%s guild=%s",
-            message.get("id"),
+            msg_id,
             message.get("channel_id"),
             message.get("guild_id"),
         )
@@ -234,7 +254,7 @@ class DiscordChannel(Channel):
 
         thread = message.get("thread") or {}
         thread_id = str(thread.get("id", "")) if thread else None
-        return MessageEnvelope(
+        envelope = MessageEnvelope(
             text=text,
             channel="discord",
             sender_id=sender_id,
@@ -248,6 +268,13 @@ class DiscordChannel(Channel):
             is_group=guild_id is not None,
             thread_id=thread_id,
         )
+        _LOGGER.debug(
+            "Discord envelope built sender=%s mapped_user=%s target=%s",
+            sender_id,
+            envelope.ha_user_id,
+            channel_id,
+        )
+        return envelope
 
     def _should_respond(self, message: dict[str, Any]) -> bool:
         """Decide if channel should answer this message."""
@@ -315,19 +342,56 @@ class DiscordChannel(Channel):
             except asyncio.TimeoutError:
                 continue
 
+    async def _resolve_provider_model(
+        self, ha_user_id: str
+    ) -> tuple[str | None, str | None]:
+        """Resolve provider and model from user preferences with fallback.
+
+        Returns:
+            Tuple of (provider, model). Either or both may be None for fallback.
+        """
+        try:
+            storage = get_storage(self._hass, ha_user_id)
+            prefs = await storage.get_preferences()
+        except Exception:
+            _LOGGER.debug("Discord: could not load preferences for user=%s", ha_user_id)
+            return None, None
+
+        provider = prefs.get("default_provider")
+        model = prefs.get("default_model")
+
+        # Validate provider is actually available
+        if provider:
+            agents = self._hass.data.get(DOMAIN, {}).get("agents", {})
+            if provider not in agents:
+                _LOGGER.debug(
+                    "Discord: preferred provider %s not available, falling back",
+                    provider,
+                )
+                return None, None
+
+        return provider or None, model or None
+
     async def _run_stream(
         self,
         envelope: MessageEnvelope,
         session_id: str,
         history: list[dict[str, str]],
     ) -> str:
-        """Execute message intake stream and return final assistant text."""
+        """Execute message intake stream and return final assistant text.
+
+        Tool calls are executed internally by the query processor's multi-turn
+        loop. We only collect the final text — same as Web UI behavior.
+        """
+        provider, model = await self._resolve_provider_model(envelope.ha_user_id)
         accumulated = ""
         try:
             async for event in self._intake.process_message_stream(
                 envelope.text,
                 user_id=envelope.ha_user_id,
                 session_id=session_id,
+                provider=provider,
+                model=model,
                 channel_source="discord",
                 conversation_history=history,
             ):
@@ -348,7 +412,8 @@ class DiscordChannel(Channel):
             if session.metadata.get("external_session_key") == key:
                 return session.session_id
 
-        provider = self._default_provider()
+        pref_provider, _ = await self._resolve_provider_model(envelope.ha_user_id)
+        provider = pref_provider or self._default_provider()
         metadata = {
             "channel": "discord",
             "external_session_key": key,
@@ -385,8 +450,19 @@ class DiscordChannel(Channel):
         storage: SessionStorage,
         session_id: str,
     ) -> list[dict[str, str]]:
-        """Load session history in query-processor format."""
+        """Load session history in query-processor format.
+
+        Respects the channel's ``history_limit`` config to cap history size.
+        Only user/assistant messages are stored (tool calls are handled
+        in-memory by the query processor, same as Web UI).
+        """
         messages = await storage.get_session_messages(session_id)
+
+        # Apply history_limit from channel config
+        limit = int(self._config.get("history_limit", 0))
+        if limit and len(messages) > limit:
+            messages = messages[-limit:]
+
         return [{"role": msg.role, "content": msg.content} for msg in messages]
 
     def _default_provider(self) -> str:

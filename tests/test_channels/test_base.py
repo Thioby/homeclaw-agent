@@ -203,6 +203,11 @@ class TestChannelResolveUserId:
         ch = FakeChannel(fake_hass, fake_intake, config)
         assert ch._resolve_user_id("12345") == "fake_12345"
 
+    def test_legacy_external_mapping_fallback(self, fake_hass, fake_intake):
+        config = {"external_user_mapping": {"12345": "ha-user-uuid-legacy"}}
+        ch = FakeChannel(fake_hass, fake_intake, config)
+        assert ch._resolve_user_id("12345") == "ha-user-uuid-legacy"
+
     def test_shadow_user_format_uses_channel_id(self, fake_hass, fake_intake):
         """Shadow user IDs must include the channel id to avoid cross-channel collisions."""
 

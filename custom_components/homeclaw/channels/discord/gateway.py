@@ -55,6 +55,7 @@ class DiscordGateway:
         self._ws: aiohttp.ClientWebSocketResponse | None = None
 
         self._sequence: int | None = None
+        self._last_dispatched_seq: int | None = None
         self._session_id: str | None = None
         self._resume_url: str | None = None
 
@@ -145,7 +146,22 @@ class DiscordGateway:
         if op != OP_DISPATCH:
             return
 
+        if (
+            seq is not None
+            and self._last_dispatched_seq is not None
+            and seq <= self._last_dispatched_seq
+        ):
+            _LOGGER.debug(
+                "Discord gateway drop duplicated dispatch seq=%s last=%s type=%s",
+                seq,
+                self._last_dispatched_seq,
+                event_type,
+            )
+            return
+
         await self._handle_dispatch(event_type, data or {})
+        if seq is not None:
+            self._last_dispatched_seq = seq
 
     async def _handle_hello(self, heartbeat_interval_ms: int) -> None:
         """Start heartbeats and send IDENTIFY or RESUME."""
@@ -163,6 +179,7 @@ class DiscordGateway:
         if not resumable:
             self._session_id = None
             self._sequence = None
+            self._last_dispatched_seq = None
             self._resume_url = None
         await asyncio.sleep(1)
         raise _ReconnectRequested

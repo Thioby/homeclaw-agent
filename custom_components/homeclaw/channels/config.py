@@ -50,6 +50,22 @@ async def _build_discord_config(
     if isinstance(raw_channel, dict):
         channel_cfg.update(raw_channel)
 
+    # User mapping for external channels (Discord sender -> HA user).
+    # Keep backward compatibility with legacy top-level external_user_mapping.
+    top_level_mapping = raw_config.get("external_user_mapping", {})
+    explicit_user_mapping = channel_cfg.get("user_mapping", {})
+    merged_mapping: dict[str, str] = {}
+    if isinstance(top_level_mapping, dict):
+        merged_mapping.update({str(k): str(v) for k, v in top_level_mapping.items()})
+    if isinstance(explicit_user_mapping, dict):
+        merged_mapping.update(
+            {str(k): str(v) for k, v in explicit_user_mapping.items()}
+        )
+    if merged_mapping:
+        channel_cfg["user_mapping"] = merged_mapping
+        # Keep alias for any old callsites reading this key.
+        channel_cfg["external_user_mapping"] = merged_mapping
+
     if not has_explicit_auto_respond and raw_config.get(
         "discord_auto_respond_channels"
     ):

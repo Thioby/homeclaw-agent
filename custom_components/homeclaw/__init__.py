@@ -589,10 +589,18 @@ async def _initialize_channels(hass: HomeAssistant, entry: ConfigEntry) -> None:
     Creates a ChannelManager with a MessageIntake and starts all enabled
     channels.  Uses graceful degradation — if initialization fails, the
     integration continues without external channels.
+
+    Guard: ``_channels_initializing`` sentinel is set **before** any await
+    to prevent a second config entry from racing through the same path and
+    creating a duplicate ChannelManager / gateway connection.
     """
-    if hass.data.get(DOMAIN, {}).get("channel_manager"):
-        _LOGGER.debug("Channel manager already initialized, skipping")
+    domain_data = hass.data.get(DOMAIN, {})
+    if domain_data.get("channel_manager") or domain_data.get("_channels_initializing"):
+        _LOGGER.debug("Channel manager already initialized (or initializing), skipping")
         return
+
+    # Set sentinel immediately (before any await) to block concurrent callers.
+    hass.data[DOMAIN]["_channels_initializing"] = True
 
     try:
         from .channels.config import build_channel_runtime_config
@@ -624,6 +632,8 @@ async def _initialize_channels(hass: HomeAssistant, entry: ConfigEntry) -> None:
             "Agent will work without external channels.",
             err,
         )
+    finally:
+        hass.data[DOMAIN].pop("_channels_initializing", None)
 
 
 async def _shutdown_channels(hass: HomeAssistant) -> None:
