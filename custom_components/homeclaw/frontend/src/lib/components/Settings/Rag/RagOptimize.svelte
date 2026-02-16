@@ -224,83 +224,79 @@
           {/if}
         </div>
       </div>
+    {/if}
 
-      <!-- Provider/Model Selection -->
-      <div class="card">
-        <h3>Optimization Settings</h3>
-        <div class="opt-form">
-          <div class="form-row">
-            <label for="opt-provider">Provider</label>
-            <select
-              id="opt-provider"
-              class="filter-select"
-              bind:value={optimizeProvider}
-              onchange={handleProviderChange}
-            >
-              <option value="">Select provider...</option>
-              {#each getAvailableProviders() as provider}
-                <option value={provider.value}>{provider.label}</option>
+    <!-- Provider/Model Selection -->
+    <div class="card">
+      <h3>Optimization Settings</h3>
+      <div class="opt-form">
+        <div class="form-row">
+          <label for="opt-provider">Provider</label>
+          <select
+            id="opt-provider"
+            class="filter-select"
+            bind:value={optimizeProvider}
+            onchange={handleProviderChange}
+          >
+            <option value="">Select provider...</option>
+            {#each getAvailableProviders() as provider}
+              <option value={provider.value}>{provider.label}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label for="opt-model">Model</label>
+          <select
+            id="opt-model"
+            class="filter-select"
+            bind:value={optimizeModel}
+            onchange={handleModelChange}
+            disabled={!optimizeProvider || optimizeModelsLoading}
+          >
+            {#if optimizeModelsLoading}
+              <option value="">Loading models...</option>
+            {:else if optimizeModels.length === 0}
+              <option value="">Select provider first</option>
+            {:else}
+              {#each optimizeModels as model}
+                <option value={model.id}>{model.name}</option>
               {/each}
-            </select>
-          </div>
+            {/if}
+          </select>
+        </div>
 
-          <div class="form-row">
-            <label for="opt-model">Model</label>
-            <select
-              id="opt-model"
-              class="filter-select"
-              bind:value={optimizeModel}
-              onchange={handleModelChange}
-              disabled={!optimizeProvider || optimizeModelsLoading}
-            >
-              {#if optimizeModelsLoading}
-                <option value="">Loading models...</option>
-              {:else if optimizeModels.length === 0}
-                <option value="">Select provider first</option>
-              {:else}
-                {#each optimizeModels as model}
-                  <option value={model.id}>{model.name}</option>
-                {/each}
-              {/if}
-            </select>
-          </div>
+        <div class="form-row">
+          <label for="opt-scope">Scope</label>
+          <select id="opt-scope" class="filter-select" bind:value={optimizeScope}>
+            <option value="all">All (sessions + memories)</option>
+            <option value="sessions">Sessions only</option>
+            <option value="memories">Memories only</option>
+          </select>
+        </div>
 
-          <div class="form-row">
-            <label for="opt-scope">Scope</label>
-            <select id="opt-scope" class="filter-select" bind:value={optimizeScope}>
-              <option value="all">All (sessions + memories)</option>
-              <option value="sessions">Sessions only</option>
-              <option value="memories">Memories only</option>
-            </select>
-          </div>
-
-          <div class="form-row checkbox-row">
-            <label for="opt-force">
-              <input type="checkbox" id="opt-force" bind:checked={optimizeForce} />
-              Force re-optimize all
-            </label>
-            <span class="hint">Re-process sessions that were already optimized</span>
-          </div>
+        <div class="form-row checkbox-row">
+          <label for="opt-force">
+            <input type="checkbox" id="opt-force" bind:checked={optimizeForce} />
+            Force re-optimize all
+          </label>
+          <span class="hint">Re-process sessions that were already optimized (including removing stale entity states)</span>
         </div>
       </div>
+    </div>
 
-      <!-- Run Button -->
-      <button
-        class="btn primary optimize-btn"
-        onclick={runOptimization}
-        disabled={optimizing || !optimizeProvider || !optimizeModel}
-      >
-        {#if optimizing}
-          Optimizing...
-        {:else}
-          Run Optimization
-        {/if}
-      </button>
-    {:else}
-      <div class="card">
-        <p class="no-savings">RAG database is already compact. No optimization needed.</p>
-      </div>
-    {/if}
+    <!-- Run Button -->
+    <button
+      class="btn primary optimize-btn"
+      onclick={runOptimization}
+      disabled={optimizing || !optimizeProvider || !optimizeModel}
+    >
+      {#if optimizing}
+        Optimizing...
+      {:else}
+        Run Optimization
+      {/if}
+    </button>
 
     <!-- Progress -->
     {#if optimizing || optimizeProgress.length > 0}

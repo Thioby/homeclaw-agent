@@ -3069,13 +3069,13 @@ const componentCss = `
   .savings-card.svelte-10ewjma {
     border: 1px solid rgba(76, 175, 80, 0.3);
   }
-  .no-savings.svelte-10ewjma {
+  /* (unused) .no-savings {
     margin: 0;
     font-size: 13px;
     color: var(--secondary-text-color);
     text-align: center;
     padding: 8px 0;
-  }
+  }*/
   .filter-select.svelte-10ewjma {
     padding: 6px 10px;
     border: 1px solid var(--divider-color);
@@ -3103,6 +3103,30 @@ const componentCss = `
   }
   .form-row.svelte-10ewjma .filter-select:where(.svelte-10ewjma) {
     flex: 1;
+  }
+  .checkbox-row.svelte-10ewjma {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .checkbox-row.svelte-10ewjma label:where(.svelte-10ewjma) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    min-width: unset;
+  }
+  .checkbox-row.svelte-10ewjma input[type='checkbox']:where(.svelte-10ewjma) {
+    accent-color: #ff9800;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+  .hint.svelte-10ewjma {
+    font-size: 11px;
+    color: var(--secondary-text-color);
+    opacity: 0.7;
+    padding-left: 22px;
   }
   .btn.svelte-10ewjma {
     padding: 6px 14px;
@@ -17030,22 +17054,21 @@ delegate(["keydown", "click"]);
 var root_1$3 = /* @__PURE__ */ from_html(`<div class="loading svelte-10ewjma">Analyzing RAG database...</div>`);
 var root_5 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Chunks reducible</span> <span class="v savings svelte-10ewjma"> </span>`, 1);
 var root_6$1 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Memories reducible</span> <span class="v savings svelte-10ewjma"> </span>`, 1);
+var root_4$2 = /* @__PURE__ */ from_html(`<div class="card savings-card svelte-10ewjma"><h3 class="svelte-10ewjma">Estimated Savings</h3> <div class="kv-grid svelte-10ewjma"><!> <!></div></div>`);
 var root_7$1 = /* @__PURE__ */ from_html(`<option> </option>`);
 var root_8$1 = /* @__PURE__ */ from_html(`<option>Loading models...</option>`);
 var root_10$1 = /* @__PURE__ */ from_html(`<option>Select provider first</option>`);
 var root_12$1 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_4$2 = /* @__PURE__ */ from_html(`<div class="card savings-card svelte-10ewjma"><h3 class="svelte-10ewjma">Estimated Savings</h3> <div class="kv-grid svelte-10ewjma"><!> <!></div></div> <div class="card svelte-10ewjma"><h3 class="svelte-10ewjma">Optimization Settings</h3> <div class="opt-form svelte-10ewjma"><div class="form-row svelte-10ewjma"><label for="opt-provider" class="svelte-10ewjma">Provider</label> <select id="opt-provider" class="filter-select svelte-10ewjma"><option>Select provider...</option><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-model" class="svelte-10ewjma">Model</label> <select id="opt-model" class="filter-select svelte-10ewjma"><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-scope" class="svelte-10ewjma">Scope</label> <select id="opt-scope" class="filter-select svelte-10ewjma"><option>All (sessions + memories)</option><option>Sessions only</option><option>Memories only</option></select></div> <div class="form-row checkbox-row svelte-10ewjma"><label for="opt-force" class="svelte-10ewjma"><input type="checkbox" id="opt-force" class="svelte-10ewjma"/> Force re-optimize all</label> <span class="hint svelte-10ewjma">Re-process sessions that were already optimized</span></div></div></div> <button class="btn primary optimize-btn svelte-10ewjma"><!></button>`, 1);
-var root_15 = /* @__PURE__ */ from_html(`<div class="card svelte-10ewjma"><p class="no-savings svelte-10ewjma">RAG database is already compact. No optimization needed.</p></div>`);
-var root_17$1 = /* @__PURE__ */ from_html(`<div class="progress-bar-container svelte-10ewjma"><div class="progress-bar svelte-10ewjma"></div></div>`);
-var root_18$1 = /* @__PURE__ */ from_html(`<div> </div>`);
-var root_16 = /* @__PURE__ */ from_html(`<div class="card progress-card svelte-10ewjma"><h3 class="svelte-10ewjma">Progress</h3> <!> <div class="progress-log svelte-10ewjma"></div></div>`);
-var root_20$1 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Session chunks</span> <span class="v svelte-10ewjma"> <span class="savings svelte-10ewjma"> </span></span>`, 1);
-var root_21$1 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Memories</span> <span class="v svelte-10ewjma"> <span class="savings svelte-10ewjma"> </span></span>`, 1);
-var root_23 = /* @__PURE__ */ from_html(`<div class="error-line svelte-10ewjma"> </div>`);
-var root_22$1 = /* @__PURE__ */ from_html(`<div class="error-list svelte-10ewjma"><strong>Errors:</strong> <!></div>`);
-var root_19$1 = /* @__PURE__ */ from_html(`<div><h3 class="svelte-10ewjma">Optimization Result</h3> <div class="kv-grid svelte-10ewjma"><!> <!> <span class="k svelte-10ewjma">Duration</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Sessions processed</span><span class="v svelte-10ewjma"> </span></div> <!></div>`);
-var root_3 = /* @__PURE__ */ from_html(`<div class="card svelte-10ewjma"><h3 class="svelte-10ewjma">Current Size</h3> <div class="kv-grid svelte-10ewjma"><span class="k svelte-10ewjma">Session chunks</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Sessions</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Optimizable sessions</span><span class="v highlight svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Storage</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Memories</span><span class="v svelte-10ewjma"> </span></div></div> <!> <!> <!> <button class="btn text svelte-10ewjma">Refresh Analysis</button>`, 1);
-var root_25 = /* @__PURE__ */ from_html(`<div class="not-initialized svelte-10ewjma">RAG system is not initialized.</div>`);
+var root_16 = /* @__PURE__ */ from_html(`<div class="progress-bar-container svelte-10ewjma"><div class="progress-bar svelte-10ewjma"></div></div>`);
+var root_17$1 = /* @__PURE__ */ from_html(`<div> </div>`);
+var root_15 = /* @__PURE__ */ from_html(`<div class="card progress-card svelte-10ewjma"><h3 class="svelte-10ewjma">Progress</h3> <!> <div class="progress-log svelte-10ewjma"></div></div>`);
+var root_19$1 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Session chunks</span> <span class="v svelte-10ewjma"> <span class="savings svelte-10ewjma"> </span></span>`, 1);
+var root_20$1 = /* @__PURE__ */ from_html(`<span class="k svelte-10ewjma">Memories</span> <span class="v svelte-10ewjma"> <span class="savings svelte-10ewjma"> </span></span>`, 1);
+var root_22$1 = /* @__PURE__ */ from_html(`<div class="error-line svelte-10ewjma"> </div>`);
+var root_21$1 = /* @__PURE__ */ from_html(`<div class="error-list svelte-10ewjma"><strong>Errors:</strong> <!></div>`);
+var root_18$1 = /* @__PURE__ */ from_html(`<div><h3 class="svelte-10ewjma">Optimization Result</h3> <div class="kv-grid svelte-10ewjma"><!> <!> <span class="k svelte-10ewjma">Duration</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Sessions processed</span><span class="v svelte-10ewjma"> </span></div> <!></div>`);
+var root_3 = /* @__PURE__ */ from_html(`<div class="card svelte-10ewjma"><h3 class="svelte-10ewjma">Current Size</h3> <div class="kv-grid svelte-10ewjma"><span class="k svelte-10ewjma">Session chunks</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Sessions</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Optimizable sessions</span><span class="v highlight svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Storage</span><span class="v svelte-10ewjma"> </span> <span class="k svelte-10ewjma">Memories</span><span class="v svelte-10ewjma"> </span></div></div> <!> <div class="card svelte-10ewjma"><h3 class="svelte-10ewjma">Optimization Settings</h3> <div class="opt-form svelte-10ewjma"><div class="form-row svelte-10ewjma"><label for="opt-provider" class="svelte-10ewjma">Provider</label> <select id="opt-provider" class="filter-select svelte-10ewjma"><option>Select provider...</option><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-model" class="svelte-10ewjma">Model</label> <select id="opt-model" class="filter-select svelte-10ewjma"><!></select></div> <div class="form-row svelte-10ewjma"><label for="opt-scope" class="svelte-10ewjma">Scope</label> <select id="opt-scope" class="filter-select svelte-10ewjma"><option>All (sessions + memories)</option><option>Sessions only</option><option>Memories only</option></select></div> <div class="form-row checkbox-row svelte-10ewjma"><label for="opt-force" class="svelte-10ewjma"><input type="checkbox" id="opt-force" class="svelte-10ewjma"/> Force re-optimize all</label> <span class="hint svelte-10ewjma">Re-process sessions that were already optimized (including removing stale entity states)</span></div></div></div> <button class="btn primary optimize-btn svelte-10ewjma"><!></button> <!> <!> <button class="btn text svelte-10ewjma">Refresh Analysis</button>`, 1);
+var root_24 = /* @__PURE__ */ from_html(`<div class="not-initialized svelte-10ewjma">RAG system is not initialized.</div>`);
 var root$3 = /* @__PURE__ */ from_html(`<div class="section svelte-10ewjma"><p class="desc svelte-10ewjma">Condense RAG data using an AI model. This reduces session chunks and merges duplicate memories
     while preserving important information.</p> <!></div>`);
 function RagOptimize($$anchor, $$props) {
@@ -17202,7 +17225,7 @@ function RagOptimize($$anchor, $$props) {
       var div_1 = root_1$3();
       append($$anchor2, div_1);
     };
-    var alternate_5 = ($$anchor2) => {
+    var alternate_4 = ($$anchor2) => {
       var fragment = comment();
       var node_1 = first_child(fragment);
       {
@@ -17222,20 +17245,19 @@ function RagOptimize($$anchor, $$props) {
           var text_4 = child(span_4);
           var node_2 = sibling(div_2, 2);
           {
-            var consequent_6 = ($$anchor4) => {
-              var fragment_2 = root_4$2();
-              var div_4 = first_child(fragment_2);
+            var consequent_3 = ($$anchor4) => {
+              var div_4 = root_4$2();
               var div_5 = sibling(child(div_4), 2);
               var node_3 = child(div_5);
               {
                 var consequent_1 = ($$anchor5) => {
-                  var fragment_3 = root_5();
-                  var span_5 = sibling(first_child(fragment_3), 2);
+                  var fragment_2 = root_5();
+                  var span_5 = sibling(first_child(fragment_2), 2);
                   var text_5 = child(span_5);
                   template_effect(($0) => set_text(text_5, `~${get$1(analysis).potential_chunk_savings ?? ""} chunks (${$0 ?? ""}%)`), [
                     () => Math.round(get$1(analysis).potential_chunk_savings / get$1(analysis).total_session_chunks * 100)
                   ]);
-                  append($$anchor5, fragment_3);
+                  append($$anchor5, fragment_2);
                 };
                 if_block(node_3, ($$render) => {
                   if (get$1(analysis).potential_chunk_savings > 0) $$render(consequent_1);
@@ -17244,160 +17266,147 @@ function RagOptimize($$anchor, $$props) {
               var node_4 = sibling(node_3, 2);
               {
                 var consequent_2 = ($$anchor5) => {
-                  var fragment_4 = root_6$1();
-                  var span_6 = sibling(first_child(fragment_4), 2);
+                  var fragment_3 = root_6$1();
+                  var span_6 = sibling(first_child(fragment_3), 2);
                   var text_6 = child(span_6);
                   template_effect(($0) => set_text(text_6, `~${get$1(analysis).potential_memory_savings ?? ""} memories (${$0 ?? ""}%)`), [
                     () => Math.round(get$1(analysis).potential_memory_savings / get$1(analysis).total_memories * 100)
                   ]);
-                  append($$anchor5, fragment_4);
+                  append($$anchor5, fragment_3);
                 };
                 if_block(node_4, ($$render) => {
                   if (get$1(analysis).potential_memory_savings > 0) $$render(consequent_2);
                 });
               }
-              var div_6 = sibling(div_4, 2);
-              var div_7 = sibling(child(div_6), 2);
-              var div_8 = child(div_7);
-              var select = sibling(child(div_8), 2);
-              select.__change = handleProviderChange;
-              var option = child(select);
-              option.value = option.__value = "";
-              var node_5 = sibling(option);
-              each(node_5, 17, getAvailableProviders, index, ($$anchor5, provider) => {
-                var option_1 = root_7$1();
-                var text_7 = child(option_1);
-                var option_1_value = {};
-                template_effect(() => {
-                  set_text(text_7, get$1(provider).label);
-                  if (option_1_value !== (option_1_value = get$1(provider).value)) {
-                    option_1.value = (option_1.__value = get$1(provider).value) ?? "";
-                  }
-                });
-                append($$anchor5, option_1);
-              });
-              var div_9 = sibling(div_8, 2);
-              var select_1 = sibling(child(div_9), 2);
-              select_1.__change = handleModelChange;
-              var node_6 = child(select_1);
-              {
-                var consequent_3 = ($$anchor5) => {
-                  var option_2 = root_8$1();
-                  option_2.value = option_2.__value = "";
-                  append($$anchor5, option_2);
-                };
-                var alternate_1 = ($$anchor5) => {
-                  var fragment_5 = comment();
-                  var node_7 = first_child(fragment_5);
-                  {
-                    var consequent_4 = ($$anchor6) => {
-                      var option_3 = root_10$1();
-                      option_3.value = option_3.__value = "";
-                      append($$anchor6, option_3);
-                    };
-                    var alternate = ($$anchor6) => {
-                      var fragment_6 = comment();
-                      var node_8 = first_child(fragment_6);
-                      each(node_8, 17, () => get$1(optimizeModels), index, ($$anchor7, model) => {
-                        var option_4 = root_12$1();
-                        var text_8 = child(option_4);
-                        var option_4_value = {};
-                        template_effect(() => {
-                          set_text(text_8, get$1(model).name);
-                          if (option_4_value !== (option_4_value = get$1(model).id)) {
-                            option_4.value = (option_4.__value = get$1(model).id) ?? "";
-                          }
-                        });
-                        append($$anchor7, option_4);
-                      });
-                      append($$anchor6, fragment_6);
-                    };
-                    if_block(
-                      node_7,
-                      ($$render) => {
-                        if (get$1(optimizeModels).length === 0) $$render(consequent_4);
-                        else $$render(alternate, false);
-                      },
-                      true
-                    );
-                  }
-                  append($$anchor5, fragment_5);
-                };
-                if_block(node_6, ($$render) => {
-                  if (get$1(optimizeModelsLoading)) $$render(consequent_3);
-                  else $$render(alternate_1, false);
-                });
-              }
-              var div_10 = sibling(div_9, 2);
-              var select_2 = sibling(child(div_10), 2);
-              var option_5 = child(select_2);
-              option_5.value = option_5.__value = "all";
-              var option_6 = sibling(option_5);
-              option_6.value = option_6.__value = "sessions";
-              var option_7 = sibling(option_6);
-              option_7.value = option_7.__value = "memories";
-              var div_11 = sibling(div_10, 2);
-              var label = child(div_11);
-              var input = child(label);
-              var button = sibling(div_6, 2);
-              button.__click = runOptimization;
-              var node_9 = child(button);
-              {
-                var consequent_5 = ($$anchor5) => {
-                  var text_9 = text$1("Optimizing...");
-                  append($$anchor5, text_9);
-                };
-                var alternate_2 = ($$anchor5) => {
-                  var text_10 = text$1("Run Optimization");
-                  append($$anchor5, text_10);
-                };
-                if_block(node_9, ($$render) => {
-                  if (get$1(optimizing)) $$render(consequent_5);
-                  else $$render(alternate_2, false);
-                });
-              }
-              template_effect(() => {
-                select_1.disabled = !get$1(optimizeProvider) || get$1(optimizeModelsLoading);
-                button.disabled = get$1(optimizing) || !get$1(optimizeProvider) || !get$1(optimizeModel);
-              });
-              bind_select_value(select, () => get$1(optimizeProvider), ($$value) => set(optimizeProvider, $$value));
-              bind_select_value(select_1, () => get$1(optimizeModel), ($$value) => set(optimizeModel, $$value));
-              bind_select_value(select_2, () => get$1(optimizeScope), ($$value) => set(optimizeScope, $$value));
-              bind_checked(input, () => get$1(optimizeForce), ($$value) => set(optimizeForce, $$value));
-              append($$anchor4, fragment_2);
-            };
-            var alternate_3 = ($$anchor4) => {
-              var div_12 = root_15();
-              append($$anchor4, div_12);
+              append($$anchor4, div_4);
             };
             if_block(node_2, ($$render) => {
-              if (get$1(analysis).potential_chunk_savings > 0 || get$1(analysis).potential_memory_savings > 0) $$render(consequent_6);
-              else $$render(alternate_3, false);
+              if (get$1(analysis).potential_chunk_savings > 0 || get$1(analysis).potential_memory_savings > 0) $$render(consequent_3);
             });
           }
-          var node_10 = sibling(node_2, 2);
+          var div_6 = sibling(node_2, 2);
+          var div_7 = sibling(child(div_6), 2);
+          var div_8 = child(div_7);
+          var select = sibling(child(div_8), 2);
+          select.__change = handleProviderChange;
+          var option = child(select);
+          option.value = option.__value = "";
+          var node_5 = sibling(option);
+          each(node_5, 17, getAvailableProviders, index, ($$anchor4, provider) => {
+            var option_1 = root_7$1();
+            var text_7 = child(option_1);
+            var option_1_value = {};
+            template_effect(() => {
+              set_text(text_7, get$1(provider).label);
+              if (option_1_value !== (option_1_value = get$1(provider).value)) {
+                option_1.value = (option_1.__value = get$1(provider).value) ?? "";
+              }
+            });
+            append($$anchor4, option_1);
+          });
+          var div_9 = sibling(div_8, 2);
+          var select_1 = sibling(child(div_9), 2);
+          select_1.__change = handleModelChange;
+          var node_6 = child(select_1);
+          {
+            var consequent_4 = ($$anchor4) => {
+              var option_2 = root_8$1();
+              option_2.value = option_2.__value = "";
+              append($$anchor4, option_2);
+            };
+            var alternate_1 = ($$anchor4) => {
+              var fragment_4 = comment();
+              var node_7 = first_child(fragment_4);
+              {
+                var consequent_5 = ($$anchor5) => {
+                  var option_3 = root_10$1();
+                  option_3.value = option_3.__value = "";
+                  append($$anchor5, option_3);
+                };
+                var alternate = ($$anchor5) => {
+                  var fragment_5 = comment();
+                  var node_8 = first_child(fragment_5);
+                  each(node_8, 17, () => get$1(optimizeModels), index, ($$anchor6, model) => {
+                    var option_4 = root_12$1();
+                    var text_8 = child(option_4);
+                    var option_4_value = {};
+                    template_effect(() => {
+                      set_text(text_8, get$1(model).name);
+                      if (option_4_value !== (option_4_value = get$1(model).id)) {
+                        option_4.value = (option_4.__value = get$1(model).id) ?? "";
+                      }
+                    });
+                    append($$anchor6, option_4);
+                  });
+                  append($$anchor5, fragment_5);
+                };
+                if_block(
+                  node_7,
+                  ($$render) => {
+                    if (get$1(optimizeModels).length === 0) $$render(consequent_5);
+                    else $$render(alternate, false);
+                  },
+                  true
+                );
+              }
+              append($$anchor4, fragment_4);
+            };
+            if_block(node_6, ($$render) => {
+              if (get$1(optimizeModelsLoading)) $$render(consequent_4);
+              else $$render(alternate_1, false);
+            });
+          }
+          var div_10 = sibling(div_9, 2);
+          var select_2 = sibling(child(div_10), 2);
+          var option_5 = child(select_2);
+          option_5.value = option_5.__value = "all";
+          var option_6 = sibling(option_5);
+          option_6.value = option_6.__value = "sessions";
+          var option_7 = sibling(option_6);
+          option_7.value = option_7.__value = "memories";
+          var div_11 = sibling(div_10, 2);
+          var label = child(div_11);
+          var input = child(label);
+          var button = sibling(div_6, 2);
+          button.__click = runOptimization;
+          var node_9 = child(button);
+          {
+            var consequent_6 = ($$anchor4) => {
+              var text_9 = text$1("Optimizing...");
+              append($$anchor4, text_9);
+            };
+            var alternate_2 = ($$anchor4) => {
+              var text_10 = text$1("Run Optimization");
+              append($$anchor4, text_10);
+            };
+            if_block(node_9, ($$render) => {
+              if (get$1(optimizing)) $$render(consequent_6);
+              else $$render(alternate_2, false);
+            });
+          }
+          var node_10 = sibling(button, 2);
           {
             var consequent_8 = ($$anchor4) => {
-              var div_13 = root_16();
-              var node_11 = sibling(child(div_13), 2);
+              var div_12 = root_15();
+              var node_11 = sibling(child(div_12), 2);
               {
                 var consequent_7 = ($$anchor5) => {
-                  var div_14 = root_17$1();
-                  var div_15 = child(div_14);
-                  template_effect(() => set_style(div_15, `width: ${get$1(optimizeProgressPct) ?? ""}%`));
-                  append($$anchor5, div_14);
+                  var div_13 = root_16();
+                  var div_14 = child(div_13);
+                  template_effect(() => set_style(div_14, `width: ${get$1(optimizeProgressPct) ?? ""}%`));
+                  append($$anchor5, div_13);
                 };
                 if_block(node_11, ($$render) => {
                   if (get$1(optimizing)) $$render(consequent_7);
                 });
               }
-              var div_16 = sibling(node_11, 2);
-              each(div_16, 21, () => get$1(optimizeProgress), index, ($$anchor5, event2) => {
-                var div_17 = root_18$1();
+              var div_15 = sibling(node_11, 2);
+              each(div_15, 21, () => get$1(optimizeProgress), index, ($$anchor5, event2) => {
+                var div_16 = root_17$1();
                 let classes;
-                var text_11 = child(div_17);
+                var text_11 = child(div_16);
                 template_effect(() => {
-                  classes = set_class(div_17, 1, "progress-line svelte-10ewjma", null, classes, {
+                  classes = set_class(div_16, 1, "progress-line svelte-10ewjma", null, classes, {
                     phase: get$1(event2).type === "phase",
                     done: get$1(event2).type === "session_done" || get$1(event2).type === "category_done",
                     "error-line": get$1(event2).type === "session_error" || get$1(event2).type === "category_error",
@@ -17405,9 +17414,9 @@ function RagOptimize($$anchor, $$props) {
                   });
                   set_text(text_11, get$1(event2).message);
                 });
-                append($$anchor5, div_17);
+                append($$anchor5, div_16);
               });
-              append($$anchor4, div_13);
+              append($$anchor4, div_12);
             };
             if_block(node_10, ($$render) => {
               if (get$1(optimizing) || get$1(optimizeProgress).length > 0) $$render(consequent_8);
@@ -17416,14 +17425,14 @@ function RagOptimize($$anchor, $$props) {
           var node_12 = sibling(node_10, 2);
           {
             var consequent_12 = ($$anchor4) => {
-              var div_18 = root_19$1();
+              var div_17 = root_18$1();
               let classes_1;
-              var div_19 = sibling(child(div_18), 2);
-              var node_13 = child(div_19);
+              var div_18 = sibling(child(div_17), 2);
+              var node_13 = child(div_18);
               {
                 var consequent_9 = ($$anchor5) => {
-                  var fragment_7 = root_20$1();
-                  var span_7 = sibling(first_child(fragment_7), 2);
+                  var fragment_6 = root_19$1();
+                  var span_7 = sibling(first_child(fragment_6), 2);
                   var text_12 = child(span_7);
                   var span_8 = sibling(text_12);
                   var text_13 = child(span_8);
@@ -17431,7 +17440,7 @@ function RagOptimize($$anchor, $$props) {
                     set_text(text_12, `${get$1(optimizeResult).chunks_before ?? ""} -> ${get$1(optimizeResult).chunks_after ?? ""} `);
                     set_text(text_13, `(-${get$1(optimizeResult).chunks_saved ?? ""})`);
                   });
-                  append($$anchor5, fragment_7);
+                  append($$anchor5, fragment_6);
                 };
                 if_block(node_13, ($$render) => {
                   if (get$1(optimizeResult).chunks_before > 0) $$render(consequent_9);
@@ -17440,8 +17449,8 @@ function RagOptimize($$anchor, $$props) {
               var node_14 = sibling(node_13, 2);
               {
                 var consequent_10 = ($$anchor5) => {
-                  var fragment_8 = root_21$1();
-                  var span_9 = sibling(first_child(fragment_8), 2);
+                  var fragment_7 = root_20$1();
+                  var span_9 = sibling(first_child(fragment_7), 2);
                   var text_14 = child(span_9);
                   var span_10 = sibling(text_14);
                   var text_15 = child(span_10);
@@ -17449,7 +17458,7 @@ function RagOptimize($$anchor, $$props) {
                     set_text(text_14, `${get$1(optimizeResult).memories_before ?? ""} -> ${get$1(optimizeResult).memories_after ?? ""} `);
                     set_text(text_15, `(-${get$1(optimizeResult).memories_saved ?? ""})`);
                   });
-                  append($$anchor5, fragment_8);
+                  append($$anchor5, fragment_7);
                 };
                 if_block(node_14, ($$render) => {
                   if (get$1(optimizeResult).memories_before > 0) $$render(consequent_10);
@@ -17459,29 +17468,29 @@ function RagOptimize($$anchor, $$props) {
               var text_16 = child(span_11);
               var span_12 = sibling(span_11, 3);
               var text_17 = child(span_12);
-              var node_15 = sibling(div_19, 2);
+              var node_15 = sibling(div_18, 2);
               {
                 var consequent_11 = ($$anchor5) => {
-                  var div_20 = root_22$1();
-                  var node_16 = sibling(child(div_20), 2);
+                  var div_19 = root_21$1();
+                  var node_16 = sibling(child(div_19), 2);
                   each(node_16, 17, () => get$1(optimizeResult).errors, index, ($$anchor6, err) => {
-                    var div_21 = root_23();
-                    var text_18 = child(div_21);
+                    var div_20 = root_22$1();
+                    var text_18 = child(div_20);
                     template_effect(() => set_text(text_18, get$1(err)));
-                    append($$anchor6, div_21);
+                    append($$anchor6, div_20);
                   });
-                  append($$anchor5, div_20);
+                  append($$anchor5, div_19);
                 };
                 if_block(node_15, ($$render) => {
                   if (get$1(optimizeResult).errors.length > 0) $$render(consequent_11);
                 });
               }
               template_effect(() => {
-                classes_1 = set_class(div_18, 1, "card result-card svelte-10ewjma", null, classes_1, { "has-errors": get$1(optimizeResult).errors.length > 0 });
+                classes_1 = set_class(div_17, 1, "card result-card svelte-10ewjma", null, classes_1, { "has-errors": get$1(optimizeResult).errors.length > 0 });
                 set_text(text_16, `${get$1(optimizeResult).duration_seconds ?? ""}s`);
                 set_text(text_17, get$1(optimizeResult).sessions_processed);
               });
-              append($$anchor4, div_18);
+              append($$anchor4, div_17);
             };
             if_block(node_12, ($$render) => {
               if (get$1(optimizeResult)) $$render(consequent_12);
@@ -17495,16 +17504,22 @@ function RagOptimize($$anchor, $$props) {
             set_text(text_2, get$1(analysis).optimizable_sessions);
             set_text(text_3, `${get$1(analysis).total_size_mb ?? ""} MB`);
             set_text(text_4, get$1(analysis).total_memories);
+            select_1.disabled = !get$1(optimizeProvider) || get$1(optimizeModelsLoading);
+            button.disabled = get$1(optimizing) || !get$1(optimizeProvider) || !get$1(optimizeModel);
           });
+          bind_select_value(select, () => get$1(optimizeProvider), ($$value) => set(optimizeProvider, $$value));
+          bind_select_value(select_1, () => get$1(optimizeModel), ($$value) => set(optimizeModel, $$value));
+          bind_select_value(select_2, () => get$1(optimizeScope), ($$value) => set(optimizeScope, $$value));
+          bind_checked(input, () => get$1(optimizeForce), ($$value) => set(optimizeForce, $$value));
           append($$anchor3, fragment_1);
         };
-        var alternate_4 = ($$anchor3) => {
-          var fragment_9 = comment();
-          var node_17 = first_child(fragment_9);
+        var alternate_3 = ($$anchor3) => {
+          var fragment_8 = comment();
+          var node_17 = first_child(fragment_8);
           {
             var consequent_14 = ($$anchor4) => {
-              var div_22 = root_25();
-              append($$anchor4, div_22);
+              var div_21 = root_24();
+              append($$anchor4, div_21);
             };
             if_block(
               node_17,
@@ -17514,13 +17529,13 @@ function RagOptimize($$anchor, $$props) {
               true
             );
           }
-          append($$anchor3, fragment_9);
+          append($$anchor3, fragment_8);
         };
         if_block(
           node_1,
           ($$render) => {
             if (get$1(analysis) && get$1(analysis).initialized) $$render(consequent_13);
-            else $$render(alternate_4, false);
+            else $$render(alternate_3, false);
           },
           true
         );
@@ -17529,7 +17544,7 @@ function RagOptimize($$anchor, $$props) {
     };
     if_block(node, ($$render) => {
       if (get$1(analysisLoading)) $$render(consequent);
-      else $$render(alternate_5, false);
+      else $$render(alternate_4, false);
     });
   }
   append($$anchor, div);

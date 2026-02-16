@@ -2573,13 +2573,13 @@
   .savings-card.svelte-10ewjma {
     border: 1px solid rgba(76, 175, 80, 0.3);
   }
-  .no-savings.svelte-10ewjma {
+  /* (unused) .no-savings {
     margin: 0;
     font-size: 13px;
     color: var(--secondary-text-color);
     text-align: center;
     padding: 8px 0;
-  }
+  }*/
   .filter-select.svelte-10ewjma {
     padding: 6px 10px;
     border: 1px solid var(--divider-color);
