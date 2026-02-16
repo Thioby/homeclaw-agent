@@ -53,6 +53,16 @@ When the agent doesn't know something, it can search the web. Good for troublesh
 
 Tell the agent what you want to see and it will build a dashboard for you. You can also ask it to update an existing one — add cards, rearrange things, change layout. Same with automations — describe what should happen and when, and the agent creates the YAML and applies it. No need to dig through the UI yourself.
 
+### Discord
+
+Talk to your home from Discord. Set it up in three steps:
+
+1. Add the official **Discord** integration in Home Assistant (Settings > Devices & Services > Add Integration > Discord). This gives HA a bot token.
+2. HomeClaw picks up that token automatically — no extra config needed.
+3. Open the HomeClaw chat panel and ask the agent how to finish the setup. It will walk you through inviting the bot to your server and pairing your Discord account.
+
+After setup, send a DM to the bot — it will start the pairing process to link your Discord account with your HA user. Once paired, you can DM the bot or mention it in a channel. Same tools, same smarts — just from Discord.
+
 ### Subagents
 
 For bigger tasks, the agent can start other agents that work at the same time. Each one works independently.
