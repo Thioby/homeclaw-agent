@@ -1,34 +1,65 @@
+<p align="center">
+  <img src="https://brands.home-assistant.io/_/homeclaw/icon@2x.png" alt="HomeClaw" width="128">
+</p>
+
 # HomeClaw Agent
 
-A Home Assistant custom component that adds an AI-powered chat panel to your smart home. Talk to your home in natural language — control devices, create automations, build dashboards, and ask about sensor history.
+AI assistant for Home Assistant. Control your devices, check sensors, build dashboards, create automations — just by chatting. Works with many AI providers and runs as a custom component.
 
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Features
+## What it does
 
-- **Natural language control** — turn on lights, set thermostats, trigger scenes, all through conversation
-- **Multi-provider support** — Gemini, OpenAI, Anthropic, Groq, Meta Llama, z.ai, OpenRouter, and local models (Ollama, LM Studio)
-- **Real-time streaming** — token-by-token responses with server-side tool execution
-- **RAG system** — semantic search over your entities, automations, and conversation history
-- **Long-term memory** — the agent remembers your preferences, decisions, and context across sessions
-- **Session management** — multiple chat sessions with full history persistence
-- **Identity system** — customize the agent's name, personality, and language
-- **Settings UI** — manage providers, models, and defaults from the frontend
-- **HACS compatible** — install and update through the Home Assistant Community Store
+You get a chat panel inside Home Assistant. You type what you want, and the AI does it. It knows your devices, rooms, sensors, automations — everything. It can also control them. Like having a smart assistant that actually knows your home.
 
-## Supported Providers
+### Chat with your home
 
-| Provider | Streaming | Function Calling | OAuth |
-|----------|-----------|-----------------|-------|
-| Google Gemini | Yes | Native | Yes |
-| OpenAI / GPT | No | Native | No |
-| Anthropic Claude | No | Native | Yes |
-| Groq | No | Native | No |
-| Meta Llama | No | Native | No |
-| z.ai (Zhipu) | No | Native | No |
-| OpenRouter | No | Native | No |
-| Local (Ollama) | No | Text-based | No |
+Say things like "turn off the lights in the bedroom" or "what's the temperature outside?" The agent sees all your entities, areas, automations, scenes, and dashboards. If you can do it from the HA UI, you can just ask.
+
+### Conversation Agent for HA Assist
+
+HomeClaw works as a Conversation Agent in Home Assistant. You can set it as your default assistant, use it in Assist pipelines, and talk to it through voice satellites. TTS is also there, but still in beta. It also supports AI Task — give it a JSON schema, get structured data back.
+
+### Many AI providers
+
+Use Gemini, OpenAI, Anthropic, Groq, Llama, z.ai, or OpenRouter. Want to keep things local? Ollama and LM Studio work too. You can switch providers anytime from the settings. Some providers support OAuth — no API key needed.
+
+### Smart search (RAG)
+
+The agent indexes all your entities and past conversations into a local database. When you ask something, it automatically finds the most relevant info. Nothing leaves your machine — everything stays local. Over time, it gets better at understanding what you mean.
+
+### Memory
+
+The agent remembers things between conversations. Your preferences, past decisions, important details — it keeps them and brings them up when needed. You can also tell it to forget something.
+
+### File uploads
+
+Send images, PDFs, CSVs, or text files in the chat. The agent can read documents (up to 10 PDF pages), look at images, and use file content to answer your questions.
+
+### Proactive monitoring
+
+The agent can check your home on a schedule and let you know if something seems wrong. It only reads data — it won't change anything on its own. Alerts are rate-limited so you won't get flooded.
+
+### Scheduler
+
+Set up tasks that run on a schedule — once or repeating. The agent can create them during a conversation, or you can manage them from the UI.
+
+### Web search
+
+When the agent doesn't know something, it can search the web. Good for troubleshooting, finding docs, or answering questions that go beyond your smart home.
+
+### Dashboards and automations
+
+Tell the agent what you want to see and it will build a dashboard for you. You can also ask it to update an existing one — add cards, rearrange things, change layout. Same with automations — describe what should happen and when, and the agent creates the YAML and applies it. No need to dig through the UI yourself.
+
+### Subagents
+
+For bigger tasks, the agent can start other agents that work at the same time. Each one works independently.
+
+### Integration management
+
+The agent can set up simple YAML-based integrations for you — it creates the config and applies it, with automatic backup in case something breaks. For more complex integrations that use a UI flow (like Zigbee2MQTT or Google Home), it can walk you through the process step by step and explain what each option does.
 
 ## Installation
 
@@ -43,41 +74,20 @@ A Home Assistant custom component that adds an AI-powered chat panel to your sma
 
 ### Manual
 
-1. Copy `custom_components/homeclaw` to your `config/custom_components/` directory
+1. Copy `custom_components/homeclaw` to your `config/custom_components/`
 2. Restart Home Assistant
-3. Add the integration through the UI
+3. Add the integration from the UI
 
 ## Configuration
 
-After installation, add the integration and select your AI provider. You'll need an API key for cloud providers, or a local endpoint URL for Ollama/LM Studio.
+After you install, add the integration and pick your AI provider. Cloud providers need an API key. For Ollama or LM Studio, you just need the local URL.
 
-The settings panel (gear icon in the chat) lets you:
-- Switch between providers and models
-- Edit available models per provider
-- Set default provider/model preferences
-- Configure RAG (semantic search) on/off
-- Customize the agent identity
-
-## Architecture
-
-```
-custom_components/homeclaw/
-├── __init__.py              # HA setup entry point
-├── config_flow.py           # Configuration UI flow
-├── storage.py               # Session/message persistence
-├── prompts.py               # System prompts and identity
-├── core/                    # Orchestration layer
-│   ├── agent.py             # Main agent coordinator
-│   ├── query_processor.py   # Message building, streaming, tool loop
-│   ├── compaction.py        # Context window management
-│   └── token_estimator.py   # Token budget calculation
-├── providers/               # AI provider implementations
-├── tools/                   # Function calling tools
-├── managers/                # HA domain managers
-├── memory/                  # Long-term memory system
-├── rag/                     # Semantic search subsystem
-└── frontend/                # Svelte 5 + Vite + TypeScript
-```
+In the settings panel you can:
+- Switch providers and models
+- Edit model lists
+- Set defaults
+- Turn RAG on or off
+- Change the agent's name, personality, and language
 
 ## Development
 
@@ -90,19 +100,13 @@ custom_components/homeclaw/
 ### Backend
 
 ```bash
-# Install dependencies
 pip install -r requirements-dev.txt
-
-# Run tests
 pytest tests/ -v
-
-# Linting
-black --check custom_components/
-isort --check custom_components/
-flake8 custom_components/
 ```
 
 ### Frontend
+
+Built with Svelte 5, Vite, and TypeScript.
 
 ```bash
 cd custom_components/homeclaw/frontend/
@@ -114,4 +118,4 @@ npm run check    # TypeScript check
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
