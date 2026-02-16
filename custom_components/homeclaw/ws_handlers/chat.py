@@ -10,14 +10,13 @@ from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
-from homeassistant.exceptions import HomeAssistantError
 
+from ..channels.intake import MessageIntake
 from ..const import DOMAIN
 from ..file_processor import (
     FileProcessingError,
     process_attachments,
 )
-from ..models import get_context_window
 from ..storage import Message, SessionStorage
 from ._common import (
     ERR_SESSION_NOT_FOUND,
@@ -262,54 +261,44 @@ async def ws_send_message(
             status="pending",
         )
 
-        # Call AI agent
+        # Call AI agent via MessageIntake
         try:
-            if DOMAIN in hass.data and provider in hass.data[DOMAIN].get("agents", {}):
-                agent = hass.data[DOMAIN]["agents"][provider]
+            intake = MessageIntake(hass)
+            result = await intake.process_message(
+                msg["message"],
+                user_id=user_id,
+                session_id=session_id,
+                provider=provider,
+                model=msg.get("model"),
+                debug=msg.get("debug", False),
+                conversation_history=conversation_history,
+                attachments=processed_attachments or None,
+            )
 
-                # Build kwargs for non-streaming (including attachments)
-                query_kwargs: dict[str, Any] = {
-                    "provider": provider,
-                    "model": msg.get("model"),
-                    "debug": msg.get("debug", False),
-                    "conversation_history": conversation_history,
-                    "user_id": user_id,
-                    "session_id": session_id,
+            # Check if AI agent returned success or error
+            if result.get("success", False):
+                assistant_message.content = result.get("answer", "")
+                assistant_message.status = "completed"
+                assistant_message.metadata = {
+                    k: v
+                    for k, v in {
+                        "automation": result.get("automation"),
+                        "dashboard": result.get("dashboard"),
+                        "debug": result.get("debug"),
+                    }.items()
+                    if v is not None
                 }
-                if processed_attachments:
-                    query_kwargs["attachments"] = processed_attachments
-
-                result = await agent.process_query(
-                    msg["message"],
-                    **query_kwargs,
-                )
-
-                # Check if AI agent returned success or error
-                if result.get("success", False):
-                    assistant_message.content = result.get("answer", "")
-                    assistant_message.status = "completed"
-                    assistant_message.metadata = {
-                        k: v
-                        for k, v in {
-                            "automation": result.get("automation"),
-                            "dashboard": result.get("dashboard"),
-                            "debug": result.get("debug"),
-                        }.items()
-                        if v is not None
-                    }
-                else:
-                    # AI agent returned an error
-                    assistant_message.status = "error"
-                    assistant_message.error_message = result.get(
-                        "error", "Unknown AI error"
-                    )
-                    _LOGGER.error(
-                        "AI agent error for session %s: %s",
-                        session_id,
-                        assistant_message.error_message,
-                    )
             else:
-                raise HomeAssistantError(f"Provider {provider} not configured")
+                # AI agent returned an error
+                assistant_message.status = "error"
+                assistant_message.error_message = result.get(
+                    "error", "Unknown AI error"
+                )
+                _LOGGER.error(
+                    "AI agent error for session %s: %s",
+                    session_id,
+                    assistant_message.error_message,
+                )
 
         except Exception as ai_err:
             assistant_message.status = "error"
@@ -486,158 +475,56 @@ async def ws_send_message_stream(
         )
         _LOGGER.info("stream_start event sent")
 
-        # Stream AI response
+        # Stream AI response via MessageIntake
         accumulated_text = ""
         stream_error = None
 
         try:
-            if DOMAIN in hass.data and provider in hass.data[DOMAIN].get("agents", {}):
-                agent = hass.data[DOMAIN]["agents"][provider]
+            intake = MessageIntake(hass)
+            async for event in intake.process_message_stream(
+                msg["message"],
+                user_id=user_id,
+                session_id=session_id,
+                provider=provider,
+                model=msg.get("model"),
+                conversation_history=conversation_history,
+                attachments=processed_attachments or None,
+            ):
+                # Convert AgentEvent dataclasses to WS event messages
+                event_type = getattr(event, "type", None)
 
-                # Build kwargs for streaming
-                model_id = msg.get("model")
-                kwargs: dict[str, Any] = {
-                    "hass": hass,
-                    "conversation_history": conversation_history,
-                    "user_id": user_id,
-                    "session_id": session_id,
-                }
-                if msg.get("debug", False):
-                    kwargs["debug"] = True
-                if model_id:
-                    kwargs["model"] = model_id
-
-                # Pass processed attachments for multimodal content
-                if processed_attachments:
-                    kwargs["attachments"] = processed_attachments
-
-                # Add tools for native function calling
-                from ..agent_compat import HomeclawAgent
-
-                if isinstance(agent, HomeclawAgent):
-                    tools = agent._get_tools_for_provider()
-                    if tools:
-                        kwargs["tools"] = tools
-
-                    # Add RAG context if available (with memory recall for user)
-                    if agent._rag_manager:
-                        rag_context = await agent._get_rag_context(
-                            msg["message"], user_id=user_id
-                        )
-                        if rag_context:
-                            kwargs["rag_context"] = rag_context
-
-                    # Get system prompt with identity context
-                    system_prompt = await agent._get_system_prompt(user_id)
-                    if system_prompt:
-                        kwargs["system_prompt"] = system_prompt
-
-                    # Context window for compaction
-                    kwargs["context_window"] = get_context_window(provider, model_id)
-
-                    # Memory flush function for pre-compaction capture
-                    if agent._rag_manager and agent._rag_manager.is_initialized:
-                        mem_mgr = getattr(agent._rag_manager, "_memory_manager", None)
-                        if mem_mgr:
-                            kwargs["memory_flush_fn"] = mem_mgr.flush_from_messages
-
-                # Check if agent supports streaming
-                if hasattr(agent, "process_query_stream") or hasattr(
-                    agent._agent, "process_query_stream"
-                ):
-                    # Use streaming
-                    _LOGGER.info("Agent supports streaming, starting stream...")
-                    agent_stream = (
-                        agent._agent.process_query_stream
-                        if hasattr(agent, "_agent")
-                        else agent.process_query_stream
+                if event_type == "text":
+                    content = getattr(event, "content", "")
+                    accumulated_text += content
+                    connection.send_message(
+                        {
+                            "id": request_id,
+                            "type": "event",
+                            "event": {
+                                "type": "stream_chunk",
+                                "message_id": assistant_message_id,
+                                "chunk": content,
+                            },
+                        }
                     )
-
-                    _LOGGER.debug("Starting to consume stream chunks...")
-                    async for event in agent_stream(msg["message"], **kwargs):
-                        # Handle both dataclass events and legacy dict chunks
-                        chunk = (
-                            asdict(event)
-                            if hasattr(event, "__dataclass_fields__")
-                            else event
-                        )
-                        _LOGGER.debug(
-                            "Received chunk from agent: type=%s", chunk.get("type")
-                        )
-                        if chunk.get("type") == "text":
-                            # Text chunk
-                            content = chunk.get("content", "")
-                            accumulated_text += content
-                            _LOGGER.debug("Sending stream_chunk: %s", content[:50])
-                            connection.send_message(
-                                {
-                                    "id": request_id,
-                                    "type": "event",
-                                    "event": {
-                                        "type": "stream_chunk",
-                                        "message_id": assistant_message_id,
-                                        "chunk": content,
-                                    },
-                                }
-                            )
-                        elif chunk.get("type") == "status":
-                            # Status update (e.g., "Calling tool X...")
-                            connection.send_message(
-                                {
-                                    "id": request_id,
-                                    "type": "event",
-                                    "event": {
-                                        "type": "status",
-                                        "message": chunk.get("message", ""),
-                                    },
-                                }
-                            )
-                        elif chunk.get("type") == "tool_call":
-                            # Tool call notification (deprecated - tools executed internally now)
-                            _LOGGER.debug(
-                                "Ignoring tool_call chunk (handled internally)"
-                            )
-                        elif chunk.get("type") == "tool_result":
-                            # Tool result notification (deprecated - tools executed internally now)
-                            _LOGGER.debug(
-                                "Ignoring tool_result chunk (handled internally)"
-                            )
-                        elif chunk.get("type") == "error":
-                            # Error during streaming
-                            stream_error = chunk.get("message", "Unknown error")
-                            break
-                        elif chunk.get("type") == "complete":
-                            # Stream complete
-                            break
-                else:
-                    # Fallback to non-streaming
-                    _LOGGER.info("Agent doesn't support streaming, using non-streaming")
-                    result = await agent.process_query(
-                        msg["message"],
-                        provider=provider,
-                        model=msg.get("model"),
-                        debug=msg.get("debug", False),
-                        conversation_history=conversation_history,
+                elif event_type == "status":
+                    connection.send_message(
+                        {
+                            "id": request_id,
+                            "type": "event",
+                            "event": {
+                                "type": "status",
+                                "message": getattr(event, "message", ""),
+                            },
+                        }
                     )
-
-                    if result.get("success", False):
-                        accumulated_text = result.get("answer", "")
-                        # Send as single chunk
-                        connection.send_message(
-                            {
-                                "id": request_id,
-                                "type": "event",
-                                "event": {
-                                    "type": "stream_chunk",
-                                    "message_id": assistant_message_id,
-                                    "chunk": accumulated_text,
-                                },
-                            }
-                        )
-                    else:
-                        stream_error = result.get("error", "Unknown error")
-            else:
-                stream_error = f"Provider {provider} not configured"
+                elif event_type in ("tool_call", "tool_result"):
+                    _LOGGER.debug("Ignoring %s event (handled internally)", event_type)
+                elif event_type == "error":
+                    stream_error = getattr(event, "message", "Unknown error")
+                    break
+                elif event_type == "complete":
+                    break
 
         except Exception as ai_err:
             _LOGGER.error("AI streaming error for session %s: %s", session_id, ai_err)

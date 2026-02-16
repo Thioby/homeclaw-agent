@@ -672,7 +672,7 @@ class TestWsSendMessage:
         _, result = mock_connection.results[0]
         assert result["success"] is False
         assert result["assistant_message"]["status"] == "error"
-        assert "not configured" in result["assistant_message"]["error_message"]
+        assert "No AI agent configured" in result["assistant_message"]["error_message"]
 
     @pytest.mark.asyncio
     async def test_send_message_session_not_found(
