@@ -17,6 +17,7 @@ from .base import (
     ChannelTarget,
     MessageEnvelope,
 )
+from .discord import DiscordChannel
 from .intake import MessageIntake
 from .manager import ChannelManager
 
@@ -26,6 +27,7 @@ __all__ = [
     "ChannelRateLimiter",
     "ChannelRegistry",
     "ChannelTarget",
+    "DiscordChannel",
     "MessageEnvelope",
     "MessageIntake",
 ]

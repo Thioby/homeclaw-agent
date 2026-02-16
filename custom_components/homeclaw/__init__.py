@@ -595,6 +595,7 @@ async def _initialize_channels(hass: HomeAssistant, entry: ConfigEntry) -> None:
         return
 
     try:
+        from .channels.config import build_channel_runtime_config
         from .channels.intake import MessageIntake
         from .channels.manager import ChannelManager
 
@@ -602,7 +603,11 @@ async def _initialize_channels(hass: HomeAssistant, entry: ConfigEntry) -> None:
         manager = ChannelManager(hass, intake)
 
         # Channel config: base from entry.data, overridden by entry.options
-        channel_config = {**entry.data, **entry.options}
+        # and normalized with channel-specific defaults/fallbacks.
+        channel_config = await build_channel_runtime_config(
+            hass,
+            {**entry.data, **entry.options},
+        )
         await manager.async_setup(channel_config)
 
         hass.data[DOMAIN]["channel_manager"] = manager

@@ -258,12 +258,18 @@ class SessionStorage:
         sessions = [Session(**s) for s in data.get("sessions", [])]
         return sorted(sessions, key=lambda s: s.updated_at, reverse=True)
 
-    async def create_session(self, provider: str, title: str | None = None) -> Session:
+    async def create_session(
+        self,
+        provider: str,
+        title: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Session:
         """Create a new session.
 
         Args:
             provider: AI provider to use for this session
             title: Optional session title (defaults to "New Conversation")
+            metadata: Optional session metadata dictionary
 
         Returns:
             The newly created Session object
@@ -288,6 +294,7 @@ class SessionStorage:
             created_at=now,
             updated_at=now,
             provider=provider,
+            metadata=metadata or {},
         )
 
         data["sessions"].append(asdict(session))

@@ -49,6 +49,7 @@ Adding New Tools:
 # Import tools to trigger registration
 # Each tool module uses @ToolRegistry.register decorator
 from . import (
+    channel_status,
     context7,
     ha_native,
     identity,
@@ -88,6 +89,7 @@ __all__ = [
     "scheduler",
     "subagent",
     "integration_manager",
+    "channel_status",
 ]
 
 

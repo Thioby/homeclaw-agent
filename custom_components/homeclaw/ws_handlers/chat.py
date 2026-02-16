@@ -95,7 +95,8 @@ async def _rag_post_conversation(
         _LOGGER.debug("Explicit memory capture failed: %s", mem_err)
 
 
-def _build_conversation_history(
+async def _build_conversation_history(
+    hass: HomeAssistant,
     messages: list[Message],
     max_image_messages: int = 5,
 ) -> list[dict[str, Any]]:
@@ -143,8 +144,11 @@ def _build_conversation_history(
                 if not storage_path:
                     continue
                 try:
-                    with open(storage_path, "rb") as f:
-                        b64 = base64.b64encode(f.read()).decode("ascii")
+                    raw = await hass.async_add_executor_job(
+                        _read_binary_file,
+                        storage_path,
+                    )
+                    b64 = base64.b64encode(raw).decode("ascii")
                     images.append(
                         {
                             "mime_type": att.get("mime_type", "image/jpeg"),
@@ -164,6 +168,12 @@ def _build_conversation_history(
         history.append(msg_dict)
 
     return history
+
+
+def _read_binary_file(path: str) -> bytes:
+    """Read binary file content from disk (executor-only)."""
+    with open(path, "rb") as f:
+        return f.read()
 
 
 @websocket_api.websocket_command(
@@ -246,7 +256,9 @@ async def ws_send_message(
         # by _build_messages() in QueryProcessor to avoid duplication.
         # Reconstructs _images for historical user messages with image attachments.
         all_messages = await storage.get_session_messages(session_id)
-        conversation_history = _build_conversation_history(all_messages[:-1])
+        conversation_history = await _build_conversation_history(
+            hass, all_messages[:-1]
+        )
 
         # Determine provider
         provider = msg.get("provider") or session.provider or "anthropic"
@@ -445,7 +457,9 @@ async def ws_send_message_stream(
         # by _build_messages() in QueryProcessor to avoid duplication.
         # Reconstructs _images for historical user messages with image attachments.
         all_messages = await storage.get_session_messages(session_id)
-        conversation_history = _build_conversation_history(all_messages[:-1])
+        conversation_history = await _build_conversation_history(
+            hass, all_messages[:-1]
+        )
 
         # Determine provider
         provider = msg.get("provider") or session.provider or "anthropic"

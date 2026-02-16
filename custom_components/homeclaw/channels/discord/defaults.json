@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "bot_token": "",
+  "auto_respond_channels": [],
+  "allowed_ids": [],
+  "max_concurrent": 3,
+  "rate_limit": 10,
+  "rate_limit_hour": 60,
+  "group_policy": "allowlist",
+  "require_mention": true,
+  "dm_policy": "pairing",
+  "dm_group_enabled": false,
+  "history_limit": 20
+}
