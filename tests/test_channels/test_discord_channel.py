@@ -14,10 +14,13 @@ from custom_components.homeclaw.channels.base import ChannelTarget
 from custom_components.homeclaw.channels.discord import DiscordChannel
 from custom_components.homeclaw.channels.discord.helpers import (
     chunk_text,
+    get_last_target,
     is_dm_allowed,
     is_group_allowed,
     normalize_id_list,
+    set_last_target,
 )
+from custom_components.homeclaw.channels.discord.pairing import get_request_by_code
 from custom_components.homeclaw.core.events import (
     CompletionEvent,
     ErrorEvent,
@@ -186,6 +189,59 @@ class TestDiscordChannel:
         assert answer == "Sorry, I encountered an error."
 
     @pytest.mark.asyncio
+    async def test_pairing_message_creates_request(self, hass, intake):
+        ch = _make_channel(hass, intake, config={"dm_policy": "pairing"})
+        ch._bot_id = "bot"
+        ch.send_response = AsyncMock()
+        message = {
+            "id": "m1",
+            "content": "hello",
+            "channel_id": "dm1",
+            "guild_id": None,
+            "author": {"id": "u1", "username": "Jan", "bot": False},
+        }
+
+        handled = await ch._handle_pairing_message(message)
+
+        assert handled is True
+        ch.send_response.assert_awaited_once()
+        payload = ch.send_response.await_args_list[-1].args[1]
+        assert "confirm discord pairing code" in payload
+        code = payload.rsplit(" ", 1)[-1]
+        assert get_request_by_code(hass, code) is not None
+
+    @pytest.mark.asyncio
+    async def test_pairing_message_acks_existing_code(self, hass, intake):
+        ch = _make_channel(hass, intake, config={"dm_policy": "pairing"})
+        ch._bot_id = "bot"
+        ch.send_response = AsyncMock()
+        first = {
+            "id": "m1",
+            "content": "hello",
+            "channel_id": "dm1",
+            "guild_id": None,
+            "author": {"id": "u1", "username": "Jan", "bot": False},
+        }
+        await ch._handle_pairing_message(first)
+        first_text = ch.send_response.await_args_list[-1].args[1]
+        code = first_text.rsplit(" ", 1)[-1]
+        ch.send_response.reset_mock()
+
+        second = {
+            "id": "m2",
+            "content": f"pair {code}",
+            "channel_id": "dm1",
+            "guild_id": None,
+            "author": {"id": "u1", "username": "Jan", "bot": False},
+        }
+
+        handled = await ch._handle_pairing_message(second)
+
+        assert handled is True
+        ch.send_response.assert_awaited_once()
+        assert "Pairing code received" in ch.send_response.await_args_list[-1].args[1]
+
+    @pytest.mark.asyncio
     async def test_get_or_create_session_reuses_existing(
         self, hass, intake, monkeypatch
     ):
@@ -269,3 +325,15 @@ class TestDiscordHelpers:
         cfg = {"dm_policy": "pairing", "allowed_ids": ["u1"]}
         assert is_dm_allowed(cfg, "u1", "dm1") is True
         assert is_dm_allowed(cfg, "u2", "dm1") is False
+
+    def test_last_target_cache(self, hass):
+        set_last_target(
+            hass,
+            ha_user_id="discord_u1",
+            target_id="chan1",
+            sender_id="u1",
+            is_group=False,
+        )
+        target = get_last_target(hass, "discord_u1")
+        assert target is not None
+        assert target["target_id"] == "chan1"

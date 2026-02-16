@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from ...storage import SessionStorage
 
 _STORAGE_CACHE_PREFIX = f"{DOMAIN}_storage_"
+_LAST_TARGETS_KEY = f"{DOMAIN}_discord_last_targets"
 
 
 def chunk_text(text: str, max_len: int) -> list[str]:
@@ -77,3 +78,29 @@ def get_storage(hass: HomeAssistant, user_id: str) -> SessionStorage:
 
         hass.data[cache_key] = SessionStorage(hass, user_id)
     return hass.data[cache_key]
+
+
+def set_last_target(
+    hass: HomeAssistant,
+    *,
+    ha_user_id: str,
+    target_id: str,
+    sender_id: str,
+    is_group: bool,
+) -> None:
+    """Cache the most recent Discord target for a Homeclaw user."""
+    cache = hass.data.setdefault(_LAST_TARGETS_KEY, {})
+    cache[ha_user_id] = {
+        "target_id": target_id,
+        "sender_id": sender_id,
+        "is_group": is_group,
+    }
+
+
+def get_last_target(hass: HomeAssistant, ha_user_id: str) -> dict[str, Any] | None:
+    """Get cached most recent Discord target for a Homeclaw user."""
+    cache = hass.data.get(_LAST_TARGETS_KEY, {})
+    value = cache.get(ha_user_id)
+    if isinstance(value, dict):
+        return value
+    return None

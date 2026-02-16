@@ -16,11 +16,13 @@ from ..base import Channel, ChannelRegistry, ChannelTarget, MessageEnvelope
 from .gateway import DiscordGateway
 from .helpers import (
     chunk_text,
+    set_last_target,
     get_storage,
     is_dm_allowed,
     is_group_allowed,
     normalize_id_list,
 )
+from .pairing import create_pairing_request, extract_pairing_code, get_request_by_code
 from .rest import DiscordRestClient
 
 if TYPE_CHECKING:
@@ -120,10 +122,69 @@ class DiscordChannel(Channel):
 
     async def _handle_gateway_message(self, message: dict[str, Any]) -> None:
         """Handle MESSAGE_CREATE from gateway and dispatch processing task."""
+        _LOGGER.debug(
+            "Discord MESSAGE_CREATE id=%s channel=%s guild=%s",
+            message.get("id"),
+            message.get("channel_id"),
+            message.get("guild_id"),
+        )
+        if await self._handle_pairing_message(message):
+            return
         envelope = self._build_envelope(message)
         if envelope is None:
             return
+        set_last_target(
+            self._hass,
+            ha_user_id=envelope.ha_user_id,
+            target_id=envelope.target.target_id,
+            sender_id=envelope.sender_id,
+            is_group=envelope.is_group,
+        )
         self._hass.async_create_task(self._process_with_limit(envelope))
+
+    async def _handle_pairing_message(self, message: dict[str, Any]) -> bool:
+        """Handle DM pairing flow for users blocked by pairing policy."""
+        if message.get("guild_id") is not None:
+            return False
+
+        if str(self._config.get("dm_policy", "")).lower() != "pairing":
+            return False
+
+        author = message.get("author", {})
+        sender_id = str(author.get("id", ""))
+        if not sender_id or sender_id == self._bot_id or author.get("bot", False):
+            return True
+
+        channel_id = str(message.get("channel_id", ""))
+        if not channel_id:
+            return True
+
+        if is_dm_allowed(self._config, sender_id, channel_id):
+            return False
+
+        content = str(message.get("content", "")).strip()
+        code = extract_pairing_code(content)
+        if code and get_request_by_code(self._hass, code):
+            await self.send_response(
+                ChannelTarget(channel_id="discord", target_id=channel_id),
+                "Pairing code received. Now open Homeclaw panel and ask: confirm discord pairing code "
+                f"{code}",
+            )
+            _LOGGER.debug("Discord pairing code received sender=%s", sender_id)
+            return True
+
+        request = create_pairing_request(
+            self._hass,
+            sender_id=sender_id,
+            target_id=channel_id,
+        )
+        await self.send_response(
+            ChannelTarget(channel_id="discord", target_id=channel_id),
+            "Discord pairing is required. In Homeclaw panel, ask: confirm discord pairing code "
+            f"{request['code']}",
+        )
+        _LOGGER.info("Discord pairing request created sender=%s", sender_id)
+        return True
 
     async def _process_with_limit(self, envelope: MessageEnvelope) -> None:
         """Process one message under channel concurrency limit."""
@@ -135,25 +196,40 @@ class DiscordChannel(Channel):
         author = message.get("author", {})
         sender_id = str(author.get("id", ""))
         if not sender_id or sender_id == self._bot_id or author.get("bot", False):
+            _LOGGER.debug("Discord drop: bot/self message")
             return None
 
         guild_id = message.get("guild_id")
         channel_id = str(message.get("channel_id", ""))
         if not channel_id:
+            _LOGGER.debug("Discord drop: missing channel_id")
             return None
         if guild_id is not None:
             if not is_group_allowed(self._config, sender_id, channel_id):
+                _LOGGER.debug(
+                    "Discord drop: group policy blocked sender=%s channel=%s",
+                    sender_id,
+                    channel_id,
+                )
                 return None
         elif not is_dm_allowed(self._config, sender_id, channel_id):
+            _LOGGER.debug(
+                "Discord drop: dm policy blocked sender=%s channel=%s",
+                sender_id,
+                channel_id,
+            )
             return None
 
         if not self._rate_limiter.allow(sender_id):
+            _LOGGER.debug("Discord drop: rate limited sender=%s", sender_id)
             return None
         if not self._should_respond(message):
+            _LOGGER.debug("Discord drop: should_respond=false")
             return None
 
         text = self._strip_mention(message.get("content", ""))
         if not text.strip():
+            _LOGGER.debug("Discord drop: empty content after mention strip")
             return None
 
         thread = message.get("thread") or {}
@@ -206,13 +282,38 @@ class DiscordChannel(Channel):
             return
 
         storage = get_storage(self._hass, envelope.ha_user_id)
-        await self.send_typing_indicator(envelope.target)
+        stop_typing = asyncio.Event()
+        typing_task = self._hass.async_create_task(
+            self._typing_loop(envelope.target, stop_typing)
+        )
         await self._save_message(storage, session_id, "user", envelope.text)
 
-        history = await self._load_history(storage, session_id)
-        answer = await self._run_stream(envelope, session_id, history)
-        await self.send_response(envelope.target, answer)
-        await self._save_message(storage, session_id, "assistant", answer)
+        try:
+            history = await self._load_history(storage, session_id)
+            answer = await self._run_stream(envelope, session_id, history)
+            await self.send_response(envelope.target, answer)
+            _LOGGER.debug(
+                "Discord sent reply session=%s target=%s len=%s",
+                session_id,
+                envelope.target.target_id,
+                len(answer),
+            )
+            await self._save_message(storage, session_id, "assistant", answer)
+        finally:
+            stop_typing.set()
+            if not typing_task.done():
+                await typing_task
+
+    async def _typing_loop(
+        self, target: ChannelTarget, stop_event: asyncio.Event
+    ) -> None:
+        """Send periodic typing indicator while reply is being generated."""
+        while not stop_event.is_set():
+            await self.send_typing_indicator(target)
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=7)
+            except asyncio.TimeoutError:
+                continue
 
     async def _run_stream(
         self,
