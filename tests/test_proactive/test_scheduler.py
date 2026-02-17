@@ -707,3 +707,110 @@ class TestSchedulerLifecycle:
 
         await svc.async_stop()
         mock_store.async_save.assert_called()
+
+
+# --- Concurrent init guard (race-condition regression test) ---
+
+
+class TestProactiveInitLock:
+    """Verify _initialize_proactive runs exactly once under concurrent calls.
+
+    Root cause of the triple-execution bug: ``async_setup_entry`` is called
+    once per config entry.  The old boolean guard ``_proactive_initialized``
+    was checked BEFORE any ``await``, but set only AFTER multiple awaits
+    (``async_initialize`` + ``async_start``).  In asyncio, the ``await``
+    yields control, so all N config-entry coroutines could pass the guard
+    before the first one finished.  The fix wraps the whole block in an
+    ``asyncio.Lock``.
+    """
+
+    @pytest.mark.asyncio
+    async def test_concurrent_calls_initialize_once(self, mock_hass):
+        """Three concurrent _initialize_proactive calls must create only 1 SchedulerService."""
+        import asyncio
+
+        from custom_components.homeclaw.__init__ import _initialize_proactive
+
+        mock_hass.data = {DOMAIN: {"agents": {}}}
+        scheduler_init_count = 0
+
+        class _FakeScheduler:
+            """Tracks how many instances are created."""
+
+            def __init__(self, hass):
+                nonlocal scheduler_init_count
+                scheduler_init_count += 1
+
+            async def async_initialize(self):
+                # Yield control to simulate real I/O (storage read)
+                await asyncio.sleep(0)
+
+            async def async_start(self):
+                await asyncio.sleep(0)
+
+            async def async_stop(self):
+                await asyncio.sleep(0)
+
+            def get_status(self):
+                return {"total_jobs": 0}
+
+        class _FakeHeartbeat:
+            def __init__(self, hass):
+                pass
+
+            async def async_initialize(self):
+                await asyncio.sleep(0)
+
+            async def async_start(self):
+                await asyncio.sleep(0)
+
+            async def async_stop(self):
+                await asyncio.sleep(0)
+
+            def get_config(self):
+                return {"enabled": False}
+
+        class _FakeSubagent:
+            def __init__(self, hass):
+                pass
+
+        with (
+            patch(
+                "custom_components.homeclaw.proactive.SchedulerService",
+                _FakeScheduler,
+            ),
+            patch(
+                "custom_components.homeclaw.proactive.HeartbeatService",
+                _FakeHeartbeat,
+            ),
+            patch(
+                "custom_components.homeclaw.core.subagent.SubagentManager",
+                _FakeSubagent,
+            ),
+        ):
+            # Simulate 3 config entries calling _initialize_proactive concurrently
+            results = await asyncio.gather(
+                _initialize_proactive(mock_hass),
+                _initialize_proactive(mock_hass),
+                _initialize_proactive(mock_hass),
+            )
+
+        # Exactly 1 scheduler should have been created
+        assert scheduler_init_count == 1, (
+            f"Expected 1 SchedulerService instance, got {scheduler_init_count}. "
+            "Race condition in _initialize_proactive!"
+        )
+        assert mock_hass.data[DOMAIN]["_proactive_initialized"] is True
+
+    @pytest.mark.asyncio
+    async def test_second_call_after_init_skips(self, mock_hass):
+        """A single call after init should skip immediately."""
+        from custom_components.homeclaw.__init__ import _initialize_proactive
+
+        mock_hass.data = {DOMAIN: {"agents": {}, "_proactive_initialized": True}}
+
+        # Should return immediately without error
+        await _initialize_proactive(mock_hass)
+
+        # No scheduler/heartbeat should have been created
+        assert "scheduler" not in mock_hass.data[DOMAIN]

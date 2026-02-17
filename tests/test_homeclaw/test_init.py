@@ -287,27 +287,33 @@ class TestAsyncSetupEntry:
 
     @pytest.mark.asyncio
     async def test_setup_entry_with_rag_enabled(self, mock_hass, mock_entry):
-        """Test setup with RAG enabled."""
+        """Test setup with RAG enabled delegates to lifecycle."""
         mock_entry.data[CONF_RAG_ENABLED] = True
 
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
-            with patch("custom_components.homeclaw._initialize_rag", new_callable=AsyncMock) as mock_rag:
+            with patch(
+                "custom_components.homeclaw.lifecycle.SubsystemLifecycle.async_setup_entry",
+                new_callable=AsyncMock,
+            ) as mock_lifecycle:
                 result = await async_setup_entry(mock_hass, mock_entry)
 
                 assert result is True
-                mock_rag.assert_called_once()
+                mock_lifecycle.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_setup_entry_with_rag_disabled(self, mock_hass, mock_entry):
-        """Test setup with RAG disabled."""
+        """Test setup with RAG disabled still delegates to lifecycle."""
         mock_entry.data[CONF_RAG_ENABLED] = False
 
         with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
-            with patch("custom_components.homeclaw._initialize_rag", new_callable=AsyncMock) as mock_rag:
+            with patch(
+                "custom_components.homeclaw.lifecycle.SubsystemLifecycle.async_setup_entry",
+                new_callable=AsyncMock,
+            ) as mock_lifecycle:
                 result = await async_setup_entry(mock_hass, mock_entry)
 
                 assert result is True
-                mock_rag.assert_not_called()
+                mock_lifecycle.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_setup_entry_incompatible_version(self, mock_hass):
@@ -326,8 +332,11 @@ class TestAsyncSetupEntry:
 
                 assert result is True
                 # Should log warning about version
-                warning_calls = [c for c in mock_logger.warning.call_args_list
-                               if "version" in str(c).lower()]
+                warning_calls = [
+                    c
+                    for c in mock_logger.warning.call_args_list
+                    if "version" in str(c).lower()
+                ]
                 assert len(warning_calls) > 0
 
     @pytest.mark.asyncio
@@ -348,21 +357,31 @@ class TestAsyncSetupEntry:
             assert DOMAIN in mock_hass.data
             assert "agents" in mock_hass.data[DOMAIN]
             assert "configs" in mock_hass.data[DOMAIN]
-            assert "_ws_registered" in mock_hass.data[DOMAIN]
+            assert "_lifecycle" in mock_hass.data[DOMAIN]
 
 
 class TestAsyncUnloadEntry:
     """Tests for async_unload_entry function."""
 
     @pytest.fixture
-    def mock_hass_with_agent(self):
+    def mock_lifecycle(self):
+        """Create a mock lifecycle with empty entry_ids (last entry)."""
+        from custom_components.homeclaw.lifecycle import SubsystemLifecycle
+
+        lifecycle = MagicMock(spec=SubsystemLifecycle)
+        lifecycle.async_unload_entry = AsyncMock()
+        lifecycle._entry_ids = set()  # No entries left after unload
+        return lifecycle
+
+    @pytest.fixture
+    def mock_hass_with_agent(self, mock_lifecycle):
         """Create a mock HomeAssistant with agent registered."""
         hass = MagicMock(spec=HomeAssistant)
         hass.data = {
             DOMAIN: {
                 "agents": {"openai": MagicMock()},
                 "configs": {"openai": {"ai_provider": "openai"}},
-                "_ws_registered": True,
+                "_lifecycle": mock_lifecycle,
             }
         }
         hass.services = MagicMock()
@@ -376,12 +395,10 @@ class TestAsyncUnloadEntry:
         mock_entry = MagicMock(spec=ConfigEntry)
         mock_entry.data = {"ai_provider": "openai"}
 
-        with patch("custom_components.homeclaw._shutdown_rag", new_callable=AsyncMock):
-            with patch("custom_components.homeclaw._panel_exists", new_callable=AsyncMock, return_value=False):
-                result = await async_unload_entry(mock_hass_with_agent, mock_entry)
+        result = await async_unload_entry(mock_hass_with_agent, mock_entry)
 
         assert result is True
-        # DOMAIN should be removed entirely
+        # DOMAIN should be removed entirely (last entry)
         assert DOMAIN not in mock_hass_with_agent.data
 
     @pytest.mark.asyncio
@@ -390,9 +407,7 @@ class TestAsyncUnloadEntry:
         mock_entry = MagicMock(spec=ConfigEntry)
         mock_entry.data = {"ai_provider": "openai"}
 
-        with patch("custom_components.homeclaw._shutdown_rag", new_callable=AsyncMock):
-            with patch("custom_components.homeclaw._panel_exists", new_callable=AsyncMock, return_value=False):
-                await async_unload_entry(mock_hass_with_agent, mock_entry)
+        await async_unload_entry(mock_hass_with_agent, mock_entry)
 
         # DOMAIN should be removed entirely
         assert DOMAIN not in mock_hass_with_agent.data
@@ -403,53 +418,43 @@ class TestAsyncUnloadEntry:
         mock_entry = MagicMock(spec=ConfigEntry)
         mock_entry.data = {"ai_provider": "nonexistent"}
 
-        with patch("custom_components.homeclaw._shutdown_rag", new_callable=AsyncMock):
-            with patch("custom_components.homeclaw._panel_exists", new_callable=AsyncMock, return_value=False):
-                # Should not raise error
-                result = await async_unload_entry(mock_hass_with_agent, mock_entry)
+        # Should not raise error
+        result = await async_unload_entry(mock_hass_with_agent, mock_entry)
 
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_unload_entry_removes_services(self, mock_hass_with_agent):
-        """Test unload removes all services."""
+    async def test_unload_entry_delegates_to_lifecycle(
+        self, mock_hass_with_agent, mock_lifecycle
+    ):
+        """Test unload delegates subsystem teardown to lifecycle."""
         mock_entry = MagicMock(spec=ConfigEntry)
         mock_entry.data = {"ai_provider": "openai"}
 
-        with patch("custom_components.homeclaw._shutdown_rag", new_callable=AsyncMock):
-            with patch("custom_components.homeclaw._panel_exists", new_callable=AsyncMock, return_value=False):
-                result = await async_unload_entry(mock_hass_with_agent, mock_entry)
+        result = await async_unload_entry(mock_hass_with_agent, mock_entry)
 
-                assert result is True
-                # Verify all services were removed
-                service_calls = mock_hass_with_agent.services.async_remove.call_args_list
-                removed_services = [call[0][1] for call in service_calls]
-
-                expected_services = [
-                    "query",
-                    "create_automation",
-                    "save_prompt_history",
-                    "load_prompt_history",
-                    "create_dashboard",
-                    "update_dashboard",
-                    "rag_reindex"
-                ]
-
-                for service in expected_services:
-                    assert service in removed_services
+        assert result is True
+        mock_lifecycle.async_unload_entry.assert_called_once_with(
+            mock_hass_with_agent, mock_entry
+        )
 
     @pytest.mark.asyncio
     async def test_unload_entry_cleans_storage_cache(self):
-        """Test unload cleans up storage cache instances."""
+        """Test unload cleans up domain data when last entry leaves."""
+        from custom_components.homeclaw.lifecycle import SubsystemLifecycle
+
+        lifecycle = MagicMock(spec=SubsystemLifecycle)
+        lifecycle.async_unload_entry = AsyncMock()
+        lifecycle._entry_ids = set()  # No entries left
+
         mock_hass = MagicMock(spec=HomeAssistant)
         mock_hass.data = {
             DOMAIN: {
                 "agents": {"openai": MagicMock()},
                 "configs": {},
+                "_lifecycle": lifecycle,
             },
-            f"{DOMAIN}_storage_cache_1": {},
-            f"{DOMAIN}_storage_cache_2": {},
-            "other_key": {}
+            "other_key": {},
         }
         mock_hass.services = MagicMock()
         mock_hass.services.async_remove = MagicMock()
@@ -458,18 +463,13 @@ class TestAsyncUnloadEntry:
         mock_entry = MagicMock(spec=ConfigEntry)
         mock_entry.data = {"ai_provider": "openai"}
 
-        with patch("custom_components.homeclaw._shutdown_rag", new_callable=AsyncMock):
-            with patch("custom_components.homeclaw._panel_exists", new_callable=AsyncMock, return_value=False):
-                result = await async_unload_entry(mock_hass, mock_entry)
+        result = await async_unload_entry(mock_hass, mock_entry)
 
-                assert result is True
-                # Verify storage cache keys were removed
-                assert f"{DOMAIN}_storage_cache_1" not in mock_hass.data
-                assert f"{DOMAIN}_storage_cache_2" not in mock_hass.data
-                # Verify other keys remain
-                assert "other_key" in mock_hass.data
-                # Verify domain was removed
-                assert DOMAIN not in mock_hass.data
+        assert result is True
+        # Verify other keys remain
+        assert "other_key" in mock_hass.data
+        # Verify domain was removed (last entry)
+        assert DOMAIN not in mock_hass.data
 
 
 class TestServiceHandlers:
@@ -479,7 +479,9 @@ class TestServiceHandlers:
     def mock_hass_with_agent(self):
         """Create a mock HomeAssistant with agent."""
         mock_agent = MagicMock()
-        mock_agent.process_query = AsyncMock(return_value={"success": True, "answer": "Test response"})
+        mock_agent.process_query = AsyncMock(
+            return_value={"success": True, "answer": "Test response"}
+        )
         mock_agent.create_automation = AsyncMock(return_value={"success": True})
         mock_agent.create_dashboard = AsyncMock(return_value={"success": True})
         mock_agent.save_user_prompt_history = AsyncMock(return_value={"success": True})
@@ -638,10 +640,7 @@ class TestServiceHandlers:
             assert handler is not None
 
             service_call = MagicMock(spec=ServiceCall)
-            service_call.data = {
-                "automation": {"alias": "Test"},
-                "provider": "openai"
-            }
+            service_call.data = {"automation": {"alias": "Test"}, "provider": "openai"}
             service_call.context = MagicMock()
 
             await handler(service_call)
@@ -672,7 +671,7 @@ class TestServiceHandlers:
             service_call = MagicMock(spec=ServiceCall)
             service_call.data = {
                 "dashboard_config": {"title": "Test"},
-                "provider": "openai"
+                "provider": "openai",
             }
             service_call.context = MagicMock()
 
@@ -702,7 +701,7 @@ class TestServiceHandlers:
             service_call = MagicMock(spec=ServiceCall)
             service_call.data = {
                 "dashboard_config": '{"title": "Test"}',  # JSON string
-                "provider": "openai"
+                "provider": "openai",
             }
             service_call.context = MagicMock()
 
@@ -737,7 +736,7 @@ class TestServiceHandlers:
             service_call = MagicMock(spec=ServiceCall)
             service_call.data = {
                 "history": [{"role": "user", "content": "Test"}],
-                "provider": "openai"
+                "provider": "openai",
             }
             service_call.context = MagicMock()
             service_call.context.user_id = "test_user"
@@ -833,15 +832,14 @@ class TestServiceHandlers:
             service_call.data = {
                 "dashboard_url": "lovelace-test",
                 "dashboard_config": {"title": "Updated"},
-                "provider": "openai"
+                "provider": "openai",
             }
             service_call.context = MagicMock()
 
             result = await handler(service_call)
 
             mock_agent.update_dashboard.assert_called_once_with(
-                "lovelace-test",
-                {"title": "Updated"}
+                "lovelace-test", {"title": "Updated"}
             )
             assert result["success"] is True
 
@@ -869,7 +867,7 @@ class TestServiceHandlers:
             service_call.data = {
                 "dashboard_url": "lovelace-test",
                 "dashboard_config": '{"title": "Updated"}',
-                "provider": "openai"
+                "provider": "openai",
             }
             service_call.context = MagicMock()
 
@@ -903,7 +901,7 @@ class TestServiceHandlers:
             service_call = MagicMock(spec=ServiceCall)
             service_call.data = {
                 "dashboard_config": {"title": "Test"},
-                "provider": "openai"
+                "provider": "openai",
             }
             service_call.context = MagicMock()
 
@@ -937,8 +935,8 @@ class TestServiceHandlers:
             service_call = MagicMock(spec=ServiceCall)
             service_call.data = {
                 "dashboard_url": "test",
-                "dashboard_config": '{invalid json}',
-                "provider": "openai"
+                "dashboard_config": "{invalid json}",
+                "provider": "openai",
             }
             service_call.context = MagicMock()
 
@@ -983,7 +981,7 @@ class TestServiceHandlers:
             service_call = MagicMock(spec=ServiceCall)
             service_call.data = {
                 "dashboard_url": "test",
-                "dashboard_config": {"title": "Test"}
+                "dashboard_config": {"title": "Test"},
             }
             service_call.context = MagicMock()
 
@@ -1017,7 +1015,7 @@ class TestServiceHandlers:
             service_call.data = {
                 "dashboard_url": "test",
                 "dashboard_config": {"title": "Test"},
-                "provider": "openai"
+                "provider": "openai",
             }
             service_call.context = MagicMock()
 
@@ -1040,7 +1038,7 @@ class TestServiceHandlers:
                 "agents": {"openai": MagicMock()},
                 "configs": {},
                 "_ws_registered": True,
-                "rag_manager": mock_rag_manager
+                "rag_manager": mock_rag_manager,
             }
         }
         hass.services = MagicMock()
@@ -1130,14 +1128,16 @@ class TestServiceHandlers:
         """Test rag_reindex handles exceptions."""
         hass = MagicMock(spec=HomeAssistant)
         mock_rag_manager = MagicMock()
-        mock_rag_manager.full_reindex = AsyncMock(side_effect=Exception("Reindex failed"))
+        mock_rag_manager.full_reindex = AsyncMock(
+            side_effect=Exception("Reindex failed")
+        )
 
         hass.data = {
             DOMAIN: {
                 "agents": {"openai": MagicMock()},
                 "configs": {},
                 "_ws_registered": True,
-                "rag_manager": mock_rag_manager
+                "rag_manager": mock_rag_manager,
             }
         }
         hass.services = MagicMock()
@@ -1201,7 +1201,7 @@ class TestServiceHandlers:
                 "load_prompt_history",
                 "create_dashboard",
                 "update_dashboard",
-                "rag_reindex"
+                "rag_reindex",
             }
 
             assert registered_services == expected_services
@@ -1227,8 +1227,8 @@ class TestServiceHandlers:
 
             service_call = MagicMock(spec=ServiceCall)
             service_call.data = {
-                "dashboard_config": '{invalid json}',
-                "provider": "openai"
+                "dashboard_config": "{invalid json}",
+                "provider": "openai",
             }
             service_call.context = MagicMock()
 
@@ -1408,46 +1408,37 @@ class TestServiceHandlers:
 
 
 class TestRAGHelpers:
-    """Tests for RAG helper functions."""
+    """Tests for RAG helper functions (backward-compat wrappers delegating to lifecycle)."""
 
     @pytest.mark.asyncio
-    async def test_initialize_rag_success(self):
-        """Test successful RAG initialization."""
+    async def test_initialize_rag_delegates_to_lifecycle(self):
+        """Test _initialize_rag delegates to lifecycle._start_rag."""
         from custom_components.homeclaw import _initialize_rag
+        from custom_components.homeclaw.lifecycle import SubsystemLifecycle
+
+        mock_lifecycle = MagicMock(spec=SubsystemLifecycle)
+        mock_lifecycle._start_rag = AsyncMock()
 
         mock_hass = MagicMock(spec=HomeAssistant)
         mock_hass.data = {
             DOMAIN: {
-                "agents": {
-                    "openai": MagicMock(set_rag_manager=MagicMock())
-                }
+                "agents": {"openai": MagicMock()},
+                "_lifecycle": mock_lifecycle,
             }
         }
 
         mock_entry = MagicMock(spec=ConfigEntry)
         config_data = {"test": "config"}
 
-        mock_rag_manager = MagicMock()
-        mock_rag_manager.async_initialize = AsyncMock()
-        mock_rag_manager.get_stats = AsyncMock(return_value={"indexed_entities": 42})
+        await _initialize_rag(mock_hass, config_data, mock_entry)
 
-        # Patch the RAGManager import inside the function
-        with patch("custom_components.homeclaw.rag.RAGManager", return_value=mock_rag_manager):
-            await _initialize_rag(mock_hass, config_data, mock_entry)
-
-            # Verify RAG manager was initialized
-            mock_rag_manager.async_initialize.assert_called_once()
-            mock_rag_manager.get_stats.assert_called_once()
-
-            # Verify RAG manager was stored
-            assert mock_hass.data[DOMAIN]["rag_manager"] == mock_rag_manager
-
-            # Verify agents were connected
-            mock_hass.data[DOMAIN]["agents"]["openai"].set_rag_manager.assert_called_once_with(mock_rag_manager)
+        mock_lifecycle._start_rag.assert_called_once_with(
+            mock_hass, config_data, mock_entry
+        )
 
     @pytest.mark.asyncio
-    async def test_initialize_rag_import_error(self):
-        """Test RAG initialization with ImportError."""
+    async def test_initialize_rag_no_lifecycle(self):
+        """Test _initialize_rag is a no-op when no lifecycle exists."""
         from custom_components.homeclaw import _initialize_rag
 
         mock_hass = MagicMock(spec=HomeAssistant)
@@ -1455,63 +1446,40 @@ class TestRAGHelpers:
         mock_entry = MagicMock(spec=ConfigEntry)
         config_data = {}
 
-        # Mock the import to raise ImportError
-        import sys
-        with patch.dict(sys.modules, {"custom_components.homeclaw.rag": None}):
-            with patch("custom_components.homeclaw._LOGGER") as mock_logger:
-                # Should not raise, just log warning
-                await _initialize_rag(mock_hass, config_data, mock_entry)
-
-                # Verify warning was logged
-                mock_logger.warning.assert_called()
-                call_args = str(mock_logger.warning.call_args)
-                assert "unavailable" in call_args.lower() or "missing dependencies" in call_args.lower()
+        # Should not raise
+        await _initialize_rag(mock_hass, config_data, mock_entry)
 
     @pytest.mark.asyncio
-    async def test_initialize_rag_general_exception(self):
-        """Test RAG initialization with general exception."""
+    async def test_initialize_rag_no_domain(self):
+        """Test _initialize_rag is a no-op when DOMAIN not in hass.data."""
         from custom_components.homeclaw import _initialize_rag
 
         mock_hass = MagicMock(spec=HomeAssistant)
-        mock_hass.data = {DOMAIN: {"agents": {}}}
+        mock_hass.data = {}
         mock_entry = MagicMock(spec=ConfigEntry)
-        config_data = {}
 
-        mock_rag_manager = MagicMock()
-        mock_rag_manager.async_initialize = AsyncMock(side_effect=Exception("Init failed"))
-
-        with patch("custom_components.homeclaw.rag.RAGManager", return_value=mock_rag_manager):
-            with patch("custom_components.homeclaw._LOGGER") as mock_logger:
-                # Should not raise, just log warning
-                await _initialize_rag(mock_hass, config_data, mock_entry)
-
-                # Verify warning was logged
-                mock_logger.warning.assert_called()
-                call_args = str(mock_logger.warning.call_args)
-                assert "failed" in call_args.lower()
+        # Should not raise
+        await _initialize_rag(mock_hass, {}, mock_entry)
 
     @pytest.mark.asyncio
-    async def test_shutdown_rag_success(self):
-        """Test successful RAG shutdown."""
+    async def test_shutdown_rag_delegates_to_lifecycle(self):
+        """Test _shutdown_rag delegates to lifecycle._stop_rag."""
         from custom_components.homeclaw import _shutdown_rag
+        from custom_components.homeclaw.lifecycle import SubsystemLifecycle
 
-        mock_rag_manager = MagicMock()
-        mock_rag_manager.async_shutdown = AsyncMock()
+        mock_lifecycle = MagicMock(spec=SubsystemLifecycle)
+        mock_lifecycle._stop_rag = AsyncMock()
 
         mock_hass = MagicMock(spec=HomeAssistant)
         mock_hass.data = {
             DOMAIN: {
-                "rag_manager": mock_rag_manager
+                "_lifecycle": mock_lifecycle,
             }
         }
 
         await _shutdown_rag(mock_hass)
 
-        # Verify shutdown was called
-        mock_rag_manager.async_shutdown.assert_called_once()
-
-        # Verify RAG manager was removed from hass.data
-        assert "rag_manager" not in mock_hass.data[DOMAIN]
+        mock_lifecycle._stop_rag.assert_called_once_with(mock_hass)
 
     @pytest.mark.asyncio
     async def test_shutdown_rag_no_domain(self):
@@ -1525,8 +1493,8 @@ class TestRAGHelpers:
         await _shutdown_rag(mock_hass)
 
     @pytest.mark.asyncio
-    async def test_shutdown_rag_no_manager(self):
-        """Test RAG shutdown when no RAG manager exists."""
+    async def test_shutdown_rag_no_lifecycle(self):
+        """Test RAG shutdown when no lifecycle exists."""
         from custom_components.homeclaw import _shutdown_rag
 
         mock_hass = MagicMock(spec=HomeAssistant)
@@ -1534,31 +1502,6 @@ class TestRAGHelpers:
 
         # Should not raise
         await _shutdown_rag(mock_hass)
-
-    @pytest.mark.asyncio
-    async def test_shutdown_rag_exception(self):
-        """Test RAG shutdown handles exceptions."""
-        from custom_components.homeclaw import _shutdown_rag
-
-        mock_rag_manager = MagicMock()
-        mock_rag_manager.async_shutdown = AsyncMock(side_effect=Exception("Shutdown failed"))
-
-        mock_hass = MagicMock(spec=HomeAssistant)
-        mock_hass.data = {
-            DOMAIN: {
-                "rag_manager": mock_rag_manager
-            }
-        }
-
-        with patch("custom_components.homeclaw._LOGGER") as mock_logger:
-            # Should not raise
-            await _shutdown_rag(mock_hass)
-
-            # Verify warning was logged
-            mock_logger.warning.assert_called()
-
-            # Verify RAG manager was still removed
-            assert "rag_manager" not in mock_hass.data[DOMAIN]
 
 
 class TestPanelHelpers:
@@ -1605,57 +1548,33 @@ class TestPanelHelpers:
 
     @pytest.mark.asyncio
     async def test_panel_exists_exception(self):
-        """Test _panel_exists handles exceptions."""
+        """Test _panel_exists handles exceptions gracefully."""
         from custom_components.homeclaw import _panel_exists
 
         mock_hass = MagicMock(spec=HomeAssistant)
         mock_hass.data = MagicMock()
         mock_hass.data.get = MagicMock(side_effect=Exception("Get failed"))
 
-        with patch("custom_components.homeclaw._LOGGER") as mock_logger:
-            result = await _panel_exists(mock_hass, "test_panel")
+        result = await _panel_exists(mock_hass, "test_panel")
 
-            # Should return False on exception
-            assert result is False
-
-            # Should log debug message
-            mock_logger.debug.assert_called()
+        # Should return False on exception
+        assert result is False
 
     @pytest.mark.asyncio
-    async def test_unload_entry_with_panel(self):
-        """Test unload entry removes panel if it exists."""
+    async def test_unload_entry_delegates_panel_to_lifecycle(self):
+        """Test unload entry delegates panel removal to lifecycle."""
+        from custom_components.homeclaw.lifecycle import SubsystemLifecycle
+
+        mock_lifecycle = MagicMock(spec=SubsystemLifecycle)
+        mock_lifecycle.async_unload_entry = AsyncMock()
+        mock_lifecycle._entry_ids = set()  # Last entry
+
         mock_hass = MagicMock(spec=HomeAssistant)
         mock_hass.data = {
             DOMAIN: {
                 "agents": {"openai": MagicMock()},
                 "configs": {},
-            }
-        }
-        mock_hass.services = MagicMock()
-        mock_hass.services.async_remove = MagicMock()
-        mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
-
-        mock_entry = MagicMock(spec=ConfigEntry)
-        mock_entry.data = {"ai_provider": "openai"}
-
-        mock_async_remove_panel = MagicMock()
-
-        with patch("custom_components.homeclaw._shutdown_rag", new_callable=AsyncMock):
-            with patch("custom_components.homeclaw._panel_exists", new_callable=AsyncMock, return_value=True):
-                with patch("homeassistant.components.frontend.async_remove_panel", mock_async_remove_panel):
-                    result = await async_unload_entry(mock_hass, mock_entry)
-
-                    assert result is True
-                    mock_async_remove_panel.assert_called_once_with(mock_hass, "homeclaw")
-
-    @pytest.mark.asyncio
-    async def test_unload_entry_panel_removal_exception(self):
-        """Test unload entry handles panel removal exceptions."""
-        mock_hass = MagicMock(spec=HomeAssistant)
-        mock_hass.data = {
-            DOMAIN: {
-                "agents": {"openai": MagicMock()},
-                "configs": {},
+                "_lifecycle": mock_lifecycle,
             }
         }
         mock_hass.services = MagicMock()
@@ -1664,13 +1583,40 @@ class TestPanelHelpers:
         mock_entry = MagicMock(spec=ConfigEntry)
         mock_entry.data = {"ai_provider": "openai"}
 
-        with patch("custom_components.homeclaw._shutdown_rag", new_callable=AsyncMock):
-            with patch("custom_components.homeclaw._panel_exists", new_callable=AsyncMock, return_value=True):
-                with patch("homeassistant.components.frontend.async_remove_panel", side_effect=Exception("Panel removal failed")):
-                    with patch("custom_components.homeclaw._LOGGER") as mock_logger:
-                        # Should not raise
-                        result = await async_unload_entry(mock_hass, mock_entry)
+        result = await async_unload_entry(mock_hass, mock_entry)
 
-                        assert result is True
-                        # Should log debug message
-                        mock_logger.debug.assert_called()
+        assert result is True
+        # Lifecycle handles panel removal, services, etc.
+        mock_lifecycle.async_unload_entry.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_unload_entry_keeps_domain_when_entries_remain(self):
+        """Test unload entry keeps domain data when other entries remain."""
+        from custom_components.homeclaw.lifecycle import SubsystemLifecycle
+
+        mock_lifecycle = MagicMock(spec=SubsystemLifecycle)
+        mock_lifecycle.async_unload_entry = AsyncMock()
+        mock_lifecycle._entry_ids = {"other_entry_id"}  # Another entry still active
+
+        mock_hass = MagicMock(spec=HomeAssistant)
+        mock_hass.data = {
+            DOMAIN: {
+                "agents": {"openai": MagicMock(), "gemini": MagicMock()},
+                "configs": {"openai": {}, "gemini": {}},
+                "_lifecycle": mock_lifecycle,
+            }
+        }
+        mock_hass.services = MagicMock()
+        mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+
+        mock_entry = MagicMock(spec=ConfigEntry)
+        mock_entry.data = {"ai_provider": "openai"}
+
+        result = await async_unload_entry(mock_hass, mock_entry)
+
+        assert result is True
+        # DOMAIN should still exist (other entries remain)
+        assert DOMAIN in mock_hass.data
+        # But openai agent/config should be removed
+        assert "openai" not in mock_hass.data[DOMAIN]["agents"]
+        assert "openai" not in mock_hass.data[DOMAIN]["configs"]
