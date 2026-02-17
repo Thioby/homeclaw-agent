@@ -1421,3 +1421,156 @@ class TestWriteFileFdLeak:
         # No temp files should remain
         tmp_files = list(tmp_path.glob("*.tmp"))
         assert len(tmp_files) == 0
+
+
+# ---------------------------------------------------------------------------
+# Anchor-safe section removal tests
+# ---------------------------------------------------------------------------
+
+
+class TestAnchorSafeRemoval:
+    """Tests for anchor-safe section removal."""
+
+    def test_removing_anchor_section_with_alias_raises(self):
+        """Removing a section that defines an anchor used elsewhere raises ValueError."""
+        content = (
+            "defaults: &defaults\n"
+            "  adapter: postgres\n"
+            "  host: localhost\n"
+            "\n"
+            "development:\n"
+            "  database: myapp_dev\n"
+            "  <<: *defaults\n"
+        )
+        with pytest.raises(ValueError, match="anchor.*defaults"):
+            _remove_yaml_section(content, "defaults")
+
+    def test_removing_section_without_anchor_works(self):
+        """Removing a section without anchors works normally."""
+        content = (
+            "defaults:\n  adapter: postgres\n\ndevelopment:\n  database: myapp_dev\n"
+        )
+        result = _remove_yaml_section(content, "defaults")
+        assert "defaults:" not in result
+        assert "development:" in result
+
+    def test_removing_section_with_anchor_but_no_alias_works(self):
+        """Removing a section with an anchor that is NOT referenced elsewhere works."""
+        content = (
+            "defaults: &defaults\n"
+            "  adapter: postgres\n"
+            "\n"
+            "development:\n"
+            "  database: myapp_dev\n"
+        )
+        result = _remove_yaml_section(content, "defaults")
+        assert "defaults:" not in result
+        assert "development:" in result
+
+    def test_removing_alias_user_section_works(self):
+        """Removing the section that USES an alias (not defines it) works fine."""
+        content = (
+            "defaults: &defaults\n"
+            "  adapter: postgres\n"
+            "\n"
+            "development:\n"
+            "  <<: *defaults\n"
+        )
+        result = _remove_yaml_section(content, "development")
+        assert "development:" not in result
+        assert "defaults:" in result
+
+    def test_self_referencing_anchor_allows_removal(self):
+        """A section that defines AND uses its own anchor can be removed."""
+        content = "base: &base\n  x: 1\n  y: *base\n\nother:\n  z: 2\n"
+        # The alias *base is INSIDE the section being removed, so it's fine
+        result = _remove_yaml_section(content, "base")
+        assert "base:" not in result
+        assert "other:" in result
+
+    def test_nested_anchor_with_external_alias_raises(self):
+        """Anchor defined on a nested line, referenced outside, raises ValueError."""
+        content = (
+            "database:\n"
+            "  defaults: &db-defaults\n"
+            "    adapter: postgres\n"
+            "\n"
+            "production:\n"
+            "  <<: *db-defaults\n"
+            "  database: prod_db\n"
+        )
+        with pytest.raises(ValueError, match="anchor.*db-defaults"):
+            _remove_yaml_section(content, "database")
+
+    def test_hyphenated_anchor_name_detected(self):
+        """Anchor names with hyphens are properly detected."""
+        content = (
+            "base-config: &base-config\n  timeout: 30\n\nservice:\n  <<: *base-config\n"
+        )
+        with pytest.raises(ValueError, match="anchor.*base-config"):
+            _remove_yaml_section(content, "base-config")
+
+    @pytest.mark.asyncio
+    async def test_overwrite_anchor_section_returns_error(self):
+        """Overwriting a section with an anchor used elsewhere returns error."""
+        hass = _make_hass()
+        tool = CreateYamlIntegration(hass=hass)
+        existing_yaml = (
+            "defaults: &defaults\n"
+            "  adapter: postgres\n"
+            "\n"
+            "development:\n"
+            "  <<: *defaults\n"
+        )
+
+        with (
+            patch.object(
+                CreateYamlIntegration, "_read_file", return_value=existing_yaml
+            ),
+            patch.object(CreateYamlIntegration, "_backup_file", return_value=True),
+        ):
+            result = await tool.execute(
+                config={"defaults": {"adapter": "mysql"}},
+                overwrite_existing=True,
+                validate_before_save=False,
+            )
+
+        assert not result.success
+        assert "anchor" in result.output.lower() or "Cannot remove" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Include tag type preservation tests
+# ---------------------------------------------------------------------------
+
+
+class TestIncludeTagTypePreservation:
+    """Tests for include tag type preservation."""
+
+    def test_include_dir_list_tag_preserved(self):
+        content = "automation: !include_dir_list automations/\n"
+        result = _safe_load_yaml(content)
+        tag = result["automation"]
+        assert _is_include_tag(tag)
+        assert tag.tag == "!include_dir_list"
+        assert tag.path == "automations/"
+
+    def test_include_dir_merge_named_tag_preserved(self):
+        content = "packages: !include_dir_merge_named packages/\n"
+        result = _safe_load_yaml(content)
+        tag = result["packages"]
+        assert _is_include_tag(tag)
+        assert tag.tag == "!include_dir_merge_named"
+
+    def test_plain_include_tag_preserved(self):
+        content = "automation: !include automations.yaml\n"
+        result = _safe_load_yaml(content)
+        tag = result["automation"]
+        assert _is_include_tag(tag)
+        assert tag.tag == "!include"
+
+    def test_serialize_preserves_tag_type(self):
+        content = "automation: !include_dir_merge_list automations/\n"
+        result = _safe_load_yaml(content)
+        serialized = _serialize_for_output(result)
+        assert serialized["automation"] == "!include_dir_merge_list automations/"

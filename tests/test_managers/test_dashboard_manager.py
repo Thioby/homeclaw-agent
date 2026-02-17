@@ -47,20 +47,22 @@ def dashboard_manager(hass):
     # Setup necessary mocks on hass if they aren't already present
     if not hasattr(hass, "config"):
         hass.config = MagicMock()
-    
+
     # Ensure config.path works as expected if not already set
     if not hasattr(hass.config, "path"):
         hass.config.path = MagicMock(side_effect=lambda x: f"/config/{x}")
     else:
         # If it exists (real hass), we might want to mock it for predictable paths in tests
-        # or just leave it. The original mock forced /config/. 
+        # or just leave it. The original mock forced /config/.
         # Let's mock it to match previous behavior for safety.
         hass.config.path = MagicMock(side_effect=lambda x: f"/config/{x}")
-        
+
     # Ensure async_add_executor_job is a mock/async-compatible
     # Real hass has this, but we want to avoid actual thread pools in unit tests usually
-    hass.async_add_executor_job = AsyncMock(side_effect=lambda f, *args: f(*args) if args else f())
-    
+    hass.async_add_executor_job = AsyncMock(
+        side_effect=lambda f, *args: f(*args) if args else f()
+    )
+
     return DashboardManager(hass)
 
 
@@ -79,8 +81,17 @@ def sample_yaml_dashboards():
     """Create sample YAML dashboard configs."""
     return {
         None: {"title": "Overview", "icon": "mdi:home", "show_in_sidebar": True},
-        "energy": {"title": "Energy Dashboard", "icon": "mdi:flash", "show_in_sidebar": True},
-        "climate": {"title": "Climate Control", "icon": "mdi:thermometer", "show_in_sidebar": True, "require_admin": True},
+        "energy": {
+            "title": "Energy Dashboard",
+            "icon": "mdi:flash",
+            "show_in_sidebar": True,
+        },
+        "climate": {
+            "title": "Climate Control",
+            "icon": "mdi:thermometer",
+            "show_in_sidebar": True,
+            "require_admin": True,
+        },
     }
 
 
@@ -132,7 +143,7 @@ class TestGetDashboards:
         # Or if the test expects empty data
         # hass.data = {} # This might break other things in a real hass fixture, but for this test scope it might be fine.
         # Let's try to just ensure 'lovelace' is missing.
-        
+
         # The original test did: mock_hass.data = {}
         # Let's replicate that behavior safely
         original_data = hass.data
@@ -311,7 +322,9 @@ class TestUpdateDashboard:
 
         with patch("os.path.exists", return_value=True):
             with patch("builtins.open", mock_open()) as mock_file:
-                result = await dashboard_manager.update_dashboard("test-dashboard", config)
+                result = await dashboard_manager.update_dashboard(
+                    "test-dashboard", config
+                )
 
         assert result.get("success") is True
 
@@ -355,9 +368,7 @@ class TestValidateDashboardConfig:
             "views": [
                 {
                     "title": "Main View",
-                    "cards": [
-                        {"type": "entities", "entities": ["light.living_room"]}
-                    ],
+                    "cards": [{"type": "entities", "entities": ["light.living_room"]}],
                 }
             ],
         }
@@ -396,9 +407,7 @@ class TestValidateDashboardConfig:
             "views": [
                 {
                     "title": "Main View",
-                    "cards": [
-                        {"type": "invalid-card-type-xyz", "entities": []}
-                    ],
+                    "cards": [{"type": "invalid-card-type-xyz", "entities": []}],
                 }
             ],
         }
@@ -444,3 +453,135 @@ class TestDashboardManagerInitialization:
         """Test that DashboardManager raises error with None hass."""
         with pytest.raises(ValueError, match="hass is required"):
             DashboardManager(None)
+
+
+class TestUpdateConfigurationYaml:
+    """Tests for the fixed _update_configuration_yaml method."""
+
+    @pytest.mark.asyncio
+    async def test_adds_lovelace_section_to_empty_config(self, dashboard_manager, hass):
+        """Test adding lovelace section when none exists."""
+        config = {"title": "Test Dashboard", "icon": "mdi:test"}
+
+        with patch(
+            "builtins.open", mock_open(read_data="homeassistant:\n  name: My Home\n")
+        ):
+            with patch(
+                "custom_components.homeclaw.managers.dashboard_manager.atomic_write_file"
+            ) as mock_write:
+                with patch(
+                    "custom_components.homeclaw.managers.dashboard_manager.backup_file"
+                ):
+                    result = await dashboard_manager._update_configuration_yaml(
+                        "test-dash", config
+                    )
+
+        assert result is True
+        if mock_write.called:
+            written = mock_write.call_args[0][1]
+            assert "lovelace:" in written
+            assert "dashboards:" in written
+            assert "test-dash:" in written
+
+    @pytest.mark.asyncio
+    async def test_title_with_special_chars_is_safe(self, dashboard_manager, hass):
+        """Test that YAML-special characters in title don't break config."""
+        config = {"title": "My Dashboard: {evil: true}", "icon": "mdi:test"}
+
+        with patch(
+            "builtins.open", mock_open(read_data="homeassistant:\n  name: My Home\n")
+        ):
+            with patch(
+                "custom_components.homeclaw.managers.dashboard_manager.atomic_write_file"
+            ) as mock_write:
+                with patch(
+                    "custom_components.homeclaw.managers.dashboard_manager.backup_file"
+                ):
+                    result = await dashboard_manager._update_configuration_yaml(
+                        "test-dash", config
+                    )
+
+        assert result is True
+        if mock_write.called:
+            written = mock_write.call_args[0][1]
+            # The written YAML should be parseable
+            try:
+                parsed = yaml.safe_load(written)
+                # Title should be preserved as a string
+                assert isinstance(parsed, dict)
+            except yaml.YAMLError:
+                pytest.fail("Written YAML is not parseable — YAML injection bug!")
+
+    @pytest.mark.asyncio
+    async def test_lovelace_in_comment_not_matched(self, dashboard_manager, hass):
+        """Test that 'lovelace:' in a comment is not treated as the real key."""
+        content_with_comment = (
+            "homeassistant:\n"
+            "  name: My Home\n"
+            "\n"
+            "# lovelace: old config removed\n"
+            "http:\n"
+            "  server_port: 8123\n"
+        )
+        config = {"title": "Test", "icon": "mdi:test"}
+
+        with patch("builtins.open", mock_open(read_data=content_with_comment)):
+            with patch(
+                "custom_components.homeclaw.managers.dashboard_manager.atomic_write_file"
+            ) as mock_write:
+                with patch(
+                    "custom_components.homeclaw.managers.dashboard_manager.backup_file"
+                ):
+                    result = await dashboard_manager._update_configuration_yaml(
+                        "test-dash", config
+                    )
+
+        assert result is True
+        if mock_write.called:
+            written = mock_write.call_args[0][1]
+            # Should have added a NEW lovelace section (not matched the comment)
+            # Count actual lovelace: keys (not in comments)
+            import re
+
+            real_lovelace = [
+                line for line in written.split("\n") if re.match(r"^lovelace:", line)
+            ]
+            assert len(real_lovelace) == 1, (
+                f"Expected 1 real lovelace: key, got {len(real_lovelace)}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_uses_atomic_write(self, dashboard_manager, hass):
+        """Test that _update_configuration_yaml uses atomic_write_file."""
+        config = {"title": "Test", "icon": "mdi:test"}
+
+        with patch("builtins.open", mock_open(read_data="")):
+            with patch(
+                "custom_components.homeclaw.managers.dashboard_manager.atomic_write_file"
+            ) as mock_write:
+                with patch(
+                    "custom_components.homeclaw.managers.dashboard_manager.backup_file"
+                ):
+                    await dashboard_manager._update_configuration_yaml(
+                        "test-dash", config
+                    )
+
+        mock_write.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_creates_backup(self, dashboard_manager, hass):
+        """Test that _update_configuration_yaml creates a backup."""
+        config = {"title": "Test", "icon": "mdi:test"}
+
+        with patch("builtins.open", mock_open(read_data="")):
+            with patch(
+                "custom_components.homeclaw.managers.dashboard_manager.atomic_write_file"
+            ):
+                with patch(
+                    "custom_components.homeclaw.managers.dashboard_manager.backup_file"
+                ) as mock_backup:
+                    await dashboard_manager._update_configuration_yaml(
+                        "test-dash", config
+                    )
+
+        mock_backup.assert_called_once()

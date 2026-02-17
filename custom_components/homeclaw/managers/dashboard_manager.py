@@ -7,9 +7,16 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import TYPE_CHECKING, Any
 
 import yaml
+
+from ..utils.yaml_writer import (
+    CONFIG_WRITE_LOCK,
+    atomic_write_file,
+    backup_file,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -122,7 +129,9 @@ class DashboardManager:
                 # Get title
                 title = yaml_config.get("title")
                 if not title:
-                    title = "Overview" if url_path is None else (url_path or "Dashboard")
+                    title = (
+                        "Overview" if url_path is None else (url_path or "Dashboard")
+                    )
 
                 # Get icon
                 icon = yaml_config.get("icon")
@@ -133,13 +142,15 @@ class DashboardManager:
                 show_in_sidebar = yaml_config.get("show_in_sidebar", True)
                 require_admin = yaml_config.get("require_admin", False)
 
-                dashboard_list.append({
-                    "url_path": url_path,
-                    "title": title,
-                    "icon": icon,
-                    "show_in_sidebar": show_in_sidebar,
-                    "require_admin": require_admin,
-                })
+                dashboard_list.append(
+                    {
+                        "url_path": url_path,
+                        "title": title,
+                        "icon": icon,
+                        "show_in_sidebar": show_in_sidebar,
+                        "require_admin": require_admin,
+                    }
+                )
 
             _LOGGER.debug("Found %d dashboards", len(dashboard_list))
             return dashboard_list
@@ -226,9 +237,7 @@ class DashboardManager:
             }
 
             # Create the dashboard YAML file
-            lovelace_config_file = self.hass.config.path(
-                f"ui-lovelace-{url_path}.yaml"
-            )
+            lovelace_config_file = self.hass.config.path(f"ui-lovelace-{url_path}.yaml")
 
             def write_dashboard_file():
                 with open(lovelace_config_file, "w") as f:
@@ -247,9 +256,7 @@ class DashboardManager:
 
             # Update configuration.yaml
             try:
-                config_updated = await self._update_configuration_yaml(
-                    url_path, config
-                )
+                config_updated = await self._update_configuration_yaml(url_path, config)
 
                 if config_updated:
                     return {
@@ -286,6 +293,9 @@ class DashboardManager:
     ) -> bool:
         """Update configuration.yaml with new dashboard entry.
 
+        Uses the shared CONFIG_WRITE_LOCK to prevent race conditions with
+        integration_manager, creates a backup, and writes atomically.
+
         Args:
             url_path: The sanitized URL path for the dashboard.
             config: Dashboard configuration.
@@ -295,53 +305,111 @@ class DashboardManager:
         """
         config_file = self.hass.config.path("configuration.yaml")
 
-        def update_config():
-            try:
-                with open(config_file, "r") as f:
-                    content = f.read()
+        async with CONFIG_WRITE_LOCK:
+            return await self.hass.async_add_executor_job(
+                self._do_update_configuration_yaml, config_file, url_path, config
+            )
 
-                dashboard_yaml = f"""    {url_path}:
-      mode: yaml
-      title: {config["title"]}
-      icon: {config.get("icon", "mdi:view-dashboard")}
-      show_in_sidebar: {str(config.get("show_in_sidebar", True)).lower()}
-      filename: ui-lovelace-{url_path}.yaml"""
+    @staticmethod
+    def _do_update_configuration_yaml(
+        config_file: str, url_path: str, config: dict[str, Any]
+    ) -> bool:
+        """Synchronous configuration.yaml update (runs in executor).
 
-                if "lovelace:" not in content:
-                    # Add complete lovelace section at the end
-                    lovelace_section = f"""
-# Lovelace dashboards configuration
-lovelace:
-  dashboards:
-{dashboard_yaml}
-"""
-                    with open(config_file, "a") as f:
-                        f.write(lovelace_section)
-                    return True
+        Args:
+            config_file: Path to configuration.yaml.
+            url_path: Dashboard URL path.
+            config: Dashboard configuration dict.
 
-                # Find dashboards section and add entry
-                lines = content.split("\n")
-                new_lines = []
-                dashboard_added = False
+        Returns:
+            True if update succeeded, False otherwise.
+        """
+        try:
+            backup_file(config_file)
+        except Exception:
+            _LOGGER.warning(
+                "Failed to backup configuration.yaml before dashboard update"
+            )
 
-                for line in lines:
-                    new_lines.append(line)
-                    if "dashboards:" in line and not dashboard_added:
-                        new_lines.append(dashboard_yaml)
-                        dashboard_added = True
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                content = f.read()
+        except FileNotFoundError:
+            content = ""
 
-                if dashboard_added:
-                    with open(config_file, "w") as f:
-                        f.write("\n".join(new_lines))
-                    return True
+        # Generate properly escaped YAML for the dashboard entry
+        dashboard_entry = {
+            url_path: {
+                "mode": "yaml",
+                "title": config.get("title", url_path),
+                "icon": config.get("icon", "mdi:view-dashboard"),
+                "show_in_sidebar": config.get("show_in_sidebar", True),
+                "filename": f"ui-lovelace-{url_path}.yaml",
+            }
+        }
 
-                return False
+        entry_yaml = yaml.safe_dump(
+            dashboard_entry,
+            default_flow_style=False,
+            allow_unicode=True,
+            sort_keys=False,
+        ).rstrip()
+        # Indent to fit under "dashboards:"
+        indented_entry = "\n".join(
+            f"    {line}" if line.strip() else line for line in entry_yaml.split("\n")
+        )
 
-            except Exception as e:
-                _LOGGER.error("Failed to update configuration.yaml: %s", str(e))
-                return False
+        lines = content.split("\n")
 
-        return await self.hass.async_add_executor_job(update_config)
+        # Check for actual lovelace: key (not in comments)
+        has_lovelace = False
+        has_dashboards = False
+        lovelace_line_idx = -1
+        dashboards_line_idx = -1
+
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            if re.match(r"^lovelace:", line):
+                has_lovelace = True
+                lovelace_line_idx = idx
+            if re.match(r"^\s+dashboards:", line):
+                has_dashboards = True
+                dashboards_line_idx = idx
+
+        if not has_lovelace:
+            # Append complete lovelace section
+            lovelace_section = (
+                "\n# Lovelace dashboards configuration\n"
+                "lovelace:\n"
+                "  dashboards:\n"
+                f"{indented_entry}\n"
+            )
+            new_content = content.rstrip("\n") + "\n" + lovelace_section
+        elif not has_dashboards:
+            # Add dashboards: under existing lovelace:
+            new_lines = list(lines)
+            new_lines.insert(
+                lovelace_line_idx + 1,
+                f"  dashboards:\n{indented_entry}",
+            )
+            new_content = "\n".join(new_lines)
+        else:
+            # Add entry under existing dashboards:
+            new_lines = list(lines)
+            new_lines.insert(
+                dashboards_line_idx + 1,
+                indented_entry,
+            )
+            new_content = "\n".join(new_lines)
+
+        try:
+            atomic_write_file(config_file, new_content)
+            return True
+        except Exception as exc:
+            _LOGGER.error("Failed to write configuration.yaml: %s", exc)
+            return False
 
     async def update_dashboard(
         self, dashboard_id: str, config: dict[str, Any]
@@ -448,7 +516,9 @@ lovelace:
 
             for j, card in enumerate(cards):
                 if not isinstance(card, dict):
-                    result["warnings"].append(f"View {i}, Card {j}: must be a dictionary")
+                    result["warnings"].append(
+                        f"View {i}, Card {j}: must be a dictionary"
+                    )
                     continue
 
                 card_type = card.get("type")
