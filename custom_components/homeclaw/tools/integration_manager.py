@@ -12,141 +12,32 @@ The AI agent uses these tools to:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import os
-import re
 import shutil
-import stat
-import tempfile
 from typing import Any
 
 import yaml
 
+from ..utils.yaml_writer import (
+    CONFIG_WRITE_LOCK,
+    SECRET_REDACTED,
+    atomic_write_file,
+    backup_file,
+    dump_sections,
+    is_include_tag,
+    is_secret_tag,
+    redact_secrets,
+    remove_yaml_section,
+    safe_load_yaml,
+    serialize_for_output,
+)
 from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult
 
 _LOGGER = logging.getLogger(__name__)
 
 # Maximum integrations returned to avoid blowing up context window
 _MAX_LIST_RESULTS = 100
-
-# Lock to prevent concurrent read-modify-write on configuration.yaml
-_CONFIG_WRITE_LOCK = asyncio.Lock()
-
-# Sentinel for !include / !secret tags that should not be parsed
-_INCLUDE_TAG = "!include"
-_SECRET_TAG = "!secret"
-_SECRET_REDACTED = "***SECRET***"
-
-
-def _safe_load_yaml(content: str) -> dict[str, Any]:
-    """Load YAML content with custom constructors for HA tags.
-
-    Handles !include, !include_dir_list, !include_dir_merge_list,
-    !include_dir_named, !include_dir_merge_named, !secret, !env_var.
-    These are preserved as tagged strings instead of raising errors.
-
-    Args:
-        content: Raw YAML string.
-
-    Returns:
-        Parsed dict (top-level keys -> values).
-    """
-
-    class _IncludeTag:
-        """Placeholder for !include tags."""
-
-        def __init__(self, path: str):
-            self.path = path
-
-        def __repr__(self) -> str:
-            return f"!include {self.path}"
-
-    class _SecretTag:
-        """Placeholder for !secret tags."""
-
-        def __init__(self, name: str):
-            self.name = name
-
-        def __repr__(self) -> str:
-            return f"!secret {self.name}"
-
-    class _SafeLoaderWithHA(yaml.SafeLoader):
-        pass
-
-    def _include_constructor(loader: yaml.SafeLoader, node: yaml.Node) -> _IncludeTag:
-        return _IncludeTag(loader.construct_scalar(node))
-
-    def _secret_constructor(loader: yaml.SafeLoader, node: yaml.Node) -> _SecretTag:
-        return _SecretTag(loader.construct_scalar(node))
-
-    def _generic_constructor(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
-        """Preserve value for non-secret, non-include HA tags (!env_var, !input)."""
-        if isinstance(node, yaml.ScalarNode):
-            return loader.construct_scalar(node)
-        if isinstance(node, yaml.SequenceNode):
-            return loader.construct_sequence(node)
-        if isinstance(node, yaml.MappingNode):
-            return loader.construct_mapping(node)
-        return str(node.value)
-
-    # Register HA-specific tags
-    for tag in (
-        "!include",
-        "!include_dir_list",
-        "!include_dir_merge_list",
-        "!include_dir_named",
-        "!include_dir_merge_named",
-    ):
-        _SafeLoaderWithHA.add_constructor(tag, _include_constructor)
-
-    _SafeLoaderWithHA.add_constructor("!secret", _secret_constructor)
-    _SafeLoaderWithHA.add_constructor("!env_var", _generic_constructor)
-    _SafeLoaderWithHA.add_constructor("!input", _generic_constructor)
-
-    result = yaml.load(content, Loader=_SafeLoaderWithHA)
-    if result is None:
-        return {}
-    if not isinstance(result, dict):
-        raise yaml.YAMLError(f"Expected top-level mapping, got {type(result).__name__}")
-    return result
-
-
-def _is_include_tag(value: Any) -> bool:
-    """Check if a value is an !include placeholder."""
-    return hasattr(value, "path") and type(value).__name__ == "_IncludeTag"
-
-
-def _is_secret_tag(value: Any) -> bool:
-    """Check if a value is a !secret placeholder."""
-    return hasattr(value, "name") and type(value).__name__ == "_SecretTag"
-
-
-def _redact_secrets(obj: Any) -> Any:
-    """Recursively replace !secret tags with redacted placeholder."""
-    if _is_secret_tag(obj):
-        return _SECRET_REDACTED
-    if _is_include_tag(obj):
-        return f"!include {obj.path}"
-    if isinstance(obj, dict):
-        return {k: _redact_secrets(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_redact_secrets(item) for item in obj]
-    return obj
-
-
-def _serialize_for_output(obj: Any) -> Any:
-    """Convert parsed YAML to JSON-serializable format."""
-    if _is_secret_tag(obj):
-        return _SECRET_REDACTED
-    if _is_include_tag(obj):
-        return f"!include {obj.path}"
-    if isinstance(obj, dict):
-        return {k: _serialize_for_output(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_serialize_for_output(item) for item in obj]
-    return obj
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +212,7 @@ class ReadYamlConfig(Tool):
             )
 
         try:
-            parsed = _safe_load_yaml(content)
+            parsed = safe_load_yaml(content)
         except yaml.YAMLError as exc:
             _LOGGER.error("Failed to parse configuration.yaml: %s", exc)
             return ToolResult(
@@ -343,7 +234,7 @@ class ReadYamlConfig(Tool):
                 )
 
             value = parsed[section]
-            serialized = _serialize_for_output(value)
+            serialized = serialize_for_output(value)
             output = {
                 "section": section,
                 "config": serialized,
@@ -353,7 +244,7 @@ class ReadYamlConfig(Tool):
             # Return summary of all top-level keys
             summary: dict[str, str] = {}
             for key, val in parsed.items():
-                if _is_include_tag(val):
+                if is_include_tag(val):
                     summary[key] = f"!include {val.path}"
                 elif isinstance(val, list):
                     summary[key] = f"list ({len(val)} items)"
@@ -450,7 +341,7 @@ class CreateYamlIntegration(Tool):
                 success=False,
             )
 
-        async with _CONFIG_WRITE_LOCK:
+        async with CONFIG_WRITE_LOCK:
             return await self._execute_locked(config, overwrite, validate, auto_restart)
 
     async def _execute_locked(
@@ -480,7 +371,7 @@ class CreateYamlIntegration(Tool):
 
         # Step 2: Parse existing YAML to check for key conflicts
         try:
-            existing = _safe_load_yaml(raw_content) if raw_content.strip() else {}
+            existing = safe_load_yaml(raw_content) if raw_content.strip() else {}
         except yaml.YAMLError as exc:
             _LOGGER.error("Failed to parse existing YAML: %s", exc)
             return ToolResult(
@@ -502,7 +393,7 @@ class CreateYamlIntegration(Tool):
             existing_val = existing[key]
 
             # !include → always error, cannot merge with included files
-            if _is_include_tag(existing_val):
+            if is_include_tag(existing_val):
                 conflicts.append(
                     {
                         "key": key,
@@ -513,7 +404,7 @@ class CreateYamlIntegration(Tool):
                 continue
 
             if not overwrite:
-                serialized = _serialize_for_output(existing_val)
+                serialized = serialize_for_output(existing_val)
                 conflicts.append(
                     {
                         "key": key,
@@ -645,57 +536,13 @@ class CreateYamlIntegration(Tool):
 
     @staticmethod
     def _write_file(path: str, content: str) -> None:
-        """Write file atomically via temp file + fsync + os.replace.
-
-        Preserves original file permissions when the target already exists.
-        """
-        dir_name = os.path.dirname(path) or "."
-
-        # Capture original permissions before replacing
-        orig_mode = None
-        try:
-            orig_mode = os.stat(path).st_mode
-        except FileNotFoundError:
-            pass
-
-        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
-        fd_closed = False
-        try:
-            if orig_mode is not None:
-                os.fchmod(fd, stat.S_IMODE(orig_mode))
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                fd_closed = True  # os.fdopen now owns fd
-                f.write(content)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp_path, path)
-        except BaseException:
-            # Close fd if os.fdopen never took ownership
-            if not fd_closed:
-                try:
-                    os.close(fd)
-                except OSError:
-                    pass
-            # Clean up temp file on any error
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
+        """Write file atomically (delegates to :func:`atomic_write_file`)."""
+        atomic_write_file(path, content)
 
     @staticmethod
     def _backup_file(path: str) -> bool:
-        """Create a backup of the file.
-
-        Returns:
-            True if a backup was actually created, False if source file
-            does not exist (no-op).
-        """
-        backup_path = path + ".backup"
-        if os.path.exists(path):
-            shutil.copy2(path, backup_path)
-            return True
-        return False
+        """Create a backup of the file (delegates to :func:`backup_file`)."""
+        return backup_file(path)
 
     @staticmethod
     def _build_new_content(
@@ -708,16 +555,29 @@ class CreateYamlIntegration(Tool):
 
         For new keys: append YAML at end of file.
         For overwrite keys: replace the existing section in-place.
+
+        Raises:
+            ValueError: If a section to overwrite defines a YAML anchor
+                that is referenced elsewhere (removal would break the file).
         """
         result = raw_content
 
         # Handle overwrite keys — remove existing sections from text
         for key in overwrite_keys:
-            result = _remove_yaml_section(result, key)
+            try:
+                result = remove_yaml_section(result, key)
+            except ValueError:
+                _LOGGER.error(
+                    "Cannot overwrite section '%s': it defines a YAML anchor "
+                    "referenced elsewhere in configuration.yaml. "
+                    "Remove the alias references first.",
+                    key,
+                )
+                raise
 
         # Append all config keys (both new and overwritten) at end
         keys_to_append = new_keys + overwrite_keys
-        sections_yaml = _dump_sections(config, keys_to_append)
+        sections_yaml = dump_sections(config, keys_to_append)
 
         if sections_yaml:
             # Ensure file ends with newline before appending
@@ -770,115 +630,13 @@ class CreateYamlIntegration(Tool):
 
 
 # ---------------------------------------------------------------------------
-# Helper functions for YAML text manipulation
+# Backward-compatible re-exports for existing test imports
 # ---------------------------------------------------------------------------
-
-
-def _dump_sections(config: dict[str, Any], keys: list[str]) -> str:
-    """Dump selected keys from config dict to YAML string.
-
-    Each key is dumped as a separate top-level section.
-    """
-    if not keys:
-        return ""
-
-    parts: list[str] = []
-    for key in keys:
-        if key not in config:
-            continue
-        section = {key: config[key]}
-        dumped = yaml.safe_dump(
-            section,
-            default_flow_style=False,
-            allow_unicode=True,
-            sort_keys=False,
-        )
-        parts.append(dumped.rstrip())
-
-    return "\n\n".join(parts) + "\n" if parts else ""
-
-
-def _next_content_is_indented(lines: list[str], start: int) -> bool:
-    """Check if the next non-blank, non-comment line is indented.
-
-    Used during section removal to decide whether a column-0 comment
-    belongs to the section being removed (next content is indented) or
-    to the following section (next content is a top-level key).
-
-    Args:
-        lines: All lines of the file.
-        start: Index to start scanning from.
-
-    Returns:
-        True if the next meaningful line is indented (part of current section).
-    """
-    for j in range(start, len(lines)):
-        s = lines[j].strip()
-        if not s:
-            continue  # skip blank lines
-        if s.startswith("#") and not lines[j].startswith((" ", "\t")):
-            continue  # skip more column-0 comments — keep looking
-        # Found a non-blank, non-column-0-comment line
-        return lines[j].startswith((" ", "\t"))
-    # Reached EOF — no more content, comment is trailing
-    return False
-
-
-def _remove_yaml_section(content: str, key: str) -> str:
-    """Remove a top-level YAML section from raw text.
-
-    Finds the line matching exactly 'key:' (with optional trailing content)
-    and removes all lines until the next top-level key (a non-indented,
-    non-comment line containing ':') or end of file.  Column-0 comments
-    inside the section are removed only when the next non-blank content
-    is indented (belongs to the same section).  Comments followed by a
-    new top-level key are preserved.
-
-    Uses regex boundary to avoid prefix collisions (e.g. 'notify' vs
-    'notify_group').
-
-    Args:
-        content: Raw YAML text.
-        key: Top-level key to remove.
-
-    Returns:
-        Content with the section removed.
-    """
-    # Match exactly "key:" at start of line (key followed by colon,
-    # then space/newline/EOF — NOT "key_suffix:")
-    key_pattern = re.compile(rf"^{re.escape(key)}:(\s|$)")
-
-    lines = content.split("\n")
-    result: list[str] = []
-    skip = False
-
-    for i, line in enumerate(lines):
-        stripped = line.lstrip()
-
-        if stripped and not line.startswith((" ", "\t")):
-            if stripped.startswith("#"):
-                # Column-0 comment during skip: decide via lookahead.
-                # If the next non-blank, non-comment line is indented
-                # (belongs to the current section), skip the comment too.
-                # Otherwise the comment belongs to the next section — end skip.
-                if skip:
-                    if _next_content_is_indented(lines, i + 1):
-                        # Comment is inside the section being removed
-                        continue
-                    # Next content is a new top-level key (or EOF) — end skip
-                    skip = False
-            elif key_pattern.match(stripped):
-                skip = True
-                continue
-            else:
-                skip = False
-
-        if not skip:
-            result.append(line)
-
-    # Clean up extra blank lines left behind
-    text = "\n".join(result)
-    while "\n\n\n" in text:
-        text = text.replace("\n\n\n", "\n\n")
-
-    return text
+_safe_load_yaml = safe_load_yaml
+_is_include_tag = is_include_tag
+_is_secret_tag = is_secret_tag
+_redact_secrets = redact_secrets
+_serialize_for_output = serialize_for_output
+_dump_sections = dump_sections
+_remove_yaml_section = remove_yaml_section
+_SECRET_REDACTED = SECRET_REDACTED
