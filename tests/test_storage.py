@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from custom_components.homeclaw.storage import (
+    DATA_VERSION,
     MAX_MESSAGES_PER_SESSION,
     MAX_SESSIONS,
     SESSION_RETENTION_DAYS,
@@ -192,7 +193,6 @@ class TestSessionStorageBasics:
     @pytest.mark.asyncio
     async def test_list_sessions_sorted(self, storage: SessionStorage) -> None:
         """Test that sessions are sorted by updated_at descending."""
-        # Create sessions with delays to ensure different timestamps
         session1 = await storage.create_session(provider="anthropic", title="First")
         session2 = await storage.create_session(provider="anthropic", title="Second")
         session3 = await storage.create_session(provider="anthropic", title="Third")
@@ -256,6 +256,369 @@ class TestSessionStorageBasics:
         """Test renaming a non-existent session."""
         result = await storage.rename_session("non-existent-id", "New Title")
         assert result is False
+
+
+class TestToolMessageFields:
+    """Tests for tool message fields (content_blocks, tool_call_id)."""
+
+    def test_tool_use_role_accepted(self) -> None:
+        """Test that tool_use role is valid."""
+        msg = Message(
+            message_id="msg-tool-1",
+            session_id="session-1",
+            role="tool_use",
+            content="get_state({})",
+            timestamp="2026-02-17T10:00:00+00:00",
+            content_blocks=[
+                {
+                    "type": "tool_call",
+                    "id": "call_abc",
+                    "name": "get_state",
+                    "arguments": {"entity_id": "sensor.temp"},
+                }
+            ],
+        )
+        assert msg.role == "tool_use"
+        assert len(msg.content_blocks) == 1
+        assert msg.content_blocks[0]["name"] == "get_state"
+        assert msg.tool_call_id == ""
+
+    def test_tool_result_role_accepted(self) -> None:
+        """Test that tool_result role is valid."""
+        msg = Message(
+            message_id="msg-tool-2",
+            session_id="session-1",
+            role="tool_result",
+            content='{"state": "22.5"}',
+            timestamp="2026-02-17T10:00:01+00:00",
+            content_blocks=[
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_abc",
+                    "name": "get_state",
+                    "content": '{"state": "22.5", "unit": "°C"}',
+                }
+            ],
+            tool_call_id="call_abc",
+        )
+        assert msg.role == "tool_result"
+        assert msg.tool_call_id == "call_abc"
+        assert len(msg.content_blocks) == 1
+
+    def test_default_content_blocks_empty(self) -> None:
+        """Test that content_blocks defaults to empty list."""
+        msg = Message(
+            message_id="msg-1",
+            session_id="session-1",
+            role="user",
+            content="Hello",
+            timestamp="2026-02-17T10:00:00+00:00",
+        )
+        assert msg.content_blocks == []
+        assert msg.tool_call_id == ""
+
+    def test_tool_use_empty_content_allowed(self) -> None:
+        """Test that tool_use messages can have empty content."""
+        msg = Message(
+            message_id="msg-1",
+            session_id="session-1",
+            role="tool_use",
+            content="",
+            timestamp="2026-02-17T10:00:00+00:00",
+            content_blocks=[
+                {
+                    "type": "tool_call",
+                    "id": "call_1",
+                    "name": "turn_on",
+                    "arguments": {"entity_id": "light.kitchen"},
+                }
+            ],
+        )
+        assert msg.content == ""
+        assert len(msg.content_blocks) == 1
+
+
+class TestToolMessagePersistence:
+    """Tests for tool message storage and retrieval."""
+
+    @pytest.mark.asyncio
+    async def test_add_and_retrieve_tool_messages(
+        self, storage: SessionStorage
+    ) -> None:
+        """Test that tool messages are persisted and retrieved correctly."""
+        session = await storage.create_session(provider="anthropic")
+
+        # User message
+        user_msg = Message(
+            message_id="msg-1",
+            session_id=session.session_id,
+            role="user",
+            content="What is the temperature?",
+            timestamp="2026-02-17T10:00:00+00:00",
+        )
+        await storage.add_message(session.session_id, user_msg)
+
+        # Tool use message
+        tool_use_msg = Message(
+            message_id="msg-2",
+            session_id=session.session_id,
+            role="tool_use",
+            content='get_state({"entity_id": "sensor.temp"})',
+            timestamp="2026-02-17T10:00:01+00:00",
+            content_blocks=[
+                {
+                    "type": "tool_call",
+                    "id": "call_abc",
+                    "name": "get_state",
+                    "arguments": {"entity_id": "sensor.temp"},
+                }
+            ],
+        )
+        await storage.add_message(session.session_id, tool_use_msg)
+
+        # Tool result message
+        tool_result_msg = Message(
+            message_id="msg-3",
+            session_id=session.session_id,
+            role="tool_result",
+            content='{"state": "22.5"}',
+            timestamp="2026-02-17T10:00:02+00:00",
+            content_blocks=[
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_abc",
+                    "name": "get_state",
+                    "content": '{"state": "22.5", "unit": "°C"}',
+                }
+            ],
+            tool_call_id="call_abc",
+        )
+        await storage.add_message(session.session_id, tool_result_msg)
+
+        # Assistant message
+        assistant_msg = Message(
+            message_id="msg-4",
+            session_id=session.session_id,
+            role="assistant",
+            content="The temperature is 22.5°C.",
+            timestamp="2026-02-17T10:00:03+00:00",
+        )
+        await storage.add_message(session.session_id, assistant_msg)
+
+        # Retrieve and verify
+        messages = await storage.get_session_messages(session.session_id)
+        assert len(messages) == 4
+        assert messages[0].role == "user"
+        assert messages[1].role == "tool_use"
+        assert messages[1].content_blocks[0]["name"] == "get_state"
+        assert messages[2].role == "tool_result"
+        assert messages[2].tool_call_id == "call_abc"
+        assert messages[3].role == "assistant"
+
+    @pytest.mark.asyncio
+    async def test_tool_messages_dont_update_preview(
+        self, storage: SessionStorage
+    ) -> None:
+        """Test that tool messages don't affect session preview or title."""
+        session = await storage.create_session(provider="anthropic")
+
+        user_msg = Message(
+            message_id="msg-1",
+            session_id=session.session_id,
+            role="user",
+            content="Check temperature",
+            timestamp="2026-02-17T10:00:00+00:00",
+        )
+        await storage.add_message(session.session_id, user_msg)
+
+        tool_msg = Message(
+            message_id="msg-2",
+            session_id=session.session_id,
+            role="tool_use",
+            content="get_state({})",
+            timestamp="2026-02-17T10:00:01+00:00",
+            content_blocks=[
+                {"type": "tool_call", "id": "c1", "name": "get_state", "arguments": {}}
+            ],
+        )
+        await storage.add_message(session.session_id, tool_msg)
+
+        updated = await storage.get_session(session.session_id)
+        assert updated is not None
+        # Preview should still be from user message, not tool message
+        assert updated.preview == "Check temperature"
+        assert updated.title == "Check temperature"
+
+
+class TestMigrationV2ToV3:
+    """Tests for v2 to v3 migration."""
+
+    @pytest.mark.asyncio
+    async def test_migrate_v2_data_adds_fields(self, hass) -> None:
+        """Test that v2 messages get content_blocks and tool_call_id added."""
+        mock_store = MockStore(hass, STORAGE_VERSION, "test")
+        mock_store._data = {
+            "version": 2,
+            "sessions": [
+                {
+                    "session_id": "s1",
+                    "title": "Test",
+                    "created_at": "2026-02-17T10:00:00+00:00",
+                    "updated_at": "2026-02-17T10:00:00+00:00",
+                    "provider": "anthropic",
+                    "message_count": 2,
+                    "preview": "Hello",
+                    "emoji": "",
+                    "metadata": {},
+                }
+            ],
+            "messages": {
+                "s1": [
+                    {
+                        "message_id": "m1",
+                        "session_id": "s1",
+                        "role": "user",
+                        "content": "Hello",
+                        "timestamp": "2026-02-17T10:00:00+00:00",
+                        "status": "completed",
+                        "error_message": "",
+                        "metadata": {},
+                        "attachments": [],
+                    },
+                    {
+                        "message_id": "m2",
+                        "session_id": "s1",
+                        "role": "assistant",
+                        "content": "Hi there!",
+                        "timestamp": "2026-02-17T10:00:01+00:00",
+                        "status": "completed",
+                        "error_message": "",
+                        "metadata": {},
+                        "attachments": [],
+                    },
+                ]
+            },
+        }
+
+        with patch(
+            "custom_components.homeclaw.storage.Store",
+            return_value=mock_store,
+        ):
+            storage = SessionStorage(hass, "migrate_test")
+            messages = await storage.get_session_messages("s1")
+
+        assert len(messages) == 2
+        # Both messages should have the new fields
+        for msg in messages:
+            assert msg.content_blocks == []
+            assert msg.tool_call_id == ""
+
+        # Version should be bumped
+        assert mock_store._data["version"] == DATA_VERSION
+
+    @pytest.mark.asyncio
+    async def test_v3_data_not_re_migrated(self, hass) -> None:
+        """Test that v3 data is not migrated again."""
+        mock_store = MockStore(hass, STORAGE_VERSION, "test")
+        mock_store._data = {
+            "version": 3,
+            "sessions": [
+                {
+                    "session_id": "s1",
+                    "title": "Test",
+                    "created_at": "2026-02-17T10:00:00+00:00",
+                    "updated_at": "2026-02-17T10:00:00+00:00",
+                    "provider": "anthropic",
+                    "message_count": 1,
+                    "preview": "",
+                    "emoji": "",
+                    "metadata": {},
+                }
+            ],
+            "messages": {
+                "s1": [
+                    {
+                        "message_id": "m1",
+                        "session_id": "s1",
+                        "role": "tool_use",
+                        "content": "get_state({})",
+                        "timestamp": "2026-02-17T10:00:00+00:00",
+                        "status": "completed",
+                        "error_message": "",
+                        "metadata": {},
+                        "attachments": [],
+                        "content_blocks": [
+                            {
+                                "type": "tool_call",
+                                "id": "c1",
+                                "name": "get_state",
+                                "arguments": {},
+                            }
+                        ],
+                        "tool_call_id": "",
+                    }
+                ]
+            },
+        }
+
+        with patch(
+            "custom_components.homeclaw.storage.Store",
+            return_value=mock_store,
+        ):
+            storage = SessionStorage(hass, "no_remigrate")
+            messages = await storage.get_session_messages("s1")
+
+        assert len(messages) == 1
+        assert messages[0].role == "tool_use"
+        assert len(messages[0].content_blocks) == 1
+
+    @pytest.mark.asyncio
+    async def test_v1_data_migrates_through_v2_and_v3(self, hass) -> None:
+        """Test that v1 data migrates through both v1→v2 and v2→v3."""
+        mock_store = MockStore(hass, STORAGE_VERSION, "test")
+        mock_store._data = {
+            "version": 1,
+            "sessions": [
+                {
+                    "session_id": "s1",
+                    "title": "Old",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "provider": "anthropic",
+                    "message_count": 1,
+                    "preview": "",
+                }
+            ],
+            "messages": {
+                "s1": [
+                    {
+                        "message_id": "m1",
+                        "session_id": "s1",
+                        "role": "user",
+                        "content": "Hello",
+                        "timestamp": "2026-02-17T10:00:00+00:00",
+                        "status": "completed",
+                        "error_message": "",
+                        "attachments": [],
+                    }
+                ]
+            },
+        }
+
+        with patch(
+            "custom_components.homeclaw.storage.Store",
+            return_value=mock_store,
+        ):
+            storage = SessionStorage(hass, "v1_user")
+            messages = await storage.get_session_messages("s1")
+
+        # Should have migrated through both steps
+        assert len(messages) == 1
+        assert messages[0].content_blocks == []
+        assert messages[0].tool_call_id == ""
+        assert mock_store._data["version"] == DATA_VERSION
+        # Session should have metadata from v1→v2
+        assert "metadata" in mock_store._data["sessions"][0]
 
 
 class TestSessionStorageMessages:
@@ -549,9 +912,7 @@ class TestSessionStorageMigration:
         assert sessions[0].message_count == 3
 
     @pytest.mark.asyncio
-    async def test_migrate_legacy_data_already_migrated(
-        self, hass
-    ) -> None:
+    async def test_migrate_legacy_data_already_migrated(self, hass) -> None:
         """Test that already migrated data is not migrated again."""
         stores: dict[str, MockStore] = {}
 

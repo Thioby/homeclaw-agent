@@ -24,7 +24,9 @@ _LOGGER = logging.getLogger(__name__)
 # implementing Store._async_migrate_func which is complex.  We keep it at 1
 # and handle our own data-level versioning via data["version"] inside _load().
 STORAGE_VERSION = 1
-DATA_VERSION = 2  # Internal data schema version (v2 adds Session.metadata)
+DATA_VERSION = (
+    3  # Internal data schema version (v3 adds content_blocks + tool_call_id to Message)
+)
 STORAGE_KEY = "homeclaw_user_data"
 
 # Limits
@@ -40,25 +42,29 @@ class Message:
 
     message_id: str
     session_id: str
-    role: str  # "user" | "assistant" | "system"
+    role: str  # "user" | "assistant" | "system" | "tool_use" | "tool_result"
     content: str
     timestamp: str
     status: str = "completed"  # "pending" | "completed" | "error"
     error_message: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
     attachments: list[dict[str, Any]] = field(default_factory=list)
+    # Structured content blocks for tool messages (tool_call / tool_result payloads)
+    content_blocks: list[dict[str, Any]] = field(default_factory=list)
+    # Links tool_result back to the tool_use that triggered it
+    tool_call_id: str = ""
 
     def __post_init__(self) -> None:
         """Validate and sanitize message data."""
-        # Truncate content if too long
-        if len(self.content) > MAX_MESSAGE_LENGTH:
+        # Truncate content if too long (skip for tool messages where content_blocks carry the data)
+        if self.content and len(self.content) > MAX_MESSAGE_LENGTH:
             self.content = self.content[:MAX_MESSAGE_LENGTH]
             _LOGGER.warning(
                 "Message content truncated to %d characters", MAX_MESSAGE_LENGTH
             )
 
         # Validate role
-        if self.role not in ("user", "assistant", "system"):
+        if self.role not in ("user", "assistant", "system", "tool_use", "tool_result"):
             raise ValueError(f"Invalid role: {self.role}")
 
         # Validate status
@@ -116,6 +122,7 @@ class SessionStorage:
                 "messages": {},
             }
             await self._migrate_v1_to_v2()
+            await self._migrate_v2_to_v3()
             await self._migrate_legacy_data()
             await self._cleanup_old_sessions()
         return self._data
@@ -144,11 +151,43 @@ class SessionStorage:
                 session["metadata"] = {}
                 migrated_count += 1
 
-        self._data["version"] = DATA_VERSION
+        self._data["version"] = 2  # Set to 2, not DATA_VERSION — let v2→v3 run next
 
         if migrated_count:
             _LOGGER.info(
                 "Migrated %d sessions from v1 to v2 (added metadata) for user %s",
+                migrated_count,
+                self.user_id,
+            )
+            await self._save()
+
+    async def _migrate_v2_to_v3(self) -> None:
+        """Migrate storage from v2 to v3: add content_blocks and tool_call_id to messages.
+
+        v3 adds tool message persistence. Existing messages get empty defaults.
+        This is a non-destructive migration.
+        """
+        if self._data is None:
+            return
+
+        stored_version = self._data.get("version", 1)
+        if stored_version >= 3:
+            return
+
+        migrated_count = 0
+        for session_id, messages in self._data.get("messages", {}).items():
+            for msg in messages:
+                if "content_blocks" not in msg:
+                    msg["content_blocks"] = []
+                    migrated_count += 1
+                if "tool_call_id" not in msg:
+                    msg["tool_call_id"] = ""
+
+        self._data["version"] = DATA_VERSION
+
+        if migrated_count:
+            _LOGGER.info(
+                "Migrated %d messages from v2 to v3 (added content_blocks/tool_call_id) for user %s",
                 migrated_count,
                 self.user_id,
             )

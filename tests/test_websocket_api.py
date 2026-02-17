@@ -582,21 +582,19 @@ class TestWsSendMessage:
         self, hass: HomeAssistant, mock_connection: MockConnection
     ) -> None:
         """Test sending a message with successful AI response."""
+        from custom_components.homeclaw.core.events import TextEvent, CompletionEvent
+
         # Set up session
         storage = SessionStorage(hass, "test_user_123")
         session = await storage.create_session(provider="anthropic")
 
-        # Set up mock AI agent
+        # Set up mock AI agent with stream_query as async generator
+        async def mock_stream_query(*args, **kwargs):
+            yield TextEvent(content="Hello! I can help with that.")
+            yield CompletionEvent(messages=[])
+
         mock_agent = AsyncMock()
-        mock_agent.process_query = AsyncMock(
-            return_value={
-                "success": True,
-                "answer": "Hello! I can help with that.",
-                "automation": None,
-                "dashboard": None,
-                "debug": None,
-            }
-        )
+        mock_agent.stream_query = mock_stream_query
         hass.data[DOMAIN] = {
             "agents": {"anthropic": mock_agent},
         }
@@ -623,12 +621,17 @@ class TestWsSendMessage:
         self, hass: HomeAssistant, mock_connection: MockConnection
     ) -> None:
         """Test sending a message when AI returns error."""
+        from custom_components.homeclaw.core.events import ErrorEvent
+
         storage = SessionStorage(hass, "test_user_123")
         session = await storage.create_session(provider="anthropic")
 
-        # Set up mock AI agent that raises error
+        # Set up mock AI agent that yields an error event
+        async def mock_stream_query(*args, **kwargs):
+            yield ErrorEvent(message="AI service down")
+
         mock_agent = AsyncMock()
-        mock_agent.process_query = AsyncMock(side_effect=Exception("AI service down"))
+        mock_agent.stream_query = mock_stream_query
         hass.data[DOMAIN] = {
             "agents": {"anthropic": mock_agent},
         }
@@ -696,6 +699,8 @@ class TestWsSendMessage:
         self, hass: HomeAssistant, mock_connection: MockConnection
     ) -> None:
         """Test that conversation history is passed to AI."""
+        from custom_components.homeclaw.core.events import TextEvent, CompletionEvent
+
         storage = SessionStorage(hass, "test_user_123")
         session = await storage.create_session(provider="anthropic")
 
@@ -717,11 +722,16 @@ class TestWsSendMessage:
         await storage.add_message(session.session_id, msg1)
         await storage.add_message(session.session_id, msg2)
 
-        # Set up mock agent
+        # Set up mock agent with stream_query - capture kwargs for verification
+        captured_kwargs = {}
+
+        async def mock_stream_query(*args, **kwargs):
+            captured_kwargs.update(kwargs)
+            yield TextEvent(content="Lights turned off")
+            yield CompletionEvent(messages=[])
+
         mock_agent = AsyncMock()
-        mock_agent.process_query = AsyncMock(
-            return_value={"answer": "Lights turned off"}
-        )
+        mock_agent.stream_query = mock_stream_query
         hass.data[DOMAIN] = {"agents": {"anthropic": mock_agent}}
 
         msg = {
@@ -734,8 +744,7 @@ class TestWsSendMessage:
 
         # Verify conversation history was passed (excluding the current user message,
         # which _build_messages() in QueryProcessor appends to avoid duplication).
-        call_kwargs = mock_agent.process_query.call_args.kwargs
-        history = call_kwargs.get("conversation_history", [])
+        history = captured_kwargs.get("conversation_history", [])
         assert (
             len(history) == 2
         )  # 2 existing messages (current query added by _build_messages)

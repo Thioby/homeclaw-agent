@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from dataclasses import asdict
@@ -132,6 +133,43 @@ async def _build_conversation_history(
     reconstruct_set = set(image_msg_indices[-max_image_messages:])
 
     for i, m in enumerate(messages):
+        # Reconstruct tool_use → assistant message with tool call JSON
+        if m.role == "tool_use" and m.content_blocks:
+            from ..core.tool_call_codec import build_assistant_tool_message
+
+            tool_calls = [
+                {
+                    "id": block.get("id", block.get("name", "unknown")),
+                    "name": block["name"],
+                    "args": block.get("arguments", {}),
+                }
+                for block in m.content_blocks
+                if block.get("type") == "tool_call"
+            ]
+            if tool_calls:
+                history.append(
+                    {
+                        "role": "assistant",
+                        "content": build_assistant_tool_message(tool_calls),
+                    }
+                )
+            continue
+
+        # Reconstruct tool_result → function message (internal format)
+        if m.role == "tool_result" and m.content_blocks:
+            for block in m.content_blocks:
+                if block.get("type") == "tool_result":
+                    history.append(
+                        {
+                            "role": "function",
+                            "name": block.get("name", "unknown"),
+                            "tool_use_id": block.get("tool_call_id", m.tool_call_id),
+                            "content": block.get("content", m.content),
+                        }
+                    )
+            continue
+
+        # Regular message (user/assistant/system)
         msg_dict: dict[str, Any] = {"role": m.role, "content": m.content}
 
         if i in reconstruct_set:
@@ -174,6 +212,67 @@ def _read_binary_file(path: str) -> bytes:
     """Read binary file content from disk (executor-only)."""
     with open(path, "rb") as f:
         return f.read()
+
+
+async def _persist_tool_messages(
+    storage: SessionStorage,
+    session_id: str,
+    event: Any,
+    timestamp: str,
+) -> None:
+    """Persist tool_use and tool_result events to storage.
+
+    Args:
+        storage: SessionStorage instance.
+        session_id: Current session ID.
+        event: AgentEvent (ToolCallEvent or ToolResultEvent).
+        timestamp: ISO timestamp for the message.
+    """
+    event_type = getattr(event, "type", None)
+
+    if event_type == "tool_call":
+        args_summary = json.dumps(getattr(event, "tool_args", {}), ensure_ascii=False)[
+            :200
+        ]
+        tool_msg = Message(
+            message_id=str(uuid.uuid4()),
+            session_id=session_id,
+            role="tool_use",
+            content=f"{event.tool_name}({args_summary})",
+            timestamp=timestamp,
+            status="completed",
+            content_blocks=[
+                {
+                    "type": "tool_call",
+                    "id": event.tool_call_id,
+                    "name": event.tool_name,
+                    "arguments": event.tool_args,
+                }
+            ],
+        )
+        await storage.add_message(session_id, tool_msg)
+
+    elif event_type == "tool_result":
+        result_str = str(getattr(event, "tool_result", ""))
+        content_summary = result_str[:500] if len(result_str) > 500 else result_str
+        tool_msg = Message(
+            message_id=str(uuid.uuid4()),
+            session_id=session_id,
+            role="tool_result",
+            content=content_summary,
+            timestamp=timestamp,
+            status="completed",
+            content_blocks=[
+                {
+                    "type": "tool_result",
+                    "tool_call_id": event.tool_call_id,
+                    "name": event.tool_name,
+                    "content": result_str[:10000],
+                }
+            ],
+            tool_call_id=event.tool_call_id,
+        )
+        await storage.add_message(session_id, tool_msg)
 
 
 @websocket_api.websocket_command(
@@ -273,44 +372,50 @@ async def ws_send_message(
             status="pending",
         )
 
-        # Call AI agent via MessageIntake
+        # Call AI agent via MessageIntake (using streaming internally to capture tool events)
         try:
             intake = MessageIntake(hass)
-            result = await intake.process_message(
+            accumulated_text = ""
+            stream_error: str | None = None
+            tool_timestamp = datetime.now(timezone.utc).isoformat()
+
+            # Use streaming internally to capture and persist tool_use/tool_result events
+            async for event in intake.process_message_stream(
                 msg["message"],
                 user_id=user_id,
                 session_id=session_id,
                 provider=provider,
                 model=msg.get("model"),
-                debug=msg.get("debug", False),
                 conversation_history=conversation_history,
                 attachments=processed_attachments or None,
-            )
+            ):
+                event_type = getattr(event, "type", None)
 
-            # Check if AI agent returned success or error
-            if result.get("success", False):
-                assistant_message.content = result.get("answer", "")
-                assistant_message.status = "completed"
-                assistant_message.metadata = {
-                    k: v
-                    for k, v in {
-                        "automation": result.get("automation"),
-                        "dashboard": result.get("dashboard"),
-                        "debug": result.get("debug"),
-                    }.items()
-                    if v is not None
-                }
-            else:
-                # AI agent returned an error
+                if event_type == "text":
+                    accumulated_text += getattr(event, "content", "")
+                elif event_type in ("tool_call", "tool_result"):
+                    # Persist tool messages for history reconstruction
+                    await _persist_tool_messages(
+                        storage, session_id, event, tool_timestamp
+                    )
+                elif event_type == "error":
+                    stream_error = getattr(event, "message", "Unknown error")
+                    break
+                elif event_type == "complete":
+                    break
+
+            # Update assistant message based on result
+            if stream_error:
                 assistant_message.status = "error"
-                assistant_message.error_message = result.get(
-                    "error", "Unknown AI error"
-                )
+                assistant_message.error_message = stream_error
                 _LOGGER.error(
                     "AI agent error for session %s: %s",
                     session_id,
-                    assistant_message.error_message,
+                    stream_error,
                 )
+            else:
+                assistant_message.content = accumulated_text
+                assistant_message.status = "completed"
 
         except Exception as ai_err:
             assistant_message.status = "error"
@@ -533,7 +638,13 @@ async def ws_send_message_stream(
                         }
                     )
                 elif event_type in ("tool_call", "tool_result"):
-                    _LOGGER.debug("Ignoring %s event (handled internally)", event_type)
+                    # Persist tool messages to storage for history reconstruction
+                    await _persist_tool_messages(
+                        storage,
+                        session_id,
+                        event,
+                        datetime.now(timezone.utc).isoformat(),
+                    )
                 elif event_type == "error":
                     stream_error = getattr(event, "message", "Unknown error")
                     break
