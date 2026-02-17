@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.1.2 — Tool message persistence and history reconstruction
+
+### Fixed
+- **Tool call context was lost in non-streaming chat path** — tool events (`tool_call`, `tool_result`) are now persisted in storage during message processing, so later turns keep full context.
+- **Conversation history dropped tool steps** — stored tool messages are now reconstructed into provider-ready history (`assistant` tool-call JSON + `function` tool-result entries).
+- **Storage schema missing tool metadata** — added migration from data v2 to v3 with `content_blocks` and `tool_call_id` fields for all stored messages.
+
+### Changed
+- **Extended message roles in storage** — `Message.role` now supports `tool_use` and `tool_result` in addition to `user`, `assistant`, and `system`.
+- **Test coverage updated** — storage and websocket tests now cover v3 migration and tool message persistence/rebuild behavior.
+
 ## v1.1.1 — Scheduler fix & lifecycle refactor
 
 ### Fixed
