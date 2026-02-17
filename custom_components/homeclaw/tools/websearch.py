@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult
+from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +54,7 @@ class WebSearchTool(Tool):
         "content from relevant websites. Use for current events, recent data, and "
         "information beyond the AI's knowledge cutoff."
     )
+    short_description = "Search the web for current information using Exa AI"
     category = ToolCategory.WEB
 
     parameters = [
@@ -275,6 +276,7 @@ class SimpleWebSearchTool(Tool):
         "Basic web search using DuckDuckGo. No API key required. "
         "Use when Exa API is unavailable."
     )
+    short_description = "Quick web search with simplified parameters"
     category = ToolCategory.WEB
     enabled = False  # Disabled by default
 

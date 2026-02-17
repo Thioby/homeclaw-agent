@@ -32,7 +32,7 @@ from ..utils.yaml_writer import (
     safe_load_yaml,
     serialize_for_output,
 )
-from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult
+from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ class ListAvailableIntegrations(Tool):
         "set up via UI (generate a link for the user). If config_flow=false "
         "it requires YAML configuration (use create_yaml_integration)."
     )
+    short_description = "List available HA integrations with config flow info"
     category = ToolCategory.HOME_ASSISTANT
     parameters = [
         ToolParameter(
@@ -167,6 +168,7 @@ class ReadYamlConfig(Tool):
         "(top-level key). Secrets are redacted. Use before create_yaml_integration "
         "to check existing config and merge correctly."
     )
+    short_description = "Read current configuration.yaml content"
     category = ToolCategory.HOME_ASSISTANT
     parameters = [
         ToolParameter(
@@ -284,6 +286,7 @@ class CreateYamlIntegration(Tool):
         "appended. Use only for integrations without config_flow. "
         'Example: {"notify": [{"platform": "smtp", "server": "smtp.gmail.com"}]}'
     )
+    short_description = "Create YAML-based HA integration configuration"
     category = ToolCategory.HOME_ASSISTANT
     parameters = [
         ToolParameter(

@@ -12,7 +12,7 @@ import logging
 from typing import Any
 
 from ..const import DOMAIN
-from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult
+from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,6 +55,9 @@ class IdentitySetTool(Tool):
         "Set or update agent identity and user profile. Use during onboarding "
         "to save the agent's chosen name, personality, emoji, and user preferences. "
         "Call this after learning about the user to save the information."
+    )
+    short_description = (
+        "Set or update agent identity, user profile, and language preferences"
     )
     category = ToolCategory.HOME_ASSISTANT
     parameters = [
@@ -147,9 +150,9 @@ class IdentitySetTool(Tool):
             result = {
                 "success": True,
                 "updated_fields": list(fields_to_update.keys()),
-                "onboarding_completed": identity.onboarding_completed
-                if identity
-                else False,
+                "onboarding_completed": (
+                    identity.onboarding_completed if identity else False
+                ),
                 "agent_name": identity.agent_name if identity else None,
             }
 

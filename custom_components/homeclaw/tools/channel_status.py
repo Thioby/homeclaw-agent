@@ -9,7 +9,6 @@ from typing import Any
 from homeassistant.const import CONF_API_TOKEN
 
 from ..channels.base import ChannelTarget
-from ..const import DOMAIN
 from ..channels.config import build_channel_runtime_config
 from ..channels.discord.helpers import get_last_target
 from ..channels.discord.pairing import (
@@ -17,7 +16,8 @@ from ..channels.discord.pairing import (
     get_request_by_code,
     persist_pairing,
 )
-from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult
+from ..const import DOMAIN
+from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ class CheckDiscordConnection(Tool):
         "Check if Discord is connected for Homeclaw right now. "
         "Returns whether Discord is configured, enabled, and currently connected."
     )
+    short_description = "Check Discord connection and configuration status"
     category = ToolCategory.HOME_ASSISTANT
 
     async def execute(self, **kwargs: Any) -> ToolResult:
@@ -101,6 +102,7 @@ class GetDiscordLastTarget(Tool):
 
     id = "get_discord_last_target"
     description = "Get the latest Discord target used by this user (channel/DM) for reliable reply routing."
+    short_description = "Get the latest Discord target for reply routing"
     category = ToolCategory.HOME_ASSISTANT
     parameters = []
 
@@ -148,6 +150,7 @@ class SendDiscordMessage(Tool):
         "Send a Discord message via Homeclaw and return delivery confirmation. "
         "Use target_id explicitly or fallback to the user's last Discord target."
     )
+    short_description = "Send a message to a Discord channel or DM"
     category = ToolCategory.HOME_ASSISTANT
     parameters = [
         ToolParameter(
@@ -246,6 +249,7 @@ class ConfirmDiscordPairing(Tool):
 
     id = "confirm_discord_pairing"
     description = "Confirm a Discord pairing code and connect that Discord user with the current Homeclaw user."
+    short_description = "Confirm a Discord pairing code to link accounts"
     category = ToolCategory.HOME_ASSISTANT
     parameters = [
         ToolParameter(

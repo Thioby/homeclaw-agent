@@ -10,7 +10,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from .base import Tool, ToolRegistry, ToolResult, ToolParameter, ToolCategory
+from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,6 +99,7 @@ class GetEntityState(Tool):
     id = "get_entity_state"
     description = "Get the state and attributes of a specific entity."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="entity_id",
@@ -127,12 +128,12 @@ class GetEntityState(Tool):
             "entity_id": state.entity_id,
             "state": state.state,
             "attributes": dict(state.attributes),
-            "last_changed": state.last_changed.isoformat()
-            if state.last_changed
-            else None,
-            "last_updated": state.last_updated.isoformat()
-            if state.last_updated
-            else None,
+            "last_changed": (
+                state.last_changed.isoformat() if state.last_changed else None
+            ),
+            "last_updated": (
+                state.last_updated.isoformat() if state.last_updated else None
+            ),
         }
 
         # Format as JSON string for output
@@ -147,6 +148,7 @@ class GetEntitiesByDomain(Tool):
         "Returns lightweight info — use get_entity_state for full details."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="domain",
@@ -199,6 +201,7 @@ class GetEntityRegistrySummary(Tool):
     id = "get_entity_registry_summary"
     description = "Get a summary of all entities in the system, counted by domain, area, and device_class."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = []  # No parameters
 
     async def execute(self, **kwargs) -> ToolResult:
@@ -251,6 +254,7 @@ class GetEntityRegistry(Tool):
     id = "get_entity_registry"
     description = "Get list of entities filtered by domain, area, or device_class."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="domain", type="string", description="Filter by domain", required=False
@@ -314,15 +318,19 @@ class GetEntityRegistry(Tool):
                 {
                     "entity_id": entry.entity_id,
                     "state": state.state if state else "unknown",
-                    "area": area_names.get(entity_area, entity_area)
-                    if entity_area
-                    else None,
-                    "device_class": state.attributes.get("device_class")
-                    if state
-                    else None,
-                    "friendly_name": state.attributes.get("friendly_name")
-                    if state
-                    else entry.original_name,
+                    "area": (
+                        area_names.get(entity_area, entity_area)
+                        if entity_area
+                        else None
+                    ),
+                    "device_class": (
+                        state.attributes.get("device_class") if state else None
+                    ),
+                    "friendly_name": (
+                        state.attributes.get("friendly_name")
+                        if state
+                        else entry.original_name
+                    ),
                 }
             )
 
@@ -340,6 +348,7 @@ class CallService(Tool):
     id = "call_service"
     description = "Call a Home Assistant service to control devices."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="domain",
@@ -425,6 +434,7 @@ class GetHistory(Tool):
         "Returns state and timestamp only — use get_entity_state for current attributes."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="entity_id",
@@ -459,6 +469,7 @@ class GetHistory(Tool):
 
         try:
             from datetime import datetime, timedelta
+
             from homeassistant.components.recorder import get_instance
             from homeassistant.components.recorder.history import get_significant_states
             from homeassistant.util import dt as dt_util
@@ -484,9 +495,11 @@ class GetHistory(Tool):
                     results.append(
                         {
                             "state": state.state,
-                            "timestamp": state.last_changed.isoformat()
-                            if state.last_changed
-                            else None,
+                            "timestamp": (
+                                state.last_changed.isoformat()
+                                if state.last_changed
+                                else None
+                            ),
                         }
                     )
 
@@ -525,6 +538,7 @@ class GetEntitiesByDeviceClass(Tool):
         "Returns lightweight info — use get_entity_state for full details."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="device_class",
@@ -598,6 +612,7 @@ class GetEntitiesByArea(Tool):
         "Returns lightweight info — use get_entity_state for full details."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="area_id",
@@ -659,6 +674,7 @@ class GetEntities(Tool):
         "Returns lightweight info — use get_entity_state for full details."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="area_id",
@@ -737,6 +753,7 @@ class GetClimateRelatedEntities(Tool):
         "and humidity sensors. Returns lightweight info."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="limit",
@@ -791,6 +808,7 @@ class GetStatistics(Tool):
         "Get statistics (mean, min, max, sum) for an entity from the recorder."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="entity_id",
@@ -807,8 +825,8 @@ class GetStatistics(Tool):
             )
 
         try:
-            from homeassistant.components.recorder import get_instance
             import homeassistant.components.recorder.statistics as stats_module
+            from homeassistant.components.recorder import get_instance
 
             recorder_instance = get_instance(self.hass)
             if not recorder_instance:
@@ -862,6 +880,7 @@ class GetDeviceRegistrySummary(Tool):
     id = "get_device_registry_summary"
     description = "Get a summary of all devices in the system, counted by manufacturer, area, and integration."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = []
 
     async def execute(self, **kwargs) -> ToolResult:
@@ -900,6 +919,7 @@ class GetDeviceRegistry(Tool):
     id = "get_device_registry"
     description = "Get device registry entries with filtering and pagination."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="area_id",
@@ -956,9 +976,11 @@ class GetDeviceRegistry(Tool):
                     "name": device.name or device.name_by_user,
                     "manufacturer": device.manufacturer,
                     "model": device.model,
-                    "area": area_names.get(device.area_id, device.area_id)
-                    if device.area_id
-                    else None,
+                    "area": (
+                        area_names.get(device.area_id, device.area_id)
+                        if device.area_id
+                        else None
+                    ),
                 }
             )
 
@@ -976,6 +998,7 @@ class GetAreaRegistry(Tool):
     id = "get_area_registry"
     description = "Get all areas defined in Home Assistant with their details."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = []
 
     async def execute(self, **kwargs) -> ToolResult:
@@ -1006,6 +1029,7 @@ class GetWeatherData(Tool):
         "Get current weather data and forecast from available weather entities."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = []
 
     async def execute(self, **kwargs) -> ToolResult:
@@ -1058,6 +1082,7 @@ class GetCalendarEvents(Tool):
     id = "get_calendar_events"
     description = "Get calendar events from calendar entities."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="entity_id",
@@ -1085,6 +1110,7 @@ class GetCalendarEvents(Tool):
         self, entity_id: Optional[str] = None, days: int = 7, limit: int = 50, **kwargs
     ) -> ToolResult:
         from datetime import datetime, timedelta
+
         from homeassistant.util import dt as dt_util
 
         now = dt_util.now()
@@ -1150,6 +1176,7 @@ class GetAutomations(Tool):
     id = "get_automations"
     description = "Get automations in the system with pagination."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="limit",
@@ -1199,6 +1226,7 @@ class GetScenes(Tool):
     id = "get_scenes"
     description = "Get scenes in the system with pagination."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="limit",
@@ -1242,6 +1270,7 @@ class GetPersonData(Tool):
     id = "get_person_data"
     description = "Get person tracking information including location data."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = []
 
     async def execute(self, **kwargs) -> ToolResult:
@@ -1256,9 +1285,9 @@ class GetPersonData(Tool):
                     "longitude": state.attributes.get("longitude"),
                     "source": state.attributes.get("source"),
                     "gps_accuracy": state.attributes.get("gps_accuracy"),
-                    "last_changed": state.last_changed.isoformat()
-                    if state.last_changed
-                    else None,
+                    "last_changed": (
+                        state.last_changed.isoformat() if state.last_changed else None
+                    ),
                 }
             )
 
@@ -1272,6 +1301,7 @@ class GetDashboards(Tool):
     id = "get_dashboards"
     description = "Get list of all Lovelace dashboards."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = []
 
     async def execute(self, **kwargs) -> ToolResult:
@@ -1296,6 +1326,7 @@ class GetDashboardConfig(Tool):
     id = "get_dashboard_config"
     description = "Get configuration of a specific dashboard."
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="dashboard_url",

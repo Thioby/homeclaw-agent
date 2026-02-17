@@ -6,16 +6,16 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
-from ..function_calling import FunctionCallHandler, FunctionCall
+from ..function_calling import FunctionCall, FunctionCallHandler
 from .compaction import compact_messages, truncation_fallback
 from .function_call_parser import FunctionCallParser
 from .response_parser import ResponseParser
-from .tool_call_codec import build_assistant_tool_message, normalize_tool_calls
 from .token_estimator import (
     DEFAULT_CONTEXT_WINDOW,
     compute_context_budget,
     estimate_messages_tokens,
 )
+from .tool_call_codec import build_assistant_tool_message, normalize_tool_calls
 from .tool_executor import ToolExecutor
 
 if TYPE_CHECKING:
@@ -299,6 +299,105 @@ class QueryProcessor:
         )
         return truncation_fallback(result, available)
 
+    @staticmethod
+    def _expand_loaded_tools(
+        function_calls: list[FunctionCall],
+        effective_tools: list[dict[str, Any]] | None,
+        hass: Any,
+        denied_tools: frozenset[str] | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]] | None:
+        """Expand effective_tools when load_tool was called.
+
+        Scans executed function calls for ``load_tool`` invocations and
+        dynamically adds the requested tool schemas to ``effective_tools``
+        so they are available in the next LLM iteration.
+
+        Security: validates that the tool is ON_DEMAND, enabled, and not
+        in the ``denied_tools`` set before adding its schema.
+
+        Args:
+            function_calls: List of FunctionCall objects just executed.
+            effective_tools: Current tool schemas (OpenAI format) or None.
+            hass: Home Assistant instance for tool instantiation.
+            denied_tools: Optional frozenset of tool names blocked from use.
+            config: Optional tool configuration (for API keys, etc.).
+
+        Returns:
+            Updated effective_tools list (may be the same reference if
+            no load_tool calls were found).
+        """
+        if effective_tools is None:
+            return None
+
+        # If load_tool itself is denied, skip all expansion to prevent bypass
+        if denied_tools and "load_tool" in denied_tools:
+            _LOGGER.debug("load_tool is in denied_tools, skipping all expansion")
+            return effective_tools
+
+        from ..function_calling import ToolSchemaConverter
+        from ..tools.base import ToolRegistry, ToolTier
+
+        for fc in function_calls:
+            if fc.name != "load_tool":
+                continue
+
+            tool_name = fc.arguments.get("tool_name", "")
+            if not tool_name:
+                continue
+
+            # Check if already loaded
+            already_loaded = any(
+                t.get("function", {}).get("name") == tool_name for t in effective_tools
+            )
+            if already_loaded:
+                _LOGGER.debug("Tool %s already in effective_tools, skipping", tool_name)
+                continue
+
+            # Respect denied_tools policy
+            if denied_tools and tool_name in denied_tools:
+                _LOGGER.warning(
+                    "load_tool: tool '%s' is in denied_tools, refusing to load",
+                    tool_name,
+                )
+                continue
+
+            # Validate tool class before instantiation
+            tool_class = ToolRegistry.get_tool_class(tool_name)
+            if tool_class is None:
+                _LOGGER.warning("load_tool: tool %s not found in registry", tool_name)
+                continue
+
+            if not tool_class.enabled:
+                _LOGGER.warning("load_tool: tool '%s' is disabled, skipping", tool_name)
+                continue
+
+            if tool_class.tier != ToolTier.ON_DEMAND:
+                _LOGGER.debug(
+                    "load_tool: tool '%s' is tier %s (not ON_DEMAND), skipping",
+                    tool_name,
+                    tool_class.tier.value,
+                )
+                continue
+
+            # Get the tool instance and convert to schema
+            tool_instance = ToolRegistry.get_tool(tool_name, hass=hass, config=config)
+            if tool_instance is None:
+                _LOGGER.warning(
+                    "load_tool: tool %s could not be instantiated", tool_name
+                )
+                continue
+
+            new_schemas = ToolSchemaConverter.to_openai_format([tool_instance])
+            effective_tools.extend(new_schemas)
+            _LOGGER.info(
+                "load_tool: dynamically added '%s' to effective_tools (%d total)",
+                tool_name,
+                len(effective_tools),
+            )
+
+        return effective_tools
+
     def _detect_function_call(self, response_text: str) -> list[FunctionCall] | None:
         """Detect and parse function calls from response text.
 
@@ -339,12 +438,12 @@ class QueryProcessor:
             "max_iterations", self.max_iterations
         )
         from .events import (
+            CompletionEvent,
+            ErrorEvent,
+            StatusEvent,
             TextEvent,
             ToolCallEvent,
             ToolResultEvent,
-            StatusEvent,
-            ErrorEvent,
-            CompletionEvent,
         )
 
         # Sanitize the query
@@ -365,6 +464,9 @@ class QueryProcessor:
 
         # Extract denied tools (for subagent/heartbeat security restrictions)
         denied_tools: frozenset[str] | None = kwargs.pop("denied_tools", None)
+
+        # Extract config for tool instantiation (API keys, etc.)
+        config: dict[str, Any] | None = kwargs.pop("config", None)
 
         # Extract compaction-related kwargs (don't pass to provider)
         context_window = kwargs.pop("context_window", DEFAULT_CONTEXT_WINDOW)
@@ -485,6 +587,11 @@ class QueryProcessor:
                                 tool_result=tool_event["result"],
                                 tool_call_id=tool_event.get("id", "unknown"),
                             )
+
+                    # Expand effective_tools if load_tool was called
+                    effective_tools = self._expand_loaded_tools(
+                        function_calls, effective_tools, hass, denied_tools=denied_tools
+                    )
 
                     # Re-check context budget after tool results were appended
                     built_messages = await self._recompact_if_needed(
@@ -611,6 +718,15 @@ class QueryProcessor:
                         # We might want to yield status events here too, but "result" mode doesn't give them.
                         # For now, we just yield the result.
 
+                    # Expand effective_tools if load_tool was called
+                    effective_tools = self._expand_loaded_tools(
+                        function_calls,
+                        effective_tools,
+                        hass,
+                        denied_tools=denied_tools,
+                        config=config,
+                    )
+
                     # Re-check context budget after tool results were appended
                     built_messages = await self._recompact_if_needed(
                         built_messages, context_window=context_window
@@ -733,6 +849,9 @@ class QueryProcessor:
         # Extract denied tools (for subagent/heartbeat security restrictions)
         denied_tools_p: frozenset[str] | None = kwargs.pop("denied_tools", None)
 
+        # Extract config for tool instantiation (API keys, etc.)
+        config_p: dict[str, Any] | None = kwargs.pop("config", None)
+
         # Extract compaction-related kwargs (don't pass to provider)
         context_window_p = kwargs.pop("context_window", DEFAULT_CONTEXT_WINDOW)
         memory_flush_fn_p = kwargs.pop("memory_flush_fn", None)
@@ -823,6 +942,15 @@ class QueryProcessor:
                     user_id=user_id_p,
                 ):
                     pass  # ToolExecutor with yield_mode="none" shouldn't yield anything
+
+                # Expand effective_tools if load_tool was called
+                effective_tools_p = self._expand_loaded_tools(
+                    function_calls,
+                    effective_tools_p,
+                    hass,
+                    denied_tools=denied_tools_p,
+                    config=config_p,
+                )
 
                 # Re-check context budget after tool results were appended
                 built_messages = await self._recompact_if_needed(

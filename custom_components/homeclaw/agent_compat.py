@@ -10,8 +10,8 @@ from .core.conversation import ConversationManager
 from .providers.registry import ProviderRegistry
 
 if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant
     from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -155,11 +155,11 @@ class HomeclawAgent:
 
     def _setup_agent(self) -> None:
         """Create new Agent orchestrator."""
+        from .managers.automation_manager import AutomationManager
+        from .managers.control_manager import ControlManager
+        from .managers.dashboard_manager import DashboardManager
         from .managers.entity_manager import EntityManager
         from .managers.registry_manager import RegistryManager
-        from .managers.automation_manager import AutomationManager
-        from .managers.dashboard_manager import DashboardManager
-        from .managers.control_manager import ControlManager
 
         self._agent = Agent(
             hass=self.hass,
@@ -182,7 +182,11 @@ class HomeclawAgent:
     # === PUBLIC API (same signatures as old agent) ===
 
     def _get_tools_for_provider(self) -> list[dict[str, Any]] | None:
-        """Get tools in OpenAI format for the current provider.
+        """Get CORE-tier tools in OpenAI format for the current provider.
+
+        Only CORE tools are included in function-calling schemas by default.
+        ON_DEMAND tools are listed as short descriptions in the system prompt
+        and activated via the ``load_tool`` meta-tool at runtime.
 
         Returns:
             List of tools in OpenAI format, or None if provider doesn't support tools.
@@ -191,21 +195,24 @@ class HomeclawAgent:
             return None
 
         try:
-            from .tools import ToolRegistry
             from .function_calling import ToolSchemaConverter
+            from .tools import ToolRegistry
 
-            tools = ToolRegistry.get_all_tools(
+            tools = ToolRegistry.get_core_tools(
                 hass=self.hass,
                 config=self.config,
-                enabled_only=True,
             )
 
             if not tools:
-                _LOGGER.debug("No tools available for native function calling")
+                _LOGGER.debug("No CORE tools available for native function calling")
                 return None
 
             openai_tools = ToolSchemaConverter.to_openai_format(tools)
-            _LOGGER.debug("Retrieved %d tools for native function calling", len(tools))
+            _LOGGER.debug(
+                "Retrieved %d CORE tools for native function calling "
+                "(ON_DEMAND tools available via load_tool)",
+                len(tools),
+            )
             return openai_tools
 
         except Exception as e:
@@ -264,6 +271,13 @@ class HomeclawAgent:
         # Add tools for native function calling
         tools = self._get_tools_for_provider()
         if tools:
+            # Auto-load ON_DEMAND tools when query obviously needs them
+            auto_loaded = self._auto_load_tools(user_query, tools)
+            if auto_loaded:
+                _LOGGER.debug(
+                    "Auto-loaded %d ON_DEMAND tool(s) in non-stream path",
+                    len(auto_loaded),
+                )
             # Filter out denied tools from the LLM tool list (first layer of defense)
             if denied_tools:
                 tools = [
@@ -301,9 +315,15 @@ class HomeclawAgent:
         else:
             _LOGGER.debug("RAG manager not configured, skipping context retrieval")
 
-        # System prompt override (for subagent/heartbeat contexts)
+        # System prompt: use override if provided, otherwise build default
+        # (includes ON_DEMAND tool catalog for the LLM)
+        # NOTE: Agent.process_query() only honors system_prompt_override, not system_prompt
         if system_prompt:
             kwargs["system_prompt_override"] = system_prompt
+        else:
+            default_prompt = await self._get_system_prompt(user_id or "")
+            if default_prompt:
+                kwargs["system_prompt_override"] = default_prompt
 
         # Pass max_iterations through kwargs (consumed by QueryProcessor.process)
         # — no shared state mutation, safe for concurrent async calls
@@ -420,6 +440,7 @@ class HomeclawAgent:
             "hass": self.hass,
             "user_id": user_id,
             "session_id": session_id,
+            "config": self.config,  # For tool instantiation (API keys, etc.)
         }
 
         if model:
@@ -429,9 +450,15 @@ class HomeclawAgent:
         if attachments:
             kwargs["attachments"] = attachments
 
-        # Tools
+        # Tools — CORE tools always loaded; ON_DEMAND auto-loaded by heuristic
         tools = self._get_tools_for_provider()
         if tools:
+            auto_loaded = self._auto_load_tools(text, tools)
+            if auto_loaded:
+                _LOGGER.debug(
+                    "Auto-loaded %d ON_DEMAND tool(s) based on query hints",
+                    len(auto_loaded),
+                )
             kwargs["tools"] = tools
 
         # Context window for compaction
@@ -560,8 +587,92 @@ class HomeclawAgent:
             _LOGGER.warning("RAG query failed: %s", e, exc_info=True)
         return None
 
+    # Keyword hints for auto-loading ON_DEMAND tools without an extra LLM round-trip.
+    # Keys are tool IDs, values are lowercase keyword lists.
+    _AUTO_LOAD_HINTS: dict[str, list[str]] = {
+        "web_search": [
+            "search",
+            "look up",
+            "find online",
+            "google",
+            "latest news",
+            "wyszukaj",
+            "szukaj",
+            "znajdź w internecie",
+            "sprawdź online",
+        ],
+        "web_search_simple": [],  # covered by web_search hints
+        "web_fetch": [
+            "http://",
+            "https://",
+            "fetch",
+            "read this url",
+            "open link",
+            "pobierz stronę",
+            "otwórz link",
+        ],
+        "context7_resolve": [
+            "documentation",
+            "library docs",
+            "api reference",
+            "dokumentacja",
+            "docs for",
+        ],
+        "context7_docs": [],  # covered by context7_resolve hints
+        "identity_set": [
+            "my name is",
+            "call me",
+            "change your name",
+            "mam na imię",
+            "nazywaj mnie",
+        ],
+    }
+
+    def _auto_load_tools(
+        self,
+        query: str,
+        tools: list[dict[str, Any]],
+    ) -> list[str]:
+        """Pre-load ON_DEMAND tools when the query obviously needs them.
+
+        Scans the query for keyword hints and adds matching tool schemas
+        to the ``tools`` list in-place. This eliminates the +1 round-trip
+        latency of ``load_tool`` for the ~80% of obvious cases.
+
+        Args:
+            query: User query text.
+            tools: Mutable list of tool schemas (OpenAI format) to extend.
+
+        Returns:
+            List of tool IDs that were auto-loaded.
+        """
+        from .function_calling import ToolSchemaConverter
+        from .tools.base import ToolRegistry
+
+        query_lower = query.lower()
+        loaded: list[str] = []
+
+        for tool_id, keywords in self._AUTO_LOAD_HINTS.items():
+            if not keywords:
+                continue
+            if not any(kw in query_lower for kw in keywords):
+                continue
+            # Check if already in tools list
+            if any(t.get("function", {}).get("name") == tool_id for t in tools):
+                continue
+            tool_instance = ToolRegistry.get_tool(
+                tool_id, hass=self.hass, config=self.config
+            )
+            if tool_instance is None:
+                continue
+            new_schemas = ToolSchemaConverter.to_openai_format([tool_instance])
+            tools.extend(new_schemas)
+            loaded.append(tool_id)
+
+        return loaded
+
     async def _get_system_prompt(self, user_id: str) -> str:
-        """Build system prompt with identity context.
+        """Build system prompt with identity context and on-demand tool catalog.
 
         Args:
             user_id: User ID for identity lookup.
@@ -569,32 +680,42 @@ class HomeclawAgent:
         Returns:
             Full system prompt string with identity context if available,
             or onboarding prompt for new users, or base prompt as fallback.
+            Includes short descriptions of ON_DEMAND tools when the provider
+            supports function calling.
         """
         from .prompts import BASE_SYSTEM_PROMPT
 
         # Check if identity manager is available
         if not self._rag_manager or not self._rag_manager.identity_manager:
             _LOGGER.debug("Identity manager not available, using BASE_SYSTEM_PROMPT")
-            return self._inject_current_time(BASE_SYSTEM_PROMPT)
+            system_prompt = BASE_SYSTEM_PROMPT
+        else:
+            try:
+                identity_manager = self._rag_manager.identity_manager
+                identity = await identity_manager.get_identity(user_id)
+                system_prompt = identity_manager.build_system_prompt(identity)
 
-        try:
-            identity_manager = self._rag_manager.identity_manager
-            identity = await identity_manager.get_identity(user_id)
-            system_prompt = identity_manager.build_system_prompt(identity)
+                if identity and identity.onboarding_completed:
+                    _LOGGER.debug(
+                        "Using system prompt with identity context (agent: %s)",
+                        identity.agent_name,
+                    )
+                else:
+                    _LOGGER.debug("User not onboarded, using onboarding prompt")
 
-            if identity and identity.onboarding_completed:
-                _LOGGER.debug(
-                    "Using system prompt with identity context (agent: %s)",
-                    identity.agent_name,
-                )
-            else:
-                _LOGGER.debug("User not onboarded, using onboarding prompt")
+            except Exception as e:
+                _LOGGER.warning("Failed to build system prompt with identity: %s", e)
+                system_prompt = BASE_SYSTEM_PROMPT
 
-            return self._inject_current_time(system_prompt)
+        # Append ON_DEMAND tool catalog when provider supports tools
+        if self._provider.supports_tools:
+            from .tools import ToolRegistry
 
-        except Exception as e:
-            _LOGGER.warning("Failed to build system prompt with identity: %s", e)
-            return self._inject_current_time(BASE_SYSTEM_PROMPT)
+            on_demand_desc = ToolRegistry.get_on_demand_descriptions()
+            if on_demand_desc:
+                system_prompt = system_prompt + "\n\n" + on_demand_desc
+
+        return self._inject_current_time(system_prompt)
 
     @staticmethod
     def _inject_current_time(prompt: str) -> str:

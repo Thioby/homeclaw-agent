@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar, List
 
-from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult
+from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,6 +26,9 @@ class SubagentSpawnTool(Tool):
         "Use this for: analysis tasks, multi-step research, data gathering that would "
         "take too long in the main conversation. "
         "The result will be available via subagent_status tool."
+    )
+    short_description: ClassVar[str] = (
+        "Spawn a background AI worker for complex independent tasks"
     )
     category: ClassVar[ToolCategory] = ToolCategory.UTILITY
     parameters: ClassVar[List[ToolParameter]] = [
@@ -113,6 +116,9 @@ class SubagentStatusTool(Tool):
     description: ClassVar[str] = (
         "Check the status and results of background subagent tasks. "
         "Actions: list (show all tasks), get (get specific task result), cancel (stop a running task)."
+    )
+    short_description: ClassVar[str] = (
+        "Check status and results of background subagent tasks"
     )
     category: ClassVar[ToolCategory] = ToolCategory.UTILITY
     parameters: ClassVar[List[ToolParameter]] = [
