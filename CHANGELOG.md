@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.2.1 — Progressive tool loading, Discord resilience, and OAuth reauth
+
+### Added
+- **Progressive tool loading** — tools are now split into CORE (always loaded) and ON_DEMAND tiers. Only CORE tool schemas are sent to the LLM by default (~5K fewer tokens per request). A new `load_tool` meta-tool lets the LLM activate additional tools on demand during a conversation.
+- **`ToolTier` enum and `short_description` field** on the `Tool` base class — enables the two-tier loading system.
+- **`ToolRegistry.get_core_tools()` and `list_on_demand_ids()`** — public API for the new tier system.
+- **OAuth re-authentication flow** — when a refresh token becomes permanently invalid (`invalid_grant`), the integration now triggers HA's built-in reauth flow instead of silently failing. Covers both Anthropic and Gemini OAuth providers.
+- **`config_flow.py` reauth steps** — `async_step_reauth` / `async_step_reauth_confirm` with full PKCE exchange for both Anthropic and Gemini OAuth.
+- **YAML utilities extracted** — new `utils/yaml_io.py`, `utils/yaml_tags.py`, `utils/yaml_sections.py`, and `utils/yaml_writer.py` modules replace inline YAML handling in `integration_manager.py`. Includes `CONFIG_WRITE_LOCK`, atomic file writes, HA tag preservation (`!include`, `!secret`), and section-level merge/remove.
+- **Tests** — `test_load_tool.py` (618 lines) and expanded `test_integration_manager.py` and `test_dashboard_manager.py`.
+
+### Fixed
+- **Discord gateway reconnect** — replaced fixed-delay reconnect with exponential backoff (5s → 120s max, 25% jitter) and a 50-attempt limit. Added HELLO timeout (30s) for zombie connection detection. Stale resume URLs are cleared and the aiohttp session is properly closed before reconnecting.
+- **Discord pairing persistence** — `persist_pairing` now resolves the config entry via the lifecycle manager instead of blindly picking `entries[0]`, preventing writes to the wrong entry in multi-provider setups.
+- **OAuth token refresh race condition** — both Anthropic and Gemini providers now re-read persisted tokens under the refresh lock, so a concurrent refresh by another task is picked up instead of triggering a duplicate refresh.
+- **`OAuthRefreshError` / `GeminiOAuthRefreshError` now carry `is_permanent` flag** — callers can distinguish transient network errors from revoked tokens.
+- **YAML merger bug** — fixed section merging in `integration_manager` that could corrupt `configuration.yaml` when HA-specific tags (`!include`, `!secret`) were present.
+- **`integration_manager.py` reduced by ~310 lines** — YAML logic extracted to `utils/` modules, eliminating duplication with `dashboard_manager.py`.
+
+### Changed
+- **`agent_compat.py`** — `_get_tools_for_provider()` now calls `get_core_tools()` instead of `get_all_tools()`, and the system prompt includes short descriptions of available ON_DEMAND tools.
+- **`query_processor.py`** — new `_expand_loaded_tools()` static method detects `load_tool` results and dynamically injects activated tool schemas into the multi-turn loop. Includes security checks (ON_DEMAND tier, enabled, not in `denied_tools`).
+- **`dashboard_manager.py`** — refactored to use shared `utils/yaml_writer` instead of its own YAML helpers.
+
 ## v1.1.2 — Tool message persistence and history reconstruction
 
 ### Fixed
