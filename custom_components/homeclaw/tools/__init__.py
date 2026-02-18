@@ -54,6 +54,7 @@ from . import (
     ha_native,
     identity,
     integration_manager,
+    load_tool,
     memory,
     scheduler,
     subagent,
@@ -69,6 +70,7 @@ from .base import (
     ToolParameter,
     ToolRegistry,
     ToolResult,
+    ToolTier,
 )
 
 __all__ = [
@@ -79,6 +81,7 @@ __all__ = [
     "ToolParameter",
     "ToolRegistry",
     "ToolResult",
+    "ToolTier",
     # Tool modules (for direct access if needed)
     "webfetch",
     "websearch",
@@ -90,6 +93,7 @@ __all__ = [
     "subagent",
     "integration_manager",
     "channel_status",
+    "load_tool",
 ]
 
 

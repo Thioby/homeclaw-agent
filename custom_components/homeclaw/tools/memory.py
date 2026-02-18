@@ -16,7 +16,7 @@ import logging
 from typing import Any
 
 from ..const import DOMAIN
-from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult
+from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,6 +61,7 @@ class MemoryStoreTool(Tool):
         "important personal information. Memories persist across conversations."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="text",
@@ -170,6 +171,7 @@ class MemoryRecallTool(Tool):
         "previously stored facts from earlier conversations."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="query",
@@ -257,6 +259,7 @@ class MemoryForgetTool(Tool):
         "Use when the user asks to forget something or correct outdated information."
     )
     category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
     parameters = [
         ToolParameter(
             name="memory_id",

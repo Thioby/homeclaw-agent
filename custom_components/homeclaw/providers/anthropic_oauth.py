@@ -74,21 +74,32 @@ class AnthropicOAuthProvider(AIProvider):
     async def _get_valid_token(self) -> str:
         """Get a valid access token, refreshing if necessary.
 
+        Re-reads the config entry under the refresh lock so that a
+        concurrent refresh by another task is picked up.  On permanent
+        failures (``invalid_grant``) triggers HA's re-auth flow.
+
         Returns:
             Valid access token string.
 
         Raises:
-            Exception: If no token available or refresh fails.
+            OAuthRefreshError: If no token available or refresh fails.
         """
         from ..oauth import refresh_token, OAuthRefreshError
 
         async with self._refresh_lock:
+            # Re-read persisted tokens — another task may have refreshed.
+            if self._config_entry:
+                fresh = dict(self._config_entry.data.get("anthropic_oauth", {}))
+                if fresh.get("access_token"):
+                    self._oauth_data = fresh
+
             # Check if token is still valid (with 5 minute buffer)
             if time.time() < self._oauth_data.get("expires_at", 0) - 300:
                 access_token = self._oauth_data.get("access_token")
                 if not access_token:
                     raise OAuthRefreshError(
-                        "No access token available - re-authentication required"
+                        "No access token available - re-authentication required",
+                        is_permanent=True,
                     )
                 return access_token
 
@@ -97,8 +108,10 @@ class AnthropicOAuthProvider(AIProvider):
             # Check if refresh token exists
             refresh_tok = self._oauth_data.get("refresh_token")
             if not refresh_tok:
+                self._trigger_reauth()
                 raise OAuthRefreshError(
-                    "No refresh token available - re-authentication required"
+                    "No refresh token available - re-authentication required",
+                    is_permanent=True,
                 )
 
             try:
@@ -106,11 +119,14 @@ class AnthropicOAuthProvider(AIProvider):
                     new_tokens = await refresh_token(session, refresh_tok)
             except OAuthRefreshError as e:
                 _LOGGER.error("Anthropic OAuth refresh failed: %s", e)
+                if e.is_permanent:
+                    self._trigger_reauth()
                 raise
 
             self._oauth_data.update(new_tokens)
 
-            # Persist refreshed tokens to config entry
+            # Persist refreshed tokens IMMEDIATELY — critical for token
+            # rotation (Anthropic revokes the old refresh token on each use).
             if self._config_entry:
                 new_data = {
                     **self._config_entry.data,
@@ -121,6 +137,19 @@ class AnthropicOAuthProvider(AIProvider):
                 )
 
             return new_tokens["access_token"]
+
+    def _trigger_reauth(self) -> None:
+        """Request HA re-authentication flow for this config entry."""
+        if not self._config_entry:
+            return
+        try:
+            self._config_entry.async_start_reauth(self.hass)
+            _LOGGER.warning(
+                "Anthropic OAuth: triggered re-authentication flow — "
+                "check Home Assistant notifications"
+            )
+        except Exception:
+            _LOGGER.debug("Could not trigger reauth flow", exc_info=True)
 
     def _transform_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Transform request payload for OAuth compatibility.

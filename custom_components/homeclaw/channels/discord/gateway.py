@@ -1,10 +1,16 @@
-"""Minimal Discord Gateway client (v10) for Homeclaw channels."""
+"""Minimal Discord Gateway client (v10) for Homeclaw channels.
+
+Resilient WebSocket client with exponential backoff, HELLO timeout
+(zombie detection), and reconnect attempt limits modeled on OpenClaw's
+Carbon gateway patterns.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
+import random
 from typing import Any, Awaitable, Callable
 
 import aiohttp
@@ -19,6 +25,13 @@ OP_RECONNECT = 7
 OP_INVALID_SESSION = 9
 OP_HELLO = 10
 OP_HEARTBEAT_ACK = 11
+
+# Reconnect tuning — aligned with OpenClaw defaults.
+_MAX_RECONNECT_ATTEMPTS = 50
+_BASE_RECONNECT_DELAY = 5.0  # seconds
+_MAX_RECONNECT_DELAY = 120.0  # seconds
+_JITTER_FACTOR = 0.25
+_HELLO_TIMEOUT_S = 30.0  # zombie detection
 
 
 class _ReconnectRequested(Exception):
@@ -41,13 +54,15 @@ class DiscordGateway:
         intents: int,
         on_message: Callable[[dict[str, Any]], Awaitable[None]],
         on_ready: Callable[[dict[str, Any]], Awaitable[None]],
-        reconnect_delay: int = 5,
+        reconnect_delay: float = _BASE_RECONNECT_DELAY,
+        max_reconnect_attempts: int = _MAX_RECONNECT_ATTEMPTS,
     ) -> None:
         self._token = token.strip()
         self._intents = intents
         self._on_message = on_message
         self._on_ready = on_ready
-        self._reconnect_delay = reconnect_delay
+        self._base_reconnect_delay = reconnect_delay
+        self._max_reconnect_attempts = max_reconnect_attempts
 
         self._running = False
         self._is_connected = False
@@ -63,54 +78,118 @@ class DiscordGateway:
         self._heartbeat_ack = True
         self._heartbeat_task: asyncio.Task[None] | None = None
 
+        self._reconnect_attempts = 0
+        self._hello_received = False
+
     @property
     def is_connected(self) -> bool:
         """Whether websocket is currently connected and running."""
         return self._is_connected and self._running
 
     async def connect(self) -> None:
-        """Run the gateway loop until ``close()`` is called."""
+        """Run the gateway loop until ``close()`` is called or attempts exhausted."""
         self._running = True
+        self._reconnect_attempts = 0
         while self._running:
+            is_resume = bool(self._session_id and self._sequence is not None)
             try:
                 await self._connect_once()
             except _ReconnectRequested:
-                _LOGGER.debug("Discord gateway reconnect requested")
+                self._reconnect_attempts += 1
+                _LOGGER.info(
+                    "Discord gateway reconnect requested (attempt %d/%d, %s)",
+                    self._reconnect_attempts,
+                    self._max_reconnect_attempts,
+                    "resume" if is_resume else "fresh",
+                )
             except asyncio.CancelledError:
                 raise
             except Exception:
-                _LOGGER.exception("Discord gateway error")
-                # If resume endpoint is stale, force fresh identify on next loop.
+                self._reconnect_attempts += 1
+                _LOGGER.exception(
+                    "Discord gateway error (attempt %d/%d)",
+                    self._reconnect_attempts,
+                    self._max_reconnect_attempts,
+                )
+                # Stale resume endpoint — force fresh identify.
                 self._resume_url = None
+                # Close old session to avoid stale DNS / dead pool.
+                await self._close_session()
             finally:
                 await self._reset_connection_state()
 
-            if self._running:
-                await asyncio.sleep(self._reconnect_delay)
+            if not self._running:
+                break
+
+            if self._reconnect_attempts >= self._max_reconnect_attempts:
+                _LOGGER.critical(
+                    "Discord gateway exhausted %d reconnect attempts — stopping",
+                    self._max_reconnect_attempts,
+                )
+                self._running = False
+                break
+
+            delay = self._backoff_delay()
+            _LOGGER.info("Discord gateway reconnecting in %.1fs", delay)
+            await asyncio.sleep(delay)
+
+        # Clean up aiohttp session when the loop exits permanently.
+        await self._close_session()
 
     async def close(self) -> None:
         """Stop reconnect loop and close active websocket/session."""
         self._running = False
         await self._stop_heartbeat()
         await self._close_ws()
-        if self._session and not self._session.closed:
-            await self._session.close()
-        self._session = None
+        await self._close_session()
 
     async def _connect_once(self) -> None:
-        """Open one websocket connection and process events until disconnect."""
+        """Open one websocket connection and process events until disconnect.
+
+        Includes a HELLO timeout to detect zombie connections where the WS
+        opens but Discord never sends OP_HELLO (modeled on OpenClaw).
+        """
+        self._hello_received = False
         url = self._resume_url or self.GATEWAY_URL
         session = await self._get_session()
+
+        hello_timer: asyncio.TimerHandle | None = None
+        loop = asyncio.get_running_loop()
+
+        def _hello_timeout_cb() -> None:
+            if not self._hello_received and self._ws and not self._ws.closed:
+                _LOGGER.warning(
+                    "Discord HELLO not received within %.0fs — forcing reconnect",
+                    _HELLO_TIMEOUT_S,
+                )
+                # Fire-and-forget with exception suppression to avoid
+                # "Task exception was never retrieved" warnings.
+                task = asyncio.ensure_future(self._close_ws())
+                task.add_done_callback(
+                    lambda t: t.exception() if not t.cancelled() else None
+                )
+
         async with session.ws_connect(url, heartbeat=30) as ws:
             self._ws = ws
             self._is_connected = True
-            async for msg in ws:
-                if msg.type == aiohttp.WSMsgType.TEXT:
-                    await self._handle_payload(msg.data)
-                elif msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED):
-                    raise _ReconnectRequested
-                elif msg.type == aiohttp.WSMsgType.ERROR:
-                    raise _ReconnectRequested
+
+            # Start HELLO timeout (zombie detection).
+            hello_timer = loop.call_later(_HELLO_TIMEOUT_S, _hello_timeout_cb)
+
+            try:
+                async for msg in ws:
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        await self._handle_payload(msg.data)
+                    elif msg.type in (
+                        aiohttp.WSMsgType.CLOSE,
+                        aiohttp.WSMsgType.CLOSED,
+                    ):
+                        raise _ReconnectRequested
+                    elif msg.type == aiohttp.WSMsgType.ERROR:
+                        raise _ReconnectRequested
+            finally:
+                if hello_timer is not None:
+                    hello_timer.cancel()
 
     async def _handle_payload(self, raw_payload: str) -> None:
         """Parse and process one gateway payload."""
@@ -165,13 +244,16 @@ class DiscordGateway:
 
     async def _handle_hello(self, heartbeat_interval_ms: int) -> None:
         """Start heartbeats and send IDENTIFY or RESUME."""
+        self._hello_received = True
         self._heartbeat_interval = heartbeat_interval_ms / 1000.0
         self._heartbeat_ack = True
         await self._start_heartbeat()
 
         if self._session_id and self._sequence is not None:
+            _LOGGER.info("Discord gateway resuming session %s", self._session_id)
             await self._send_resume()
             return
+        _LOGGER.info("Discord gateway identifying (fresh session)")
         await self._send_identify()
 
     async def _handle_invalid_session(self, resumable: bool) -> None:
@@ -191,11 +273,14 @@ class DiscordGateway:
         if event_type == "READY":
             self._session_id = data.get("session_id")
             self._resume_url = data.get("resume_gateway_url")
+            self._reconnect_attempts = 0  # connected OK — reset counter
+            _LOGGER.info("Discord gateway READY (session=%s)", self._session_id)
             await self._on_ready(data.get("user", {}))
             return
 
         if event_type == "RESUMED":
-            _LOGGER.debug("Discord gateway resumed")
+            self._reconnect_attempts = 0  # resumed OK — reset counter
+            _LOGGER.info("Discord gateway RESUMED successfully")
             return
 
         if event_type == "MESSAGE_CREATE":
@@ -277,6 +362,21 @@ class DiscordGateway:
         if self._ws and not self._ws.closed:
             await self._ws.close()
         self._ws = None
+
+    async def _close_session(self) -> None:
+        """Close and discard the aiohttp session so a fresh one is created."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+        self._session = None
+
+    def _backoff_delay(self) -> float:
+        """Exponential backoff with jitter (capped at ``_MAX_RECONNECT_DELAY``)."""
+        exp = min(
+            self._base_reconnect_delay * (2 ** (self._reconnect_attempts - 1)),
+            _MAX_RECONNECT_DELAY,
+        )
+        jitter = exp * _JITTER_FACTOR * random.random()
+        return exp + jitter
 
     async def _reset_connection_state(self) -> None:
         """Reset state after disconnect while keeping resume data."""

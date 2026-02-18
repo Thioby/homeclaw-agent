@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar, List
 
-from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult
+from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ class SchedulerTool(Tool):
         "Actions: list (show all jobs), add (create new), remove (delete by ID), status (summary)."
     )
     category: ClassVar[ToolCategory] = ToolCategory.HOME_ASSISTANT
+    tier: ClassVar[ToolTier] = ToolTier.CORE
     parameters: ClassVar[List[ToolParameter]] = [
         ToolParameter(
             name="action",

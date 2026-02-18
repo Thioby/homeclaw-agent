@@ -4,8 +4,11 @@ This module implements OAuth 2.0 PKCE flow for Google Gemini API,
 similar to how gemini-cli authenticates users.
 """
 
+from __future__ import annotations
+
 import base64
 import hashlib
+import json as _json
 import logging
 import os
 import secrets
@@ -18,7 +21,16 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class GeminiOAuthRefreshError(Exception):
-    """Raised when Gemini OAuth token refresh fails."""
+    """Raised when Gemini OAuth token refresh fails.
+
+    Attributes:
+        is_permanent: True when the error cannot be fixed by retrying
+            (e.g. revoked refresh token).  Defaults to False.
+    """
+
+    def __init__(self, message: str, *, is_permanent: bool = False) -> None:
+        super().__init__(message)
+        self.is_permanent = is_permanent
 
 
 # OAuth Constants — these are the PUBLIC client credentials from Gemini CLI
@@ -168,7 +180,25 @@ async def refresh_token(session: aiohttp.ClientSession, refresh: str) -> dict:
         if resp.status != 200:
             error_text = await resp.text()
             _LOGGER.error("Gemini token refresh failed: %s", error_text)
-            raise GeminiOAuthRefreshError(f"Token refresh failed: {resp.status}")
+
+            # Detect permanent failures (revoked / expired refresh token).
+            is_permanent = False
+            try:
+                err_data = _json.loads(error_text)
+                is_permanent = err_data.get("error") == "invalid_grant"
+            except (ValueError, TypeError):
+                pass
+
+            if is_permanent:
+                _LOGGER.error(
+                    "Gemini refresh token is permanently invalid — "
+                    "re-authentication required"
+                )
+
+            raise GeminiOAuthRefreshError(
+                f"Token refresh failed: {resp.status}",
+                is_permanent=is_permanent,
+            )
 
         data = await resp.json()
 

@@ -36,6 +36,10 @@ _LOGGER = logging.getLogger(__name__)
 
 _SEEN_IDS_MAX = 1000
 
+# Task supervision: max full-gateway restarts within a window.
+_MAX_SUPERVISOR_RESTARTS = 3
+_SUPERVISOR_WINDOW_S = 3600  # 1 hour
+
 
 @ChannelRegistry.register("discord")
 class DiscordChannel(Channel):
@@ -55,12 +59,14 @@ class DiscordChannel(Channel):
         self._gateway: DiscordGateway | None = None
         self._rest: DiscordRestClient | None = None
         self._task: asyncio.Task[None] | None = None
+        self._supervisor_task: asyncio.Task[None] | None = None
         self._semaphore = asyncio.Semaphore(
             max(1, int(config.get("max_concurrent", 3)))
         )
         self._seen_message_ids: collections.OrderedDict[str, None] = (
             collections.OrderedDict()
         )
+        self._shutting_down = False
 
     async def async_setup(self) -> None:
         """Start Discord gateway in the background."""
@@ -71,6 +77,16 @@ class DiscordChannel(Channel):
             _LOGGER.error("Discord bot token is missing, channel disabled")
             return
 
+        # Diagnostic: log loaded pairing state so we can verify persistence.
+        allowed = self._config.get("allowed_ids", [])
+        mapping = self._config.get("user_mapping", {})
+        _LOGGER.info(
+            "Discord channel setup: allowed_ids=%d, user_mapping=%d, dm_policy=%s",
+            len(allowed) if isinstance(allowed, (list, set)) else 0,
+            len(mapping) if isinstance(mapping, dict) else 0,
+            self._config.get("dm_policy", "pairing"),
+        )
+
         self._rest = DiscordRestClient(token)
         self._gateway = DiscordGateway(
             token=token,
@@ -78,24 +94,73 @@ class DiscordChannel(Channel):
             on_message=self._handle_gateway_message,
             on_ready=self._on_ready,
         )
-        self._task = asyncio.create_task(
-            self._gateway.connect(), name="homeclaw_discord_gateway"
+        self._shutting_down = False
+        self._supervisor_task = asyncio.create_task(
+            self._supervise_gateway(), name="homeclaw_discord_supervisor"
         )
         _LOGGER.info("Discord channel started")
 
+    async def _supervise_gateway(self) -> None:
+        """Supervise the gateway task, restarting on crash.
+
+        If the gateway exhausts all reconnect attempts and exits, this
+        supervisor will re-launch it (up to ``_MAX_SUPERVISOR_RESTARTS``
+        within ``_SUPERVISOR_WINDOW_S``).  This mirrors OpenClaw's
+        ``shouldStopOnError`` pattern where only fatal errors stop the bot.
+        """
+        restart_times: list[float] = []
+        while not self._shutting_down:
+            if not self._gateway:
+                return
+            self._task = asyncio.create_task(
+                self._gateway.connect(), name="homeclaw_discord_gateway"
+            )
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                _LOGGER.exception("Discord gateway task crashed")
+
+            if self._shutting_down:
+                return
+
+            # Prune restart timestamps outside the window.
+            now = asyncio.get_event_loop().time()
+            restart_times = [t for t in restart_times if now - t < _SUPERVISOR_WINDOW_S]
+
+            if len(restart_times) >= _MAX_SUPERVISOR_RESTARTS:
+                _LOGGER.critical(
+                    "Discord gateway restarted %d times in %ds — giving up",
+                    _MAX_SUPERVISOR_RESTARTS,
+                    _SUPERVISOR_WINDOW_S,
+                )
+                return
+
+            restart_times.append(now)
+            _LOGGER.warning(
+                "Discord gateway stopped — supervisor restarting (%d/%d in window)",
+                len(restart_times),
+                _MAX_SUPERVISOR_RESTARTS,
+            )
+            await asyncio.sleep(10)  # brief cooldown before full restart
+
     async def async_teardown(self) -> None:
         """Stop gateway and close REST client."""
+        self._shutting_down = True
         if self._gateway:
             await self._gateway.close()
         if self._rest:
             await self._rest.close()
-        if self._task and not self._task.done():
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+        for task in (self._task, self._supervisor_task):
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
         self._task = None
+        self._supervisor_task = None
 
     @property
     def is_available(self) -> bool:
@@ -180,7 +245,18 @@ class DiscordChannel(Channel):
             return True
 
         if is_dm_allowed(self._config, sender_id, channel_id):
+            _LOGGER.debug(
+                "Discord DM allowed for sender=%s (already paired/allowed)", sender_id
+            )
             return False
+
+        _LOGGER.info(
+            "Discord DM blocked by pairing policy sender=%s "
+            "(allowed_ids=%d, user_mapping=%d)",
+            sender_id,
+            len(self._config.get("allowed_ids", [])),
+            len(self._config.get("user_mapping", {})),
+        )
 
         content = str(message.get("content", "")).strip()
         code = extract_pairing_code(content)

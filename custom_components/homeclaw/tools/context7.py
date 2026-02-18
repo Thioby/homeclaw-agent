@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult
+from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -202,6 +202,7 @@ class Context7ResolveTool(Tool):
         "Use this FIRST before querying documentation. Returns matching libraries "
         "with IDs like '/facebook/react', '/vercel/next.js'."
     )
+    short_description = "Resolve a library name to Context7 documentation ID"
     category = ToolCategory.WEB
 
     parameters = [
@@ -274,6 +275,7 @@ class Context7DocsTool(Tool):
         "Requires a Context7-compatible library ID (from context7_resolve). "
         "Returns relevant docs and code snippets for your query."
     )
+    short_description = "Get up-to-date library documentation and code examples"
     category = ToolCategory.WEB
 
     parameters = [

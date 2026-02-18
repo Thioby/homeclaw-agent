@@ -89,21 +89,33 @@ class GeminiOAuthProvider(AIProvider):
     async def _get_valid_token(self) -> str:
         """Get a valid access token, refreshing if necessary.
 
+        Re-reads the config entry under the refresh lock so that a
+        concurrent refresh by another task is picked up.  On permanent
+        failures (``invalid_grant``) triggers HA's re-auth flow.
+
         Returns:
             Valid access token string.
 
         Raises:
-            Exception: If no token available or refresh fails.
+            GeminiOAuthRefreshError: If no token available or refresh fails.
         """
         from ..gemini_oauth import GeminiOAuthRefreshError, refresh_token
 
         async with self._refresh_lock:
+            # Re-read persisted tokens — another task may have refreshed.
+            if self._config_entry:
+                fresh = dict(self._config_entry.data.get("gemini_oauth", {}))
+                if fresh.get("access_token"):
+                    self._oauth_data = fresh
+
             # Check if token is still valid (with 5 minute buffer)
             if time.time() < self._oauth_data.get("expires_at", 0) - 300:
                 access_token = self._oauth_data.get("access_token")
                 if not access_token:
+                    self._trigger_reauth()
                     raise GeminiOAuthRefreshError(
-                        "No access token available - re-authentication required"
+                        "No access token available - re-authentication required",
+                        is_permanent=True,
                     )
                 return access_token
 
@@ -112,8 +124,10 @@ class GeminiOAuthProvider(AIProvider):
             # Check if refresh token exists
             refresh_tok = self._oauth_data.get("refresh_token")
             if not refresh_tok:
+                self._trigger_reauth()
                 raise GeminiOAuthRefreshError(
-                    "No refresh token available - re-authentication required"
+                    "No refresh token available - re-authentication required",
+                    is_permanent=True,
                 )
 
             try:
@@ -121,11 +135,26 @@ class GeminiOAuthProvider(AIProvider):
                     new_tokens = await refresh_token(session, refresh_tok)
             except GeminiOAuthRefreshError as e:
                 _LOGGER.error("Gemini OAuth refresh failed: %s", e)
+                if e.is_permanent:
+                    self._trigger_reauth()
                 raise
 
             self._oauth_data.update(new_tokens)
             self._persist_oauth_data()
             return new_tokens["access_token"]
+
+    def _trigger_reauth(self) -> None:
+        """Request HA re-authentication flow for this config entry."""
+        if not self._config_entry:
+            return
+        try:
+            self._config_entry.async_start_reauth(self.hass)
+            _LOGGER.warning(
+                "Gemini OAuth: triggered re-authentication flow — "
+                "check Home Assistant notifications"
+            )
+        except Exception:
+            _LOGGER.debug("Could not trigger reauth flow", exc_info=True)
 
     def _persist_oauth_data(self) -> None:
         """Persist current OAuth data to config entry."""

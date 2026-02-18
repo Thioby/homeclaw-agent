@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import aiohttp
 
-from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult
+from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -265,6 +265,7 @@ class WebFetchTool(Tool):
         "Fetch content from a URL. Returns content as markdown (default), "
         "text, or html. Use for retrieving and analyzing web content."
     )
+    short_description = "Fetch and parse content from any URL (markdown, text, or HTML)"
     category = ToolCategory.WEB
 
     parameters = [

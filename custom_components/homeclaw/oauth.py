@@ -3,6 +3,7 @@
 import secrets
 import hashlib
 import base64
+import json as _json
 import time
 import logging
 from urllib.parse import urlencode
@@ -13,7 +14,16 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class OAuthRefreshError(Exception):
-    """Raised when OAuth token refresh fails."""
+    """Raised when OAuth token refresh fails.
+
+    Attributes:
+        is_permanent: True when the error cannot be fixed by retrying
+            (e.g. ``invalid_grant`` — the refresh token is revoked).
+    """
+
+    def __init__(self, message: str, *, is_permanent: bool = False) -> None:
+        super().__init__(message)
+        self.is_permanent = is_permanent
 
 
 # Anthropic OAuth — public desktop client ID (from Claude Code / opencode).
@@ -134,7 +144,25 @@ async def refresh_token(session: aiohttp.ClientSession, refresh: str) -> dict:
         if resp.status != 200:
             error_text = await resp.text()
             _LOGGER.error("Token refresh failed: %s", error_text)
-            raise OAuthRefreshError(f"Token refresh failed: {resp.status}")
+
+            # Detect permanent failures (revoked / expired refresh token).
+            is_permanent = False
+            try:
+                err_data = _json.loads(error_text)
+                is_permanent = err_data.get("error") == "invalid_grant"
+            except (ValueError, TypeError):
+                pass
+
+            if is_permanent:
+                _LOGGER.error(
+                    "Anthropic refresh token is permanently invalid — "
+                    "re-authentication required"
+                )
+
+            raise OAuthRefreshError(
+                f"Token refresh failed: {resp.status}",
+                is_permanent=is_permanent,
+            )
 
         data = await resp.json()
 

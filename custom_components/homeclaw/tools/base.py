@@ -28,6 +28,18 @@ from typing import Any, Callable, ClassVar, Dict, List, Optional, Type, TypeVar
 _LOGGER = logging.getLogger(__name__)
 
 
+class ToolTier(Enum):
+    """Loading tier for progressive tool loading.
+
+    CORE tools are always included in function-calling schemas.
+    ON_DEMAND tools have only short descriptions in the system prompt
+    and must be activated via the ``load_tool`` meta-tool before use.
+    """
+
+    CORE = "core"
+    ON_DEMAND = "on_demand"
+
+
 class ToolCategory(Enum):
     """Categories for organizing tools."""
 
@@ -136,8 +148,10 @@ class Tool(ABC):
     # Class attributes to be defined by subclasses
     id: ClassVar[str]
     description: ClassVar[str]
+    short_description: ClassVar[str] = ""
     parameters: ClassVar[List[ToolParameter]] = []
     category: ClassVar[ToolCategory] = ToolCategory.UTILITY
+    tier: ClassVar[ToolTier] = ToolTier.ON_DEMAND
     enabled: ClassVar[bool] = True
 
     def __init__(self, hass: Any = None, config: Optional[Dict[str, Any]] = None):
@@ -366,6 +380,75 @@ class ToolRegistry:
             if tool:
                 tools.append(tool)
         return tools
+
+    @classmethod
+    def get_core_tools(
+        cls,
+        hass: Any = None,
+        config: Optional[Dict[str, Any]] = None,
+    ) -> List[Tool]:
+        """Get instances of CORE-tier tools only.
+
+        These tools are always included in function-calling schemas.
+
+        Args:
+            hass: Home Assistant instance
+            config: Tool configuration
+
+        Returns:
+            List of CORE Tool instances
+        """
+        tools = []
+        for tool_id, tool_class in cls._tools.items():
+            if not tool_class.enabled:
+                continue
+            if tool_class.tier != ToolTier.CORE:
+                continue
+            tool = cls.get_tool(tool_id, hass=hass, config=config)
+            if tool:
+                tools.append(tool)
+        return tools
+
+    @classmethod
+    def list_on_demand_ids(cls) -> List[str]:
+        """Return IDs of enabled ON_DEMAND tools.
+
+        Provides a public API for listing available on-demand tools
+        without exposing the internal ``_tools`` dict.
+
+        Returns:
+            Sorted list of tool IDs with tier ON_DEMAND and enabled=True.
+        """
+        return sorted(
+            tid
+            for tid, tc in cls._tools.items()
+            if tc.tier == ToolTier.ON_DEMAND and tc.enabled
+        )
+
+    @classmethod
+    def get_on_demand_descriptions(cls) -> str:
+        """Generate short descriptions of ON_DEMAND tools for the system prompt.
+
+        Returns a compact block listing each ON_DEMAND tool's id and
+        short_description so the LLM knows what is available to load.
+
+        Returns:
+            Formatted string with on-demand tool descriptions.
+        """
+        lines: List[str] = []
+        for tool_id, tool_class in cls._tools.items():
+            if not tool_class.enabled:
+                continue
+            if tool_class.tier != ToolTier.ON_DEMAND:
+                continue
+            desc = tool_class.short_description or tool_class.description
+            lines.append(f"- {tool_id}: {desc}")
+
+        if not lines:
+            return ""
+
+        header = "Additional tools available (use load_tool to activate before use):"
+        return header + "\n" + "\n".join(lines)
 
     @classmethod
     def get_system_prompt(
