@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -107,6 +108,154 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
         except Exception as e:
             _LOGGER.error("Error creating options flow: %s", e)
             return None
+
+    # ------------------------------------------------------------------
+    # Reauth flow (triggered when OAuth refresh token becomes invalid)
+    # ------------------------------------------------------------------
+
+    async def async_step_reauth(self, entry_data: dict[str, Any] | None = None):
+        """Handle re-authentication trigger from a config entry.
+
+        HA calls this with the config entry's data when
+        ``config_entry.async_start_reauth()`` fires.
+        """
+        self._reauth_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+        if self._reauth_entry is None:
+            return self.async_abort(reason="reauth_entry_removed")
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input=None):
+        """Show OAuth re-authorization form and exchange the new code."""
+        provider = self._reauth_entry.data.get("ai_provider", "")
+
+        if provider == "anthropic_oauth":
+            return await self._reauth_anthropic(user_input)
+        if provider == "gemini_oauth":
+            return await self._reauth_gemini(user_input)
+
+        # Unsupported provider — abort gracefully.
+        return self.async_abort(reason="oauth_reconfigure_not_supported")
+
+    async def _reauth_anthropic(self, user_input=None):
+        """Re-authorize Anthropic OAuth and update the existing entry."""
+        if not hasattr(self, "_pkce_verifier") or self._pkce_verifier is None:
+            verifier, challenge = generate_pkce()
+            self._pkce_verifier = verifier
+            self._pkce_challenge = challenge
+            self._auth_url = build_auth_url(
+                self._pkce_challenge, self._pkce_verifier, mode="max"
+            )
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            code = user_input.get("code", "").strip()
+            if code:
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        result = await exchange_code(session, code, self._pkce_verifier)
+
+                    if "error" in result:
+                        _LOGGER.error(
+                            "Reauth OAuth exchange failed: %s", result.get("error")
+                        )
+                        errors["base"] = "oauth_failed"
+                    else:
+                        new_data = {
+                            **self._reauth_entry.data,
+                            "anthropic_oauth": {
+                                "access_token": result["access_token"],
+                                "refresh_token": result["refresh_token"],
+                                "expires_at": result["expires_at"],
+                            },
+                        }
+                        if self._reauth_entry is not None:
+                            self.hass.config_entries.async_update_entry(
+                                self._reauth_entry, data=new_data
+                            )
+                            await self.hass.config_entries.async_reload(
+                                self._reauth_entry.entry_id
+                            )
+                        return self.async_abort(reason="reauth_successful")
+                except aiohttp.ClientError as e:
+                    _LOGGER.error("Network error during reauth: %s", e)
+                    errors["base"] = "oauth_failed"
+            else:
+                errors["code"] = "required"
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            description_placeholders={"auth_url": self._auth_url},
+            data_schema=vol.Schema(
+                {vol.Required("code"): TextSelector(TextSelectorConfig(type="text"))}
+            ),
+            errors=errors,
+        )
+
+    async def _reauth_gemini(self, user_input=None):
+        """Re-authorize Gemini OAuth and update the existing entry."""
+        if (
+            not hasattr(self, "_gemini_pkce_verifier")
+            or self._gemini_pkce_verifier is None
+        ):
+            verifier, challenge = gemini_oauth.generate_pkce()
+            self._gemini_pkce_verifier = verifier
+            self._gemini_pkce_challenge = challenge
+            self._gemini_auth_url = gemini_oauth.build_auth_url(
+                self._gemini_pkce_challenge, self._gemini_pkce_verifier
+            )
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            code_input = user_input.get("code", "").strip()
+            if code_input:
+                code = self._extract_oauth_code(code_input)
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        result = await gemini_oauth.exchange_code(
+                            session, code, self._gemini_pkce_verifier
+                        )
+
+                    if "error" in result:
+                        _LOGGER.error(
+                            "Reauth Gemini OAuth exchange failed: %s",
+                            result.get("error"),
+                        )
+                        errors["base"] = "oauth_failed"
+                    else:
+                        new_data = {
+                            **self._reauth_entry.data,
+                            "gemini_oauth": {
+                                "access_token": result["access_token"],
+                                "refresh_token": result["refresh_token"],
+                                "expires_at": result["expires_at"],
+                            },
+                        }
+                        if self._reauth_entry is not None:
+                            self.hass.config_entries.async_update_entry(
+                                self._reauth_entry, data=new_data
+                            )
+                            await self.hass.config_entries.async_reload(
+                                self._reauth_entry.entry_id
+                            )
+                        return self.async_abort(reason="reauth_successful")
+                except aiohttp.ClientError as e:
+                    _LOGGER.error("Network error during Gemini reauth: %s", e)
+                    errors["base"] = "oauth_failed"
+            else:
+                errors["code"] = "required"
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            description_placeholders={"auth_url": self._gemini_auth_url},
+            data_schema=vol.Schema(
+                {vol.Required("code"): TextSelector(TextSelectorConfig(type="text"))}
+            ),
+            errors=errors,
+        )
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
@@ -514,7 +663,10 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
                 self.hass.config_entries.async_update_entry(
                     self.config_entry, data=updated_data
                 )
-                return self.async_create_entry(title="", data={})
+                # Preserve existing options (e.g. Discord pairing data).
+                return self.async_create_entry(
+                    title="", data=dict(self.config_entry.options)
+                )
 
             # Show form with only RAG option for OAuth providers
             return self.async_show_form(
@@ -604,7 +756,10 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
                         self.config_entry, data=updated_data
                     )
 
-                    return self.async_create_entry(title="", data={})
+                    # Preserve existing options (e.g. Discord pairing data).
+                    return self.async_create_entry(
+                        title="", data=dict(self.config_entry.options)
+                    )
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception in options flow")
                 errors["base"] = "unknown"

@@ -59,6 +59,21 @@ def consume_request(hass: Any, code: str) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def _get_channel_entry(hass: Any) -> Any:
+    """Return the config entry that the channel manager was started with.
+
+    Falls back to ``entries[0]`` when the lifecycle reference is unavailable.
+    """
+    lifecycle = hass.data.get(DOMAIN, {}).get("_lifecycle")
+    if lifecycle and getattr(lifecycle, "_first_entry", None):
+        return lifecycle._first_entry
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        raise RuntimeError("Homeclaw config entry not found")
+    return entries[0]
+
+
 async def persist_pairing(
     hass: Any,
     *,
@@ -66,11 +81,7 @@ async def persist_pairing(
     sender_id: str,
 ) -> dict[str, Any]:
     """Persist Discord pairing into Homeclaw options and runtime config."""
-    entries = hass.config_entries.async_entries(DOMAIN)
-    if not entries:
-        raise RuntimeError("Homeclaw config entry not found")
-
-    entry = entries[0]
+    entry = _get_channel_entry(hass)
     options = dict(getattr(entry, "options", {}) or {})
     channel_cfg = dict(options.get("channel_discord", {}) or {})
 

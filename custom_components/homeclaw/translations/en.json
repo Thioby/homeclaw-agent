@@ -33,6 +33,16 @@
                     "code": "Paste the authorization code from Google"
                 }
             },
+            "reauth_confirm": {
+                "title": "Re-authorize OAuth",
+                "description": "Your OAuth session has expired. Please re-authorize:\n1. Click the link: [Open Authorization]({auth_url})\n2. After authorizing, copy the code shown\n3. Paste it below and click Submit",
+                "data": {
+                    "code": "Authorization Code"
+                },
+                "data_description": {
+                    "code": "Paste the authorization code"
+                }
+            },
             "configure": {
                 "title": "Configure {provider}",
                 "description": "Enter your {token_label} and optionally select a model",
@@ -74,7 +84,9 @@
         },
         "abort": {
             "already_configured": "Homeclaw is already configured",
-            "oauth_reconfigure_not_supported": "To reconfigure OAuth-based providers, please delete and re-add the integration"
+            "oauth_reconfigure_not_supported": "To reconfigure OAuth, please delete and re-add the integration",
+            "reauth_successful": "Re-authentication successful! The integration will reload automatically.",
+            "reauth_entry_removed": "The integration entry was removed. Please set up the integration again."
         }
     },
     "options": {
