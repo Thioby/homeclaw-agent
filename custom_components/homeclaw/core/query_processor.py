@@ -227,7 +227,9 @@ class QueryProcessor:
             **provider_kwargs,
         )
 
-        return self._repair_tool_history(messages)
+        from ..tools.base import ToolRegistry
+        known_tools = set(ToolRegistry._tools.keys())
+        return self._repair_tool_history(messages, allowed_tool_names=known_tools)
 
     def _repair_tool_history(
         self,
