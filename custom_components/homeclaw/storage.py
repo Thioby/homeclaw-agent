@@ -480,6 +480,83 @@ class SessionStorage:
 
         await self._save()
 
+    async def compact_session_messages(
+        self,
+        session_id: str,
+        summary_text: str,
+        keep_last: int = 24,
+    ) -> None:
+        """Replace old messages with a compaction summary, keeping recent ones.
+
+        Called after AI-powered compaction to persist the compacted state
+        so the next request doesn't re-trigger compaction.
+
+        Args:
+            session_id: The session ID.
+            summary_text: AI-generated summary of the old messages.
+            keep_last: Number of most recent messages to preserve.
+        """
+        data = await self._load()
+        messages = data.get("messages", {}).get(session_id, [])
+
+        if len(messages) <= keep_last + 2:
+            return  # Not enough messages to compact
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Create summary pair (matches format injected by compact_messages)
+        summary_user = {
+            "message_id": str(uuid.uuid4()),
+            "session_id": session_id,
+            "role": "user",
+            "content": f"[Previous conversation summary]\n{summary_text}",
+            "timestamp": now,
+            "status": "completed",
+            "error_message": "",
+            "metadata": {},
+            "attachments": [],
+            "content_blocks": [],
+            "tool_call_id": "",
+        }
+        summary_assistant = {
+            "message_id": str(uuid.uuid4()),
+            "session_id": session_id,
+            "role": "assistant",
+            "content": (
+                "Understood. I have the summary of our earlier conversation.\n"
+                "IMPORTANT: For all new requests, I MUST use my tools "
+                "(call_service, get_entity_state, etc.) to interact with "
+                "Home Assistant. I will NOT confirm actions without calling tools first."
+            ),
+            "timestamp": now,
+            "status": "completed",
+            "error_message": "",
+            "metadata": {},
+            "attachments": [],
+            "content_blocks": [],
+            "tool_call_id": "",
+        }
+
+        old_count = len(messages)
+        preserved = messages[-keep_last:]
+        data["messages"][session_id] = [summary_user, summary_assistant] + preserved
+
+        # Update session metadata
+        for session in data["sessions"]:
+            if session["session_id"] == session_id:
+                session["message_count"] = len(data["messages"][session_id])
+                break
+
+        await self._save()
+
+        _LOGGER.info(
+            "Compacted session %s storage: %d -> %d messages (kept last %d + 2 summary)",
+            session_id,
+            old_count,
+            len(data["messages"][session_id]),
+            keep_last,
+        )
+
     async def update_message(
         self,
         session_id: str,

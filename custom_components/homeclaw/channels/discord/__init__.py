@@ -452,7 +452,7 @@ class DiscordChannel(Channel):
         self,
         envelope: MessageEnvelope,
         session_id: str,
-        history: list[dict[str, str]],
+        history: list[dict[str, Any]],
     ) -> str:
         """Execute message intake stream and return final assistant text.
 
@@ -525,21 +525,27 @@ class DiscordChannel(Channel):
         self,
         storage: SessionStorage,
         session_id: str,
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """Load session history in query-processor format.
 
         Respects the channel's ``history_limit`` config to cap history size.
-        Only user/assistant messages are stored (tool calls are handled
-        in-memory by the query processor, same as Web UI).
+        Uses the same message reconstruction as Web Panel to properly handle
+        tool_use/tool_result messages for the AI provider.
         """
         messages = await storage.get_session_messages(session_id)
 
-        # Apply history_limit from channel config
-        limit = int(self._config.get("history_limit", 0))
+        # Default to 40 messages (~20 turns) to prevent compaction re-trigger.
+        # Without a limit, long sessions reload ALL messages from storage on
+        # every turn, causing compaction to fire repeatedly (storage is not
+        # modified by compaction — only the in-memory list is trimmed).
+        limit = int(self._config.get("history_limit", 40))
         if limit and len(messages) > limit:
             messages = messages[-limit:]
 
-        return [{"role": msg.role, "content": msg.content} for msg in messages]
+        # Use same reconstruction as Web Panel for proper tool message handling
+        from ...ws_handlers.chat import _build_conversation_history
+
+        return await _build_conversation_history(self._hass, messages)
 
     def _default_provider(self) -> str:
         """Return configured provider or first available provider."""

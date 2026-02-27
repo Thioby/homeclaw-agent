@@ -39,6 +39,7 @@ class ToolExecutor:
         yield_mode: str = "none",
         denied_tools: frozenset[str] | None = None,
         user_id: str = "",
+        call_history_hashes: dict[str, int] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Execute a list of tool calls and add results to messages.
 
@@ -55,11 +56,47 @@ class ToolExecutor:
             user_id: User ID for the current request. Passed to tools as
                 ``_user_id`` so they can scope per-user actions (memory, identity)
                 without relying on a shared global.
+            call_history_hashes: Optional dictionary to track repeated tool calls 
+                (hash -> count) and break infinite loops.
 
         Yields:
             Dict with type="status" or type="tool_result" depending on yield_mode.
         """
+        import hashlib
+
         for fc in function_calls:
+            # Circuit Breaker: prevent repeated identical tool calls
+            if call_history_hashes is not None:
+                args_str = json.dumps(fc.arguments, sort_keys=True)
+                tc_hash = hashlib.md5(f"{fc.name}:{args_str}".encode()).hexdigest()
+                call_history_hashes[tc_hash] = call_history_hashes.get(tc_hash, 0) + 1
+                count = call_history_hashes[tc_hash]
+
+                if count >= 3:
+                    _LOGGER.error("Circuit breaker triggered for tool '%s' (called %d times with identical args)", fc.name, count)
+                    error_msg = json.dumps({
+                        "error": f"Circuit breaker activated: You called this tool with identical arguments {count} times in a row. Stop repeating yourself and try a different approach or inform the user."
+                    })
+                    messages.append({
+                        "role": "function",
+                        "name": fc.name,
+                        "tool_use_id": fc.id,
+                        "content": error_msg,
+                    })
+                    if yield_mode == "status":
+                        yield {
+                            "type": "status",
+                            "message": f"✗ Circuit breaker: {fc.name} repeated too many times",
+                        }
+                    elif yield_mode == "result":
+                        yield {
+                            "type": "tool_result",
+                            "name": fc.name,
+                            "result": error_msg,
+                            "id": fc.id,
+                        }
+                    continue
+
             # Enforce tool restrictions
             if denied_tools and fc.name in denied_tools:
                 _LOGGER.warning(

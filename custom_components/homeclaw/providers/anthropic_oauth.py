@@ -322,7 +322,7 @@ class AnthropicOAuthProvider(AIProvider):
         payload: dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
-            "temperature": self.config.get("temperature", 0.7),
+            "temperature": self.config.get("temperature", 0.2),
             "messages": anthropic_messages,
             "system": system_blocks,
         }
@@ -580,7 +580,7 @@ class AnthropicOAuthProvider(AIProvider):
         payload: dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
-            "temperature": self.config.get("temperature", 0.7),
+            "temperature": self.config.get("temperature", 0.2),
             "messages": anthropic_messages,
             "system": system_blocks,
             "stream": True,

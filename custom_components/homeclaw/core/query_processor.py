@@ -187,6 +187,15 @@ class QueryProcessor:
                     len(enriched_query),
                 )
 
+        # --- Phase 3: Periodic Reinforcement (Anti-Hallucination) ---
+        user_turn_count = sum(1 for m in messages if m.get("role") == "user")
+        if user_turn_count > 0 and user_turn_count % 5 == 0:
+            _LOGGER.debug("Injecting periodic anti-hallucination reinforcement (turn %d)", user_turn_count)
+            enriched_query += (
+                "\n\n[SYSTEM REMINDER: Never hallucinate or simulate actions. "
+                "You MUST use your tools (function calls) to interact with the system or check state!]"
+            )
+
         # Build the user message (multimodal or plain text)
         if image_attachments:
             # Multimodal message: uses provider-agnostic format with _images key.
@@ -227,7 +236,69 @@ class QueryProcessor:
             **provider_kwargs,
         )
 
-        return messages
+        return self._repair_tool_history(messages)
+
+    def _repair_tool_history(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Repair tool/function call history to ensure perfect pairs.
+        
+        Fixes missing tool_use_ids, drops orphan results, and injects 
+        synthetic results for unfinished tool calls.
+        """
+        sanitized: list[dict[str, Any]] = []
+        pending_tool_calls: dict[str, str] = {}  # id -> name
+        
+        for msg in messages:
+            role = msg.get("role")
+            if role in ("system", "user"):
+                sanitized.append(msg)
+                continue
+                
+            if role == "assistant":
+                content = msg.get("content", "")
+                
+                # Check text-encoded first
+                try:
+                    fcs = self._detect_function_call(content)
+                    if fcs:
+                        for fc in fcs:
+                            pending_tool_calls[fc.id] = fc.name
+                except Exception:
+                    pass
+                    
+                # Check standard JSON formats
+                if "tool_calls" in msg:
+                    for tc in msg["tool_calls"]:
+                        tc_id = tc.get("id") or tc.get("function", {}).get("name", "unknown")
+                        pending_tool_calls[tc_id] = tc.get("function", {}).get("name", "unknown")
+                elif "function_call" in msg:
+                    fc = msg["function_call"]
+                    tc_id = msg.get("tool_use_id") or fc.get("name", "unknown")
+                    pending_tool_calls[tc_id] = fc.get("name", "unknown")
+
+                sanitized.append(msg)
+                
+            elif role in ("function", "tool"):
+                tc_id = msg.get("tool_use_id") or msg.get("id") or msg.get("name")
+                if tc_id in pending_tool_calls:
+                    # Valid tool result, make sure tool_use_id is present
+                    msg_copy = dict(msg)
+                    msg_copy["tool_use_id"] = tc_id
+                    sanitized.append(msg_copy)
+                    del pending_tool_calls[tc_id] # deduplication / mark as resolved
+                else:
+                    _LOGGER.warning("Removed orphan or duplicate tool result from history (id: %s)", tc_id)
+                    
+        # Close any pending tool calls that never got a result
+        for tc_id, tc_name in pending_tool_calls.items():
+            _LOGGER.warning("Injected synthetic result for unmatched tool call %s (%s)", tc_name, tc_id)
+            sanitized.append({
+                "role": "function",
+                "name": tc_name,
+                "tool_use_id": tc_id,
+                "content": json.dumps({"error": "tool result missing from conversation history"}),
+            })
+            
+        return sanitized
 
     async def _recompact_if_needed(
         self,
@@ -507,6 +578,7 @@ class QueryProcessor:
 
         hass = kwargs.get("hass")
         current_iteration = 0
+        call_history_hashes: dict[str, int] = {}
 
         try:
             while current_iteration < effective_max_iterations:
@@ -574,6 +646,7 @@ class QueryProcessor:
                         yield_mode="result",
                         denied_tools=denied_tools,
                         user_id=user_id,
+                        call_history_hashes=call_history_hashes,
                     ):
                         if tool_event.get("type") == "tool_call":
                             yield ToolCallEvent(
@@ -663,11 +736,16 @@ class QueryProcessor:
                     ]
 
                     # Emit ToolCallEvents for each tool
-                    for fc in function_calls:
+                    # Pair each function_call with its raw chunk for Gemini thoughtSignature preservation
+                    for i, fc in enumerate(function_calls):
+                        raw_fc = None
+                        if i < len(accumulated_tool_calls):
+                            raw_fc = accumulated_tool_calls[i].get("_raw_function_call")
                         yield ToolCallEvent(
                             tool_name=fc.name,
                             tool_args=fc.arguments,
                             tool_call_id=fc.id,
+                            raw_function_call=raw_fc,
                         )
 
                     # Append assistant's message (the tool call) to conversation
@@ -708,6 +786,7 @@ class QueryProcessor:
                         yield_mode="result",
                         denied_tools=denied_tools,
                         user_id=user_id,
+                        call_history_hashes=call_history_hashes,
                     ):
                         if tool_event.get("type") == "tool_result":
                             yield ToolResultEvent(
@@ -889,6 +968,7 @@ class QueryProcessor:
 
         hass = kwargs.get("hass")
         current_iteration = 0
+        call_history_hashes: dict[str, int] = {}
 
         try:
             while current_iteration < effective_max_iterations:
@@ -940,6 +1020,7 @@ class QueryProcessor:
                     yield_mode="none",
                     denied_tools=denied_tools_p,
                     user_id=user_id_p,
+                    call_history_hashes=call_history_hashes,
                 ):
                     pass  # ToolExecutor with yield_mode="none" shouldn't yield anything
 

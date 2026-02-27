@@ -53,25 +53,26 @@ def convert_messages(
                 )
             contents.append({"role": "user", "parts": parts})
         elif role == "assistant" and content:
-            # Check if this is a function call response (JSON with functionCall)
+            # Check if this is a function call response (JSON with functionCall or canonical tool_calls)
             try:
                 parsed = json.loads(content)
-                if "functionCall" in parsed:
-                    # Already in Gemini format - use as is but remove any 'type' field
-                    func_call = {k: v for k, v in parsed.items() if k != "type"}
-                    contents.append({"role": "model", "parts": [func_call]})
-                    continue
-                elif "function_call" in parsed:
-                    # OpenAI format - convert to Gemini format
-                    openai_call = parsed["function_call"]
-                    gemini_call = {
-                        "functionCall": {
-                            "name": openai_call.get("name", ""),
-                            "args": openai_call.get("arguments", {}),
-                        }
-                    }
-                    contents.append({"role": "model", "parts": [gemini_call]})
-                    continue
+                if isinstance(parsed, dict):
+                    from ..core.tool_call_codec import extract_tool_calls_from_assistant_content
+                    calls = extract_tool_calls_from_assistant_content(parsed)
+                    if calls:
+                        parts = []
+                        # Preserve any prepended text if it exists
+                        if "text" in parsed and isinstance(parsed["text"], str) and parsed["text"]:
+                            parts.append({"text": parsed["text"]})
+                        for call in calls:
+                            parts.append({
+                                "functionCall": {
+                                    "name": call.get("name", ""),
+                                    "args": call.get("args", {}),
+                                }
+                            })
+                        contents.append({"role": "model", "parts": parts})
+                        continue
             except (ValueError, TypeError):
                 pass
             contents.append({"role": "model", "parts": [{"text": content}]})

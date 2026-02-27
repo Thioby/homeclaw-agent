@@ -96,6 +96,41 @@ async def _rag_post_conversation(
         _LOGGER.debug("Explicit memory capture failed: %s", mem_err)
 
 
+async def _persist_compaction_if_needed(
+    storage: SessionStorage,
+    session_id: str,
+    completion_messages: list[dict[str, Any]],
+) -> None:
+    """Persist compaction to storage if it happened during the AI stream.
+
+    Checks if the completion messages start with a compaction summary
+    (injected by compact_messages) and if so, trims old messages in
+    storage to prevent re-triggering compaction on every request.
+
+    Args:
+        storage: SessionStorage instance.
+        session_id: Current session ID.
+        completion_messages: Messages from CompletionEvent (post-compaction).
+    """
+    if not completion_messages:
+        return
+
+    first_msg = completion_messages[0]
+    if first_msg.get("role") not in ("user", "system"):
+        return
+
+    prefix = "[Previous conversation summary]\n"
+    content = first_msg.get("content", "")
+    if not content.startswith(prefix):
+        return
+
+    summary_text = content[len(prefix) :]
+    try:
+        await storage.compact_session_messages(session_id, summary_text)
+    except Exception as err:
+        _LOGGER.debug("Storage compaction persistence failed (non-fatal): %s", err)
+
+
 async def _build_conversation_history(
     hass: HomeAssistant,
     messages: list[Message],
@@ -137,22 +172,37 @@ async def _build_conversation_history(
         if m.role == "tool_use" and m.content_blocks:
             from ..core.tool_call_codec import build_assistant_tool_message
 
-            tool_calls = [
-                {
-                    "id": block.get("id", block.get("name", "unknown")),
-                    "name": block["name"],
-                    "args": block.get("arguments", {}),
-                }
-                for block in m.content_blocks
-                if block.get("type") == "tool_call"
-            ]
-            if tool_calls:
+            # Prefer raw provider format (preserves Gemini thoughtSignature)
+            raw_fc = None
+            for block in m.content_blocks:
+                if block.get("type") == "tool_call" and block.get("raw_function_call"):
+                    raw_fc = block["raw_function_call"]
+                    break
+
+            if raw_fc:
                 history.append(
                     {
                         "role": "assistant",
-                        "content": build_assistant_tool_message(tool_calls),
+                        "content": json.dumps(raw_fc),
                     }
                 )
+            else:
+                tool_calls = [
+                    {
+                        "id": block.get("id", block.get("name", "unknown")),
+                        "name": block["name"],
+                        "args": block.get("arguments", {}),
+                    }
+                    for block in m.content_blocks
+                    if block.get("type") == "tool_call"
+                ]
+                if tool_calls:
+                    history.append(
+                        {
+                            "role": "assistant",
+                            "content": build_assistant_tool_message(tool_calls),
+                        }
+                    )
             continue
 
         # Reconstruct tool_result → function message (internal format)
@@ -234,6 +284,16 @@ async def _persist_tool_messages(
         args_summary = json.dumps(getattr(event, "tool_args", {}), ensure_ascii=False)[
             :200
         ]
+        block: dict[str, Any] = {
+            "type": "tool_call",
+            "id": event.tool_call_id,
+            "name": event.tool_name,
+            "arguments": event.tool_args,
+        }
+        # Preserve raw provider format (e.g. Gemini thoughtSignature)
+        raw_fc = getattr(event, "raw_function_call", None)
+        if raw_fc:
+            block["raw_function_call"] = raw_fc
         tool_msg = Message(
             message_id=str(uuid.uuid4()),
             session_id=session_id,
@@ -241,14 +301,7 @@ async def _persist_tool_messages(
             content=f"{event.tool_name}({args_summary})",
             timestamp=timestamp,
             status="completed",
-            content_blocks=[
-                {
-                    "type": "tool_call",
-                    "id": event.tool_call_id,
-                    "name": event.tool_name,
-                    "arguments": event.tool_args,
-                }
-            ],
+            content_blocks=[block],
         )
         await storage.add_message(session_id, tool_msg)
 
@@ -377,6 +430,7 @@ async def ws_send_message(
             intake = MessageIntake(hass)
             accumulated_text = ""
             stream_error: str | None = None
+            completion_messages: list[dict[str, Any]] = []
             tool_timestamp = datetime.now(timezone.utc).isoformat()
 
             # Use streaming internally to capture and persist tool_use/tool_result events
@@ -402,6 +456,7 @@ async def ws_send_message(
                     stream_error = getattr(event, "message", "Unknown error")
                     break
                 elif event_type == "complete":
+                    completion_messages = getattr(event, "messages", [])
                     break
 
             # Update assistant message based on result
@@ -434,6 +489,12 @@ async def ws_send_message(
                 "success": assistant_message.status == "completed",
             },
         )
+
+        # Persist compaction to storage so next request doesn't re-trigger
+        if not stream_error and completion_messages:
+            await _persist_compaction_if_needed(
+                storage, session_id, completion_messages
+            )
 
         # Fire-and-forget: learn from conversation + index session + capture memories
         if assistant_message.status == "completed" and assistant_message.content:
@@ -597,6 +658,7 @@ async def ws_send_message_stream(
         # Stream AI response via MessageIntake
         accumulated_text = ""
         stream_error = None
+        completion_messages: list[dict[str, Any]] = []
 
         try:
             intake = MessageIntake(hass)
@@ -649,6 +711,7 @@ async def ws_send_message_stream(
                     stream_error = getattr(event, "message", "Unknown error")
                     break
                 elif event_type == "complete":
+                    completion_messages = getattr(event, "messages", [])
                     break
 
         except Exception as ai_err:
@@ -697,6 +760,12 @@ async def ws_send_message_stream(
                 "success": assistant_message.status == "completed",
             },
         )
+
+        # Persist compaction to storage so next request doesn't re-trigger
+        if not stream_error and completion_messages:
+            await _persist_compaction_if_needed(
+                storage, session_id, completion_messages
+            )
 
         # Fire-and-forget: learn from conversation + index session + capture memories
         if not stream_error and accumulated_text:

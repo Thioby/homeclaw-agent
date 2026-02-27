@@ -36,8 +36,19 @@ _LOGGER = logging.getLogger(__name__)
 # Trigger compaction when history exceeds this fraction of available budget
 COMPACTION_TRIGGER_RATIO = 0.80
 
-# Minimum recent messages to preserve (4 user/assistant pairs)
-MIN_RECENT_MESSAGES = 8
+# Hard cap on effective context window (even for 1M+ models).
+# Prevents "lost in the middle" effect where models lose attention to
+# system prompt and tool instructions in very long contexts.
+EFFECTIVE_MAX_CONTEXT = 200_000
+
+# Maximum conversation turns before forced compaction.
+# A "turn" = one user message (tool_use/tool_result don't count).
+# Prevents context growth even when token budget isn't exceeded.
+MAX_HISTORY_TURNS = 12
+
+# Minimum recent messages to preserve (4 full turns with tool calls:
+# each turn = user + assistant/tool + function + assistant/text = 4 messages)
+MIN_RECENT_MESSAGES = 16
 
 # Maximum compaction retry attempts (per query)
 MAX_COMPACTION_ATTEMPTS = 3
@@ -95,18 +106,28 @@ async def compact_messages(
     Returns:
         Compacted message list that fits within the context budget.
     """
-    budget = compute_context_budget(context_window)
+    # Apply effective context cap to prevent "lost in the middle" for large-window models
+    effective_window = min(context_window, EFFECTIVE_MAX_CONTEXT)
+    budget = compute_context_budget(effective_window)
     available = budget["available_for_input"]
     estimated = estimate_messages_tokens(messages)
 
-    if estimated <= int(available * COMPACTION_TRIGGER_RATIO):
+    # Check turn-based trigger (count user messages in history, excluding system and current query)
+    user_turn_count = sum(1 for m in messages if m.get("role") == "user")
+    turn_triggered = user_turn_count > MAX_HISTORY_TURNS
+
+    if not turn_triggered and estimated <= int(available * COMPACTION_TRIGGER_RATIO):
         return messages
 
+    trigger_reason = "turn limit" if turn_triggered else "token budget"
+
     _LOGGER.info(
-        "Context compaction triggered: %d estimated tokens, budget %d (%.0f%% used)",
+        "Context compaction triggered (%s): %d estimated tokens, budget %d (%.0f%% used), %d user turns",
+        trigger_reason,
         estimated,
         available,
         (estimated / available * 100) if available else 100,
+        user_turn_count,
     )
 
     # --- Split messages into segments ---
@@ -138,8 +159,12 @@ async def compact_messages(
         )
         return truncation_fallback(messages, available)
 
-    # Keep the most recent messages intact
-    split_point = len(history) - MIN_RECENT_MESSAGES
+    # Keep the most recent messages intact.
+    # Find a safe split point (must start with a user message to not break tool sequences)
+    split_point = max(0, len(history) - MIN_RECENT_MESSAGES)
+    while split_point > 0 and history[split_point].get("role") != "user":
+        split_point -= 1
+
     old_messages = history[:split_point]
     recent_messages = history[split_point:]
 
@@ -169,17 +194,24 @@ async def compact_messages(
     if system_msg:
         compacted.append(system_msg)
 
-    # Inject summary as a system-level context message
+    # Inject summary as a system-level context message.
+    # Using "system" role so it does NOT count as a user turn for
+    # turn-based compaction triggers (MAX_HISTORY_TURNS).
     compacted.append(
         {
-            "role": "user",
+            "role": "system",
             "content": f"[Previous conversation summary]\n{summary_text}",
         }
     )
     compacted.append(
         {
             "role": "assistant",
-            "content": "Understood. I have the context from our earlier conversation. How can I help you now?",
+            "content": (
+                "Understood. I have the summary of our earlier conversation.\n"
+                "IMPORTANT: For all new requests, I MUST use my tools "
+                "(call_service, get_entity_state, etc.) to interact with "
+                "Home Assistant. I will NOT confirm actions without calling tools first."
+            ),
         }
     )
 
@@ -319,6 +351,17 @@ def truncation_fallback(
             remaining_budget -= msg_tokens
         else:
             break
+
+    # Fix orphaned tool results/calls
+    # kept[-1] is the oldest kept message (because it's populated from recent to oldest).
+    # If it's a function/tool result, it means we dropped its accompanying assistant call.
+    # We must drop the result too to preserve conversational logic.
+    while kept and kept[-1].get("role") in ("function", "tool"):
+        dropped = kept.pop()
+        _LOGGER.debug(
+            "Dropped orphaned tool result during truncation: %s",
+            dropped.get("name", "unknown"),
+        )
 
     kept.reverse()
     result.extend(kept)

@@ -23,18 +23,26 @@ DEFAULT_OUTPUT_RESERVE = 8_192
 # Safety margin to account for estimation inaccuracy (20%)
 DEFAULT_SAFETY_MARGIN = 0.20
 
-# Approximate characters per token (conservative for multilingual content)
-CHARS_PER_TOKEN = 4
+# Approximate characters per token.
+# 3 is conservative enough for multilingual content (Polish/CJK ~2.5-3.5,
+# English ~3.5-4). Previous value of 4 underestimated for non-English text.
+CHARS_PER_TOKEN = 3
 
 # Per-message overhead: role tag, separators, special tokens
 MESSAGE_OVERHEAD_TOKENS = 4
+
+# Estimated overhead for tool schemas (function declarations) in the context.
+# Each tool definition ≈ 200-500 tokens. With 12-20 tools loaded, this is
+# 2,400-10,000 tokens that are NOT counted by estimate_messages_tokens().
+# This reserve is subtracted from available budget as a conservative estimate.
+TOOL_SCHEMA_RESERVE_TOKENS = 5_000
 
 
 def estimate_tokens(text: str) -> int:
     """Estimate token count from text using character heuristic.
 
-    Uses ~4 characters per token, which is conservative enough for
-    multilingual content (English averages ~4, Polish/CJK may be higher).
+    Uses ~3 characters per token, which is conservative for multilingual
+    content (Polish/CJK ~2.5-3.5, English ~3.5-4).
 
     Args:
         text: Input text to estimate.
@@ -65,6 +73,33 @@ def estimate_messages_tokens(messages: list[dict[str, Any]]) -> int:
     return total
 
 
+def estimate_total_tokens(
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None = None,
+) -> int:
+    """Estimate total tokens including messages AND tool schemas.
+
+    Tool definitions consume context window tokens but were previously
+    not counted, leading to underestimation of 2,400-6,000 tokens.
+
+    Args:
+        messages: List of message dicts.
+        tools: Optional list of tool definitions in OpenAI format.
+
+    Returns:
+        Estimated total token count for messages + tool schemas.
+    """
+    import json
+
+    msg_tokens = estimate_messages_tokens(messages)
+    tool_tokens = 0
+    if tools:
+        for tool in tools:
+            tool_json = json.dumps(tool, ensure_ascii=False)
+            tool_tokens += estimate_tokens(tool_json)
+    return msg_tokens + tool_tokens
+
+
 def compute_context_budget(
     context_window: int = DEFAULT_CONTEXT_WINDOW,
     output_reserve: int = DEFAULT_OUTPUT_RESERVE,
@@ -85,7 +120,7 @@ def compute_context_budget(
             - safety_buffer: Tokens held back as safety margin.
     """
     safety_buffer = int(context_window * safety_margin)
-    available = context_window - output_reserve - safety_buffer
+    available = context_window - output_reserve - safety_buffer - TOOL_SCHEMA_RESERVE_TOKENS
     # Ensure we never go negative
     available = max(available, 0)
 
