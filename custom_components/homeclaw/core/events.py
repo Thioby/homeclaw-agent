@@ -20,6 +20,7 @@ class ToolCallEvent(AgentEvent):
     tool_name: str
     tool_args: Dict[str, Any]
     tool_call_id: str
+    raw_function_call: Optional[Dict[str, Any]] = None
     type: Literal["tool_call"] = "tool_call"
 
 @dataclass

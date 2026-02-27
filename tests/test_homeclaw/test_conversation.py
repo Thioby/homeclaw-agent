@@ -20,11 +20,20 @@ from custom_components.homeclaw.conversation import (
     HomeclawConversationEntity,
     async_setup_entry,
 )
+from custom_components.homeclaw.core.events import (
+    CompletionEvent,
+    ErrorEvent,
+    StatusEvent,
+    TextEvent,
+    ToolCallEvent,
+    ToolResultEvent,
+)
 
 
 # ---------------------------------------------------------------------------
 # Lightweight fakes for HA conversation types
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class FakeSystemContent:
@@ -53,6 +62,7 @@ class FakeChatLog:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_entity(
     provider: str = "openai",
@@ -91,6 +101,7 @@ async def _fake_provider_stream(chunks: list[dict]):
 # ---------------------------------------------------------------------------
 # Tests: async_setup_entry
 # ---------------------------------------------------------------------------
+
 
 class TestAsyncSetupEntry:
     """Tests for the platform setup entry function."""
@@ -146,6 +157,7 @@ class TestAsyncSetupEntry:
 # Tests: Entity properties
 # ---------------------------------------------------------------------------
 
+
 class TestEntityProperties:
     """Tests for entity attribute correctness."""
 
@@ -186,6 +198,7 @@ class TestEntityProperties:
 # Tests: _convert_chat_log_to_messages
 # ---------------------------------------------------------------------------
 
+
 class TestConvertChatLogToMessages:
     """Tests for ChatLog -> provider message conversion."""
 
@@ -200,11 +213,13 @@ class TestConvertChatLogToMessages:
 
     def test_basic_conversion(self):
         entity = _make_entity()
-        chat_log = FakeChatLog(content=[
-            FakeSystemContent(content="System prompt"),
-            FakeUserContent(content="Hello"),
-            FakeAssistantContent(content="Hi there"),
-        ])
+        chat_log = FakeChatLog(
+            content=[
+                FakeSystemContent(content="System prompt"),
+                FakeUserContent(content="Hello"),
+                FakeAssistantContent(content="Hi there"),
+            ]
+        )
 
         with self._patch_content_types():
             messages = entity._convert_chat_log_to_messages(chat_log)
@@ -215,9 +230,11 @@ class TestConvertChatLogToMessages:
 
     def test_excludes_system_content(self):
         entity = _make_entity()
-        chat_log = FakeChatLog(content=[
-            FakeSystemContent(content="System"),
-        ])
+        chat_log = FakeChatLog(
+            content=[
+                FakeSystemContent(content="System"),
+            ]
+        )
 
         with self._patch_content_types():
             messages = entity._convert_chat_log_to_messages(chat_log)
@@ -226,12 +243,14 @@ class TestConvertChatLogToMessages:
 
     def test_exclude_last_user(self):
         entity = _make_entity()
-        chat_log = FakeChatLog(content=[
-            FakeSystemContent(content="System"),
-            FakeUserContent(content="First question"),
-            FakeAssistantContent(content="First answer"),
-            FakeUserContent(content="Second question"),
-        ])
+        chat_log = FakeChatLog(
+            content=[
+                FakeSystemContent(content="System"),
+                FakeUserContent(content="First question"),
+                FakeAssistantContent(content="First answer"),
+                FakeUserContent(content="Second question"),
+            ]
+        )
 
         with self._patch_content_types():
             messages = entity._convert_chat_log_to_messages(
@@ -245,11 +264,13 @@ class TestConvertChatLogToMessages:
     def test_exclude_last_user_only_removes_last(self):
         """With multiple user messages, only the last one is removed."""
         entity = _make_entity()
-        chat_log = FakeChatLog(content=[
-            FakeUserContent(content="First"),
-            FakeUserContent(content="Second"),
-            FakeUserContent(content="Third"),
-        ])
+        chat_log = FakeChatLog(
+            content=[
+                FakeUserContent(content="First"),
+                FakeUserContent(content="Second"),
+                FakeUserContent(content="Third"),
+            ]
+        )
 
         with self._patch_content_types():
             messages = entity._convert_chat_log_to_messages(
@@ -272,10 +293,12 @@ class TestConvertChatLogToMessages:
     def test_skips_empty_assistant_content(self):
         """AssistantContent with empty content string is skipped."""
         entity = _make_entity()
-        chat_log = FakeChatLog(content=[
-            FakeAssistantContent(content=""),
-            FakeAssistantContent(content="Real response"),
-        ])
+        chat_log = FakeChatLog(
+            content=[
+                FakeAssistantContent(content=""),
+                FakeAssistantContent(content="Real response"),
+            ]
+        )
 
         with self._patch_content_types():
             messages = entity._convert_chat_log_to_messages(chat_log)
@@ -288,120 +311,144 @@ class TestConvertChatLogToMessages:
 # Tests: _transform_provider_stream
 # ---------------------------------------------------------------------------
 
+
 class TestTransformProviderStream:
     """Tests for Homeclaw chunk -> ChatLog delta conversion."""
 
     @pytest.mark.asyncio
     async def test_text_chunks(self):
         entity = _make_entity()
-        stream = _fake_provider_stream([
-            {"type": "text", "content": "Hello "},
-            {"type": "text", "content": "world"},
-            {"type": "complete"},
-        ])
+        chat_log = MagicMock()
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        async def stream():
+            yield TextEvent(content="Hello ")
+            yield TextEvent(content="world")
+            yield CompletionEvent(messages=[])
 
-        assert deltas[0] == {"role": "assistant"}
-        assert deltas[1] == {"content": "Hello "}
-        assert deltas[2] == {"content": "world"}
-        assert len(deltas) == 3  # no fallback needed
+        deltas = await _collect_stream(
+            entity._transform_provider_stream(stream(), chat_log)
+        )
+
+        assert deltas[0] == {"content": "Hello "}
+        assert deltas[1] == {"content": "world"}
+        assert len(deltas) == 2  # no fallback needed
 
     @pytest.mark.asyncio
     async def test_empty_text_chunks_skipped(self):
         entity = _make_entity()
-        stream = _fake_provider_stream([
-            {"type": "text", "content": ""},
-            {"type": "text", "content": "Real text"},
-            {"type": "complete"},
-        ])
+        chat_log = MagicMock()
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        async def stream():
+            yield TextEvent(content="")
+            yield TextEvent(content="Real text")
+            yield CompletionEvent(messages=[])
 
-        assert deltas[0] == {"role": "assistant"}
-        assert deltas[1] == {"content": "Real text"}
-        assert len(deltas) == 2
+        deltas = await _collect_stream(
+            entity._transform_provider_stream(stream(), chat_log)
+        )
+
+        assert deltas[0] == {"content": "Real text"}
+        assert len(deltas) == 1
 
     @pytest.mark.asyncio
     async def test_status_chunks_skipped(self):
         entity = _make_entity()
-        stream = _fake_provider_stream([
-            {"type": "text", "content": "Hi"},
-            {"type": "status", "message": "Calling tool..."},
-            {"type": "text", "content": " there"},
-            {"type": "complete"},
-        ])
+        chat_log = MagicMock()
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        async def stream():
+            yield TextEvent(content="Hi")
+            yield StatusEvent(message="Calling tool...")
+            yield TextEvent(content=" there")
+            yield CompletionEvent(messages=[])
+
+        deltas = await _collect_stream(
+            entity._transform_provider_stream(stream(), chat_log)
+        )
 
         # status should not appear in output
-        assert {"role": "assistant"} in deltas
         assert {"content": "Hi"} in deltas
         assert {"content": " there"} in deltas
-        assert len(deltas) == 3
+        assert len(deltas) == 2
 
     @pytest.mark.asyncio
     async def test_error_chunk(self):
         entity = _make_entity()
-        stream = _fake_provider_stream([
-            {"type": "error", "message": "API rate limit"},
-        ])
+        chat_log = MagicMock()
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        async def stream():
+            yield ErrorEvent(message="API rate limit")
 
-        assert deltas[0] == {"role": "assistant"}
+        deltas = await _collect_stream(
+            entity._transform_provider_stream(stream(), chat_log)
+        )
+
         # Error details should NOT be exposed to user (sanitized)
-        assert "error" in deltas[1]["content"].lower()
-        assert "API rate limit" not in deltas[1]["content"]
+        assert len(deltas) == 1
+        assert "error" in deltas[0]["content"].lower()
+        assert "API rate limit" not in deltas[0]["content"]
 
     @pytest.mark.asyncio
     async def test_empty_stream_fallback(self):
         """Empty stream should still yield a minimal assistant delta."""
         entity = _make_entity()
-        stream = _fake_provider_stream([
-            {"type": "complete"},
-        ])
+        chat_log = MagicMock()
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        async def stream():
+            yield CompletionEvent(messages=[])
 
-        assert deltas[0] == {"role": "assistant"}
-        assert deltas[1] == {"content": ""}
+        deltas = await _collect_stream(
+            entity._transform_provider_stream(stream(), chat_log)
+        )
+
+        assert len(deltas) == 1
+        assert deltas[0] == {"content": " "}
 
     @pytest.mark.asyncio
     async def test_tools_only_stream_fallback(self):
         """Stream with only tool events should yield fallback assistant delta."""
         entity = _make_entity()
-        stream = _fake_provider_stream([
-            {"type": "tool_call", "name": "get_state", "args": {}},
-            {"type": "tool_result", "name": "get_state", "result": "on"},
-            {"type": "complete"},
-        ])
+        chat_log = MagicMock()
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        async def stream():
+            yield ToolCallEvent(
+                tool_name="get_state", tool_args={}, tool_call_id="call_1"
+            )
+            yield ToolResultEvent(
+                tool_name="get_state", tool_result="on", tool_call_id="call_1"
+            )
+            yield CompletionEvent(messages=[])
 
-        assert deltas[0] == {"role": "assistant"}
-        assert deltas[1] == {"content": ""}
-        assert len(deltas) == 2
+        deltas = await _collect_stream(
+            entity._transform_provider_stream(stream(), chat_log)
+        )
+
+        assert deltas[0] == {"content": " "}
+        assert len(deltas) == 1
 
     @pytest.mark.asyncio
     async def test_error_after_text_no_duplicate_role(self):
-        """Error after text chunks should not start a new assistant role."""
+        """Error after text chunks should not emit duplicate content."""
         entity = _make_entity()
-        stream = _fake_provider_stream([
-            {"type": "text", "content": "Starting..."},
-            {"type": "error", "message": "Oops"},
-        ])
+        chat_log = MagicMock()
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        async def stream():
+            yield TextEvent(content="Starting...")
+            yield ErrorEvent(message="Oops")
 
-        # Only one role delta
-        role_deltas = [d for d in deltas if d.get("role") == "assistant"]
-        assert len(role_deltas) == 1
+        deltas = await _collect_stream(
+            entity._transform_provider_stream(stream(), chat_log)
+        )
+
+        # Both text and error deltas should be present, no role deltas at all
+        assert deltas[0] == {"content": "Starting..."}
+        assert "error" in deltas[1]["content"].lower()
+        assert len(deltas) == 2
 
 
 # ---------------------------------------------------------------------------
 # Tests: _build_stream_kwargs
 # ---------------------------------------------------------------------------
+
 
 class TestBuildStreamKwargs:
     """Tests for stream kwargs assembly."""
@@ -519,6 +566,7 @@ class TestBuildStreamKwargs:
 # Tests: Voice session persistence
 # ---------------------------------------------------------------------------
 
+
 class TestVoiceSessionPersistence:
     """Tests for voice session create/save functionality."""
 
@@ -632,10 +680,12 @@ class TestVoiceSessionPersistence:
             "custom_components.homeclaw.conversation.conversation.AssistantContent",
             FakeAssistantContent,
         ):
-            chat_log = FakeChatLog(content=[
-                FakeAssistantContent(content="First response"),
-                FakeAssistantContent(content="Second response"),
-            ])
+            chat_log = FakeChatLog(
+                content=[
+                    FakeAssistantContent(content="First response"),
+                    FakeAssistantContent(content="Second response"),
+                ]
+            )
             result = entity._extract_last_assistant_text(chat_log)
 
         assert result == "Second response"
@@ -666,6 +716,7 @@ class TestVoiceSessionPersistence:
 # ---------------------------------------------------------------------------
 # Tests: _get_storage
 # ---------------------------------------------------------------------------
+
 
 class TestGetStorage:
     """Tests for the SessionStorage factory method."""

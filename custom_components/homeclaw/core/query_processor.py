@@ -227,7 +227,86 @@ class QueryProcessor:
             **provider_kwargs,
         )
 
-        return messages
+        from ..tools.base import ToolRegistry
+        known_tools = {t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)}
+        return self._repair_tool_history(messages, allowed_tool_names=known_tools)
+
+    def _repair_tool_history(
+        self,
+        messages: list[dict[str, Any]],
+        allowed_tool_names: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Repair tool/function call history to ensure perfect pairs.
+        
+        Fixes missing tool_use_ids, drops orphan results, and injects 
+        synthetic results for unfinished tool calls.
+        """
+        sanitized: list[dict[str, Any]] = []
+        pending_tool_calls: dict[str, str] = {}  # id -> name
+        
+        for msg in messages:
+            role = msg.get("role")
+            if role in ("system", "user"):
+                sanitized.append(msg)
+                continue
+                
+            if role == "assistant":
+                content = msg.get("content", "")
+                
+                # Check text-encoded first
+                try:
+                    fcs = self._detect_function_call(content)
+                    if fcs:
+                        for fc in fcs:
+                            if allowed_tool_names is None or fc.name in allowed_tool_names:
+                                pending_tool_calls[fc.id] = fc.name
+                            else:
+                                _LOGGER.warning("Dropped unknown tool call: %s", fc.name)
+                except Exception:
+                    pass
+                    
+                # Check standard JSON formats
+                if "tool_calls" in msg:
+                    for tc in msg["tool_calls"]:
+                        tc_id = tc.get("id") or tc.get("function", {}).get("name", "unknown")
+                        tc_name = tc.get("function", {}).get("name", "unknown")
+                        if allowed_tool_names is None or tc_name in allowed_tool_names:
+                            pending_tool_calls[tc_id] = tc_name
+                        else:
+                            _LOGGER.warning("Dropped unknown tool call: %s", tc_name)
+                elif "function_call" in msg:
+                    fc = msg["function_call"]
+                    tc_id = msg.get("tool_use_id") or fc.get("name", "unknown")
+                    tc_name = fc.get("name", "unknown")
+                    if allowed_tool_names is None or tc_name in allowed_tool_names:
+                        pending_tool_calls[tc_id] = tc_name
+                    else:
+                        _LOGGER.warning("Dropped unknown tool call: %s", tc_name)
+
+                sanitized.append(msg)
+                
+            elif role in ("function", "tool"):
+                tc_id = msg.get("tool_use_id") or msg.get("id") or msg.get("name")
+                if tc_id in pending_tool_calls:
+                    # Valid tool result, make sure tool_use_id is present
+                    msg_copy = dict(msg)
+                    msg_copy["tool_use_id"] = tc_id
+                    sanitized.append(msg_copy)
+                    del pending_tool_calls[tc_id] # deduplication / mark as resolved
+                else:
+                    _LOGGER.warning("Removed orphan or duplicate tool result from history (id: %s)", tc_id)
+                    
+        # Close any pending tool calls that never got a result
+        for tc_id, tc_name in pending_tool_calls.items():
+            _LOGGER.warning("Injected synthetic result for unmatched tool call %s (%s)", tc_name, tc_id)
+            sanitized.append({
+                "role": "function",
+                "name": tc_name,
+                "tool_use_id": tc_id,
+                "content": json.dumps({"error": "tool result missing from conversation history"}),
+            })
+            
+        return sanitized
 
     async def _recompact_if_needed(
         self,
@@ -279,7 +358,12 @@ class QueryProcessor:
                 if role in ("tool", "function"):
                     content = msg.get("content", "")
                     if len(content) > limit:
-                        msg["content"] = content[:limit] + "\n... [truncated]"
+                        half = limit // 2
+                        msg["content"] = (
+                            content[:half]
+                            + "\n\n... [truncated — showing first and last portion] ...\n\n"
+                            + content[-half:]
+                        )
             estimated = estimate_messages_tokens(result)
             if estimated <= available:
                 _LOGGER.info(
@@ -398,7 +482,11 @@ class QueryProcessor:
 
         return effective_tools
 
-    def _detect_function_call(self, response_text: str) -> list[FunctionCall] | None:
+    def _detect_function_call(
+        self,
+        response_text: str,
+        allowed_tool_names: set[str] | None = None,
+    ) -> list[FunctionCall] | None:
         """Detect and parse function calls from response text.
 
         Delegates to FunctionCallParser which handles all provider-specific
@@ -406,11 +494,14 @@ class QueryProcessor:
 
         Args:
             response_text: The text response from the AI provider.
+            allowed_tool_names: Optional set of valid tool names for filtering.
 
         Returns:
             List of FunctionCall objects if found, None otherwise.
         """
-        return self.function_call_parser.detect(response_text)
+        return self.function_call_parser.detect(
+            response_text, allowed_tool_names=allowed_tool_names
+        )
 
     async def process_stream(
         self,
@@ -507,6 +598,10 @@ class QueryProcessor:
 
         hass = kwargs.get("hass")
         current_iteration = 0
+        call_history_hashes: dict[str, int] = {}
+
+        from ..tools.base import ToolRegistry
+        allowed_names = {t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)}
 
         try:
             while current_iteration < effective_max_iterations:
@@ -523,7 +618,7 @@ class QueryProcessor:
                     )
 
                     # Detect function call BEFORE yielding text
-                    function_calls = self._detect_function_call(response_text)
+                    function_calls = self._detect_function_call(response_text, allowed_tool_names=allowed_names)
 
                     if function_calls:
                         # Extract any text the model produced before the tool call
@@ -574,6 +669,7 @@ class QueryProcessor:
                         yield_mode="result",
                         denied_tools=denied_tools,
                         user_id=user_id,
+                        call_history_hashes=call_history_hashes,
                     ):
                         if tool_event.get("type") == "tool_call":
                             yield ToolCallEvent(
@@ -663,11 +759,16 @@ class QueryProcessor:
                     ]
 
                     # Emit ToolCallEvents for each tool
-                    for fc in function_calls:
+                    # Pair each function_call with its raw chunk for Gemini thoughtSignature preservation
+                    for i, fc in enumerate(function_calls):
+                        raw_fc = None
+                        if i < len(accumulated_tool_calls):
+                            raw_fc = accumulated_tool_calls[i].get("_raw_function_call")
                         yield ToolCallEvent(
                             tool_name=fc.name,
                             tool_args=fc.arguments,
                             tool_call_id=fc.id,
+                            raw_function_call=raw_fc,
                         )
 
                     # Append assistant's message (the tool call) to conversation
@@ -708,6 +809,7 @@ class QueryProcessor:
                         yield_mode="result",
                         denied_tools=denied_tools,
                         user_id=user_id,
+                        call_history_hashes=call_history_hashes,
                     ):
                         if tool_event.get("type") == "tool_result":
                             yield ToolResultEvent(
@@ -889,6 +991,10 @@ class QueryProcessor:
 
         hass = kwargs.get("hass")
         current_iteration = 0
+        call_history_hashes: dict[str, int] = {}
+
+        from ..tools.base import ToolRegistry
+        allowed_names_p = {t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)}
 
         try:
             while current_iteration < effective_max_iterations:
@@ -902,7 +1008,7 @@ class QueryProcessor:
                 )
 
                 # Detect function call
-                function_calls = self._detect_function_call(response_text)
+                function_calls = self._detect_function_call(response_text, allowed_tool_names=allowed_names_p)
 
                 if not function_calls:
                     # No function call, return the response
@@ -940,6 +1046,7 @@ class QueryProcessor:
                     yield_mode="none",
                     denied_tools=denied_tools_p,
                     user_id=user_id_p,
+                    call_history_hashes=call_history_hashes,
                 ):
                     pass  # ToolExecutor with yield_mode="none" shouldn't yield anything
 
@@ -959,11 +1066,40 @@ class QueryProcessor:
 
                 current_iteration += 1
 
-            # Max iterations reached
-            return {
-                "success": False,
-                "error": "Maximum iterations reached without final response",
-            }
+            # Max iterations reached — force a final response without tools
+            _LOGGER.warning(
+                "Max iterations (%d) reached. Forcing final text response (no tools).",
+                effective_max_iterations,
+            )
+            try:
+                provider_kwargs_final: dict[str, Any] = {**kwargs}
+                provider_kwargs_final.pop("tools", None)
+
+                final_text = await self.provider.get_response(
+                    built_messages, **provider_kwargs_final
+                )
+                updated_messages = list(built_messages)
+                if (
+                    system_prompt
+                    and updated_messages
+                    and updated_messages[0].get("role") == "system"
+                ):
+                    updated_messages = updated_messages[1:]
+                if final_text:
+                    updated_messages.append(
+                        {"role": "assistant", "content": final_text}
+                    )
+                return {
+                    "success": True,
+                    "response": final_text or "",
+                    "messages": updated_messages,
+                }
+            except Exception as final_err:
+                _LOGGER.error("Final forced response also failed: %s", final_err)
+                return {
+                    "success": False,
+                    "error": "Maximum iterations reached without final response",
+                }
 
         except Exception as e:
             _LOGGER.error("Error processing query: %s", str(e))
