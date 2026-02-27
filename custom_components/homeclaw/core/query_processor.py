@@ -600,6 +600,9 @@ class QueryProcessor:
         current_iteration = 0
         call_history_hashes: dict[str, int] = {}
 
+        from ..tools.base import ToolRegistry
+        allowed_names = {t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)}
+
         try:
             while current_iteration < effective_max_iterations:
                 # Check if provider supports streaming
@@ -615,7 +618,7 @@ class QueryProcessor:
                     )
 
                     # Detect function call BEFORE yielding text
-                    function_calls = self._detect_function_call(response_text)
+                    function_calls = self._detect_function_call(response_text, allowed_tool_names=allowed_names)
 
                     if function_calls:
                         # Extract any text the model produced before the tool call
@@ -990,6 +993,9 @@ class QueryProcessor:
         current_iteration = 0
         call_history_hashes: dict[str, int] = {}
 
+        from ..tools.base import ToolRegistry
+        allowed_names_p = {t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)}
+
         try:
             while current_iteration < effective_max_iterations:
                 # Call the provider
@@ -1002,7 +1008,7 @@ class QueryProcessor:
                 )
 
                 # Detect function call
-                function_calls = self._detect_function_call(response_text)
+                function_calls = self._detect_function_call(response_text, allowed_tool_names=allowed_names_p)
 
                 if not function_calls:
                     # No function call, return the response
