@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from ...const import DOMAIN
-from ...core.events import ErrorEvent, TextEvent
+from ...core.events import CompletionEvent, ErrorEvent, TextEvent
 from ...storage import Message
 from ..base import Channel, ChannelRegistry, ChannelTarget, MessageEnvelope
 from .gateway import DiscordGateway
@@ -25,6 +25,7 @@ from .helpers import (
 )
 from .pairing import create_pairing_request, extract_pairing_code, get_request_by_code
 from .rest import DiscordRestClient
+from ...ws_handlers.chat import _persist_compaction_if_needed
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -393,7 +394,9 @@ class DiscordChannel(Channel):
 
         try:
             history = await self._load_history(storage, session_id)
-            answer = await self._run_stream(envelope, session_id, history)
+            answer, completion_messages = await self._run_stream(
+                envelope, session_id, history
+            )
             await self.send_response(envelope.target, answer)
             _LOGGER.debug(
                 "Discord sent reply session=%s target=%s len=%s",
@@ -402,6 +405,12 @@ class DiscordChannel(Channel):
                 len(answer),
             )
             await self._save_message(storage, session_id, "assistant", answer)
+
+            # Persist compaction to storage so next request doesn't re-trigger
+            if completion_messages:
+                await _persist_compaction_if_needed(
+                    storage, session_id, completion_messages
+                )
         finally:
             stop_typing.set()
             if not typing_task.done():
@@ -453,14 +462,18 @@ class DiscordChannel(Channel):
         envelope: MessageEnvelope,
         session_id: str,
         history: list[dict[str, Any]],
-    ) -> str:
-        """Execute message intake stream and return final assistant text.
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Execute message intake stream and return final assistant text + completion messages.
 
         Tool calls are executed internally by the query processor's multi-turn
-        loop. We only collect the final text — same as Web UI behavior.
+        loop. We collect the final text and completion messages for compaction persistence.
+
+        Returns:
+            Tuple of (assistant_text, completion_messages).
         """
         provider, model = await self._resolve_provider_model(envelope.ha_user_id)
         accumulated = ""
+        completion_messages: list[dict[str, Any]] = []
         try:
             async for event in self._intake.process_message_stream(
                 envelope.text,
@@ -473,12 +486,14 @@ class DiscordChannel(Channel):
             ):
                 if isinstance(event, TextEvent):
                     accumulated += event.content
+                elif isinstance(event, CompletionEvent):
+                    completion_messages = getattr(event, "messages", [])
                 elif isinstance(event, ErrorEvent):
-                    return "Sorry, I encountered an error."
+                    return "Sorry, I encountered an error.", []
         except Exception:
             _LOGGER.exception("Discord message processing failed")
-            return "Sorry, something went wrong."
-        return accumulated.strip() or "(no response)"
+            return "Sorry, something went wrong.", []
+        return accumulated.strip() or "(no response)", completion_messages
 
     async def _get_or_create_session_id(self, envelope: MessageEnvelope) -> str:
         """Resolve existing channel session or create a new one."""
@@ -534,11 +549,12 @@ class DiscordChannel(Channel):
         """
         messages = await storage.get_session_messages(session_id)
 
-        # Default to 40 messages (~20 turns) to prevent compaction re-trigger.
+        # Default to 24 messages (~12 turns) to stay under MAX_HISTORY_TURNS.
         # Without a limit, long sessions reload ALL messages from storage on
         # every turn, causing compaction to fire repeatedly (storage is not
         # modified by compaction — only the in-memory list is trimmed).
-        limit = int(self._config.get("history_limit", 40))
+        # 24 messages = ~12 user turns, matching MAX_HISTORY_TURNS in compaction.py.
+        limit = int(self._config.get("history_limit", 24))
         if limit and len(messages) > limit:
             messages = messages[-limit:]
 

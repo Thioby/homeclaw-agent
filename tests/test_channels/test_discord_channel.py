@@ -186,8 +186,9 @@ class TestDiscordChannel:
 
         intake.process_message_stream = _stream
         env = SimpleNamespace(text="x", ha_user_id="u1")
-        answer = await ch._run_stream(env, "s1", [])
+        answer, completion_messages = await ch._run_stream(env, "s1", [])
         assert answer == "Sorry, I encountered an error."
+        assert completion_messages == []
 
     @pytest.mark.asyncio
     async def test_pairing_message_creates_request(self, hass, intake):
@@ -638,11 +639,12 @@ class TestHistoryLimit:
         assert history[2]["content"] == "msg 9"
 
     @pytest.mark.asyncio
-    async def test_load_history_no_limit_returns_all(self, hass, intake):
-        """_load_history returns all messages when history_limit is 0 or absent."""
+    async def test_load_history_default_limit_applies(self, hass, intake):
+        """_load_history applies default limit of 24 when history_limit is absent."""
         ch = _make_channel(hass, intake, config={})
         storage = MagicMock()
 
+        # Create 30 messages to exceed default limit of 24
         messages = [
             Message(
                 message_id=f"m{i}",
@@ -651,9 +653,142 @@ class TestHistoryLimit:
                 content=f"msg {i}",
                 timestamp=f"t{i}",
             )
-            for i in range(10)
+            for i in range(30)
         ]
         storage.get_session_messages = AsyncMock(return_value=messages)
         history = await ch._load_history(storage, "s1")
 
-        assert len(history) == 10
+        # Default limit is 24 messages (~12 turns) to stay under MAX_HISTORY_TURNS
+        assert len(history) == 24
+        # Should be the LAST 24 messages
+        assert history[0]["content"] == "msg 6"
+        assert history[-1]["content"] == "msg 29"
+
+
+class TestCompactionPersistence:
+    """Tests for compaction persistence in Discord channel."""
+
+    @pytest.mark.asyncio
+    async def test_compaction_persisted_after_stream(self, hass, intake, monkeypatch):
+        """_process_and_respond persists compaction when CompletionEvent has summary."""
+        hass.data["homeclaw"] = {"agents": {"gemini_oauth": object()}}
+        ch = _make_channel(hass, intake, config={})
+        ch._bot_id = "bot"
+        ch.send_response = AsyncMock()
+
+        storage = MagicMock()
+        storage.get_preferences = AsyncMock(return_value={})
+        # Key format for DM: "{channel_id}_{sender_id}" = "discord_u1"
+        storage.list_sessions = AsyncMock(
+            return_value=[
+                FakeSession(
+                    session_id="s1", metadata={"external_session_key": "discord_u1"}
+                )
+            ]
+        )
+        storage.get_session_messages = AsyncMock(return_value=[])
+        storage.add_message = AsyncMock()
+        storage.compact_session_messages = AsyncMock()
+
+        monkeypatch.setattr(
+            "custom_components.homeclaw.channels.discord.get_storage",
+            lambda _h, _u: storage,
+        )
+
+        # Simulate compaction happened — CompletionEvent contains summary message
+        summary_text = "User asked about lights and assistant turned them on."
+
+        async def _stream_with_compaction(*_args, **_kwargs):
+            yield TextEvent(content="Done!")
+            yield CompletionEvent(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"[Previous conversation summary]\n{summary_text}",
+                    },
+                    {"role": "assistant", "content": "Understood."},
+                    {"role": "user", "content": "turn on lights"},
+                    {"role": "assistant", "content": "Done!"},
+                ]
+            )
+
+        intake.process_message_stream = _stream_with_compaction
+
+        from custom_components.homeclaw.channels.base import (
+            ChannelTarget,
+            MessageEnvelope,
+        )
+
+        envelope = MessageEnvelope(
+            text="turn on lights",
+            sender_id="u1",
+            sender_name="TestUser",
+            target=ChannelTarget(channel_id="discord", target_id="dm1"),
+            channel="discord",
+            is_group=False,
+            ha_user_id="ha_user_1",
+        )
+
+        await ch._process_and_respond(envelope)
+
+        # Verify compaction was persisted
+        storage.compact_session_messages.assert_called_once_with("s1", summary_text)
+
+    @pytest.mark.asyncio
+    async def test_no_compaction_when_no_summary(self, hass, intake, monkeypatch):
+        """_process_and_respond does NOT persist compaction when no summary in messages."""
+        hass.data["homeclaw"] = {"agents": {"gemini_oauth": object()}}
+        ch = _make_channel(hass, intake, config={})
+        ch._bot_id = "bot"
+        ch.send_response = AsyncMock()
+
+        storage = MagicMock()
+        storage.get_preferences = AsyncMock(return_value={})
+        # Key format for DM: "{channel_id}_{sender_id}" = "discord_u1"
+        storage.list_sessions = AsyncMock(
+            return_value=[
+                FakeSession(
+                    session_id="s1", metadata={"external_session_key": "discord_u1"}
+                )
+            ]
+        )
+        storage.get_session_messages = AsyncMock(return_value=[])
+        storage.add_message = AsyncMock()
+        storage.compact_session_messages = AsyncMock()
+
+        monkeypatch.setattr(
+            "custom_components.homeclaw.channels.discord.get_storage",
+            lambda _h, _u: storage,
+        )
+
+        # Normal completion without compaction — no summary prefix
+        async def _stream_normal(*_args, **_kwargs):
+            yield TextEvent(content="Done!")
+            yield CompletionEvent(
+                messages=[
+                    {"role": "user", "content": "turn on lights"},
+                    {"role": "assistant", "content": "Done!"},
+                ]
+            )
+
+        intake.process_message_stream = _stream_normal
+
+        from custom_components.homeclaw.channels.base import (
+            ChannelTarget,
+            MessageEnvelope,
+        )
+
+        envelope = MessageEnvelope(
+            text="turn on lights",
+            sender_id="u1",
+            sender_name="TestUser",
+            target=ChannelTarget(channel_id="discord", target_id="dm1"),
+            channel="discord",
+            is_group=False,
+            ha_user_id="ha_user_1",
+        )
+
+        await ch._process_and_respond(envelope)
+
+        # Verify compaction was NOT called
+        storage.compact_session_messages.assert_not_called()

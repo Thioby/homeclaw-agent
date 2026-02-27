@@ -505,10 +505,12 @@ class SessionStorage:
         now = datetime.now(timezone.utc).isoformat()
 
         # Create summary pair (matches format injected by compact_messages)
-        summary_user = {
+        # Using "system" role so it does NOT count as a user turn for
+        # turn-based compaction triggers (MAX_HISTORY_TURNS).
+        summary_system = {
             "message_id": str(uuid.uuid4()),
             "session_id": session_id,
-            "role": "user",
+            "role": "system",
             "content": f"[Previous conversation summary]\n{summary_text}",
             "timestamp": now,
             "status": "completed",
@@ -539,7 +541,7 @@ class SessionStorage:
 
         old_count = len(messages)
         preserved = messages[-keep_last:]
-        data["messages"][session_id] = [summary_user, summary_assistant] + preserved
+        data["messages"][session_id] = [summary_system, summary_assistant] + preserved
 
         # Update session metadata
         for session in data["sessions"]:

@@ -12,6 +12,22 @@ from custom_components.homeclaw import async_setup_entry, async_unload_entry
 class TestIntegration:
     """Test the full integration functionality with real HA fixtures."""
 
+    @pytest.fixture(autouse=True)
+    def mock_platform_forwarding(self):
+        """Mock platform forwarding since direct async_setup_entry calls bypass entry state management."""
+        with (
+            patch(
+                "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "homeassistant.config_entries.ConfigEntries.async_unload_platforms",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            yield
+
     @pytest.mark.asyncio
     async def test_full_integration_setup(self, hass, homeclaw_config_entry):
         """Test the full integration setup process with real hass."""
@@ -45,15 +61,14 @@ class TestIntegration:
 
         # Create a mock agent with process_query method
         mock_agent = MagicMock()
-        mock_agent.process_query = AsyncMock(return_value={
-            "success": True,
-            "answer": "The light is on",
-        })
+        mock_agent.process_query = AsyncMock(
+            return_value={
+                "success": True,
+                "answer": "The light is on",
+            }
+        )
 
-        with patch(
-            "custom_components.homeclaw.HomeclawAgent",
-            return_value=mock_agent
-        ):
+        with patch("custom_components.homeclaw.HomeclawAgent", return_value=mock_agent):
             # Setup the integration
             await async_setup_entry(hass, homeclaw_config_entry)
             await hass.async_block_till_done()
