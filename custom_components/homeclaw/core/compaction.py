@@ -39,7 +39,7 @@ COMPACTION_TRIGGER_RATIO = 0.80
 # Hard cap on effective context window (even for 1M+ models).
 # Prevents "lost in the middle" effect where models lose attention to
 # system prompt and tool instructions in very long contexts.
-EFFECTIVE_MAX_CONTEXT = 200_000
+EFFECTIVE_MAX_CONTEXT = 128_000
 
 # Maximum conversation turns before forced compaction.
 # A "turn" = one user message (tool_use/tool_result don't count).
@@ -214,6 +214,22 @@ async def compact_messages(
             ),
         }
     )
+
+    from ..tools.base import ToolRegistry
+
+    registered_tool_names = sorted(
+        t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)
+    )
+    if registered_tool_names:
+        compacted.append(
+            {
+                "role": "system",
+                "content": (
+                    "[Post-compaction context refresh]\n"
+                    f"Available tools: {', '.join(registered_tool_names)}"
+                ),
+            }
+        )
 
     compacted.extend(recent_messages)
 

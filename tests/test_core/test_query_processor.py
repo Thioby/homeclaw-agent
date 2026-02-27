@@ -489,10 +489,12 @@ class TestAgenticLoop:
         from unittest.mock import patch
         from custom_components.homeclaw.tools.base import ToolResult
 
-        # Provider always returns function call
+        tool_call = '{"functionCall": {"name": "endless", "args": {}}}'
+        final_response = "I have reached the iteration limit."
+
         provider = MockProvider()
         provider.get_response = AsyncMock(
-            return_value='{"functionCall": {"name": "endless", "args": {}}}'
+            side_effect=[tool_call, tool_call, tool_call, final_response]
         )
         processor = QueryProcessor(provider, max_iterations=3)
 
@@ -505,10 +507,10 @@ class TestAgenticLoop:
         ):
             result = await processor.process(query="Loop forever", messages=[])
 
-        assert result["success"] is False
-        assert "Maximum iterations" in result["error"]
-        # Should have called exactly max_iterations times
-        assert provider.get_response.call_count == 3
+        assert result["success"] is True
+        assert result["response"] == final_response
+        # 3 tool-call iterations + 1 final forced call without tools
+        assert provider.get_response.call_count == 4
 
     @pytest.mark.asyncio
     async def test_tool_execution_error_handling(self) -> None:
