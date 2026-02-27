@@ -187,15 +187,6 @@ class QueryProcessor:
                     len(enriched_query),
                 )
 
-        # --- Phase 3: Periodic Reinforcement (Anti-Hallucination) ---
-        user_turn_count = sum(1 for m in messages if m.get("role") == "user")
-        if user_turn_count > 0 and user_turn_count % 5 == 0:
-            _LOGGER.debug("Injecting periodic anti-hallucination reinforcement (turn %d)", user_turn_count)
-            enriched_query += (
-                "\n\n[SYSTEM REMINDER: Never hallucinate or simulate actions. "
-                "You MUST use your tools (function calls) to interact with the system or check state!]"
-            )
-
         # Build the user message (multimodal or plain text)
         if image_attachments:
             # Multimodal message: uses provider-agnostic format with _images key.
@@ -238,7 +229,11 @@ class QueryProcessor:
 
         return self._repair_tool_history(messages)
 
-    def _repair_tool_history(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _repair_tool_history(
+        self,
+        messages: list[dict[str, Any]],
+        allowed_tool_names: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
         """Repair tool/function call history to ensure perfect pairs.
         
         Fixes missing tool_use_ids, drops orphan results, and injects 
@@ -261,7 +256,10 @@ class QueryProcessor:
                     fcs = self._detect_function_call(content)
                     if fcs:
                         for fc in fcs:
-                            pending_tool_calls[fc.id] = fc.name
+                            if allowed_tool_names is None or fc.name in allowed_tool_names:
+                                pending_tool_calls[fc.id] = fc.name
+                            else:
+                                _LOGGER.warning("Dropped unknown tool call: %s", fc.name)
                 except Exception:
                     pass
                     
@@ -269,11 +267,19 @@ class QueryProcessor:
                 if "tool_calls" in msg:
                     for tc in msg["tool_calls"]:
                         tc_id = tc.get("id") or tc.get("function", {}).get("name", "unknown")
-                        pending_tool_calls[tc_id] = tc.get("function", {}).get("name", "unknown")
+                        tc_name = tc.get("function", {}).get("name", "unknown")
+                        if allowed_tool_names is None or tc_name in allowed_tool_names:
+                            pending_tool_calls[tc_id] = tc_name
+                        else:
+                            _LOGGER.warning("Dropped unknown tool call: %s", tc_name)
                 elif "function_call" in msg:
                     fc = msg["function_call"]
                     tc_id = msg.get("tool_use_id") or fc.get("name", "unknown")
-                    pending_tool_calls[tc_id] = fc.get("name", "unknown")
+                    tc_name = fc.get("name", "unknown")
+                    if allowed_tool_names is None or tc_name in allowed_tool_names:
+                        pending_tool_calls[tc_id] = tc_name
+                    else:
+                        _LOGGER.warning("Dropped unknown tool call: %s", tc_name)
 
                 sanitized.append(msg)
                 
@@ -350,7 +356,12 @@ class QueryProcessor:
                 if role in ("tool", "function"):
                     content = msg.get("content", "")
                     if len(content) > limit:
-                        msg["content"] = content[:limit] + "\n... [truncated]"
+                        half = limit // 2
+                        msg["content"] = (
+                            content[:half]
+                            + "\n\n... [truncated — showing first and last portion] ...\n\n"
+                            + content[-half:]
+                        )
             estimated = estimate_messages_tokens(result)
             if estimated <= available:
                 _LOGGER.info(
@@ -1040,11 +1051,40 @@ class QueryProcessor:
 
                 current_iteration += 1
 
-            # Max iterations reached
-            return {
-                "success": False,
-                "error": "Maximum iterations reached without final response",
-            }
+            # Max iterations reached — force a final response without tools
+            _LOGGER.warning(
+                "Max iterations (%d) reached. Forcing final text response (no tools).",
+                effective_max_iterations,
+            )
+            try:
+                provider_kwargs_final: dict[str, Any] = {**kwargs}
+                provider_kwargs_final.pop("tools", None)
+
+                final_text = await self.provider.get_response(
+                    built_messages, **provider_kwargs_final
+                )
+                updated_messages = list(built_messages)
+                if (
+                    system_prompt
+                    and updated_messages
+                    and updated_messages[0].get("role") == "system"
+                ):
+                    updated_messages = updated_messages[1:]
+                if final_text:
+                    updated_messages.append(
+                        {"role": "assistant", "content": final_text}
+                    )
+                return {
+                    "success": True,
+                    "response": final_text or "",
+                    "messages": updated_messages,
+                }
+            except Exception as final_err:
+                _LOGGER.error("Final forced response also failed: %s", final_err)
+                return {
+                    "success": False,
+                    "error": "Maximum iterations reached without final response",
+                }
 
         except Exception as e:
             _LOGGER.error("Error processing query: %s", str(e))

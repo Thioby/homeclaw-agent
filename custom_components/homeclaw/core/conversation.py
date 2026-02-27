@@ -9,7 +9,7 @@ from typing import Literal
 class Message:
     """Represents a message in a conversation."""
 
-    role: Literal["system", "user", "assistant"]
+    role: Literal["system", "user", "assistant", "function", "tool"]
     content: str
 
 

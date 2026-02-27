@@ -64,13 +64,26 @@ class FunctionCallParser:
         if not isinstance(content, dict):
             return None
 
-        return (
+        function_calls = (
             self._try_openai(content)
             or self._try_gemini(content)
             or self._try_anthropic(content)
             or self._try_simple(content)
             or self._try_tool_calls_list(content)
         )
+
+        if not function_calls:
+            return None
+
+        from ..tools.base import ToolRegistry
+
+        validated = []
+        for fc in function_calls:
+            if ToolRegistry.get_tool_class(fc.name) is not None:
+                validated.append(fc)
+            else:
+                _LOGGER.warning("Rejected hallucinated tool call: %s", fc.name)
+        return validated if validated else None
 
     # ------------------------------------------------------------------
     # Provider-specific strategies

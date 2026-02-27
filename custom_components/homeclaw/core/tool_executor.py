@@ -67,12 +67,16 @@ class ToolExecutor:
         for fc in function_calls:
             # Circuit Breaker: prevent repeated identical tool calls
             if call_history_hashes is not None:
-                args_str = json.dumps(fc.arguments, sort_keys=True)
+                normalized_args = {
+                    k: v.strip() if isinstance(v, str) else v
+                    for k, v in sorted(fc.arguments.items())
+                }
+                args_str = json.dumps(normalized_args, sort_keys=True)
                 tc_hash = hashlib.md5(f"{fc.name}:{args_str}".encode()).hexdigest()
                 call_history_hashes[tc_hash] = call_history_hashes.get(tc_hash, 0) + 1
                 count = call_history_hashes[tc_hash]
 
-                if count >= 3:
+                if count >= 2:
                     _LOGGER.error("Circuit breaker triggered for tool '%s' (called %d times with identical args)", fc.name, count)
                     error_msg = json.dumps({
                         "error": f"Circuit breaker activated: You called this tool with identical arguments {count} times in a row. Stop repeating yourself and try a different approach or inform the user."
