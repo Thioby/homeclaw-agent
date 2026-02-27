@@ -39,7 +39,11 @@ class FunctionCallParser:
         """
         self._response_parser = response_parser
 
-    def detect(self, response_text: str) -> list[FunctionCall] | None:
+    def detect(
+        self,
+        response_text: str,
+        allowed_tool_names: set[str] | None = None,
+    ) -> list[FunctionCall] | None:
         """Detect and parse function calls from response text.
 
         Tries multiple provider formats in order:
@@ -51,6 +55,8 @@ class FunctionCallParser:
 
         Args:
             response_text: The text response from the AI provider.
+            allowed_tool_names: Optional set of valid tool names. When provided,
+                calls referencing unknown tools are rejected.
 
         Returns:
             List of FunctionCall objects if found, None otherwise.
@@ -75,11 +81,12 @@ class FunctionCallParser:
         if not function_calls:
             return None
 
-        from ..tools.base import ToolRegistry
+        if allowed_tool_names is None:
+            return function_calls
 
         validated = []
         for fc in function_calls:
-            if ToolRegistry.get_tool_class(fc.name) is not None:
+            if fc.name in allowed_tool_names:
                 validated.append(fc)
             else:
                 _LOGGER.warning("Rejected hallucinated tool call: %s", fc.name)

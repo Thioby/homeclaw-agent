@@ -218,7 +218,7 @@ async def compact_messages(
     from ..tools.base import ToolRegistry
 
     registered_tool_names = sorted(
-        tid for tid, tc in ToolRegistry._tools.items() if tc.enabled
+        t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)
     )
     if registered_tool_names:
         compacted.append(

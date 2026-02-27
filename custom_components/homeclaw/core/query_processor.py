@@ -228,7 +228,7 @@ class QueryProcessor:
         )
 
         from ..tools.base import ToolRegistry
-        known_tools = set(ToolRegistry._tools.keys())
+        known_tools = {t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)}
         return self._repair_tool_history(messages, allowed_tool_names=known_tools)
 
     def _repair_tool_history(
@@ -482,7 +482,11 @@ class QueryProcessor:
 
         return effective_tools
 
-    def _detect_function_call(self, response_text: str) -> list[FunctionCall] | None:
+    def _detect_function_call(
+        self,
+        response_text: str,
+        allowed_tool_names: set[str] | None = None,
+    ) -> list[FunctionCall] | None:
         """Detect and parse function calls from response text.
 
         Delegates to FunctionCallParser which handles all provider-specific
@@ -490,11 +494,14 @@ class QueryProcessor:
 
         Args:
             response_text: The text response from the AI provider.
+            allowed_tool_names: Optional set of valid tool names for filtering.
 
         Returns:
             List of FunctionCall objects if found, None otherwise.
         """
-        return self.function_call_parser.detect(response_text)
+        return self.function_call_parser.detect(
+            response_text, allowed_tool_names=allowed_tool_names
+        )
 
     async def process_stream(
         self,
