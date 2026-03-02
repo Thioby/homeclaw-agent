@@ -214,13 +214,6 @@ class RAGContextRetriever:
             # Build entity context from valid results
             entity_context = self._query_engine.build_compressed_context(valid_results)
 
-            # Search session chunks for conversational context
-            session_context = ""
-            try:
-                session_context = await self._get_session_context(query)
-            except Exception as sess_err:
-                _LOGGER.debug("Session context retrieval failed: %s", sess_err)
-
             # Recall long-term memories (if user_id provided)
             memory_context = ""
             if user_id and self._memory_manager:
@@ -232,16 +225,15 @@ class RAGContextRetriever:
                     _LOGGER.debug("Memory recall failed: %s", mem_err)
 
             # Combine all context sources
-            parts = [p for p in [memory_context, entity_context, session_context] if p]
+            parts = [p for p in [memory_context, entity_context] if p]
             context = "\n\n".join(parts)
 
             if context:
                 _LOGGER.debug(
-                    "RAG context generated (%d chars, memory=%d, entity=%d, session=%d) for query: %s...",
+                    "RAG context generated (%d chars, memory=%d, entity=%d) for query: %s...",
                     len(context),
                     len(memory_context),
                     len(entity_context),
-                    len(session_context),
                     query[:50],
                 )
             return context
@@ -250,74 +242,3 @@ class RAGContextRetriever:
             _LOGGER.warning("RAG context retrieval failed: %s", e)
             return ""
 
-    async def _get_session_context(
-        self,
-        query: str,
-        top_k: int = 3,
-    ) -> str:
-        """Search session chunks for relevant conversational context.
-
-        Args:
-            query: The user's query text.
-            top_k: Maximum number of session chunks to include.
-
-        Returns:
-            Formatted session context string, or empty string if no results.
-        """
-        from .embeddings import get_embedding_for_query
-        from .query_engine import build_fts_query, merge_hybrid_results
-
-        # Vector search on session chunks
-        query_embedding = await get_embedding_for_query(self._embedding_provider, query)
-        vector_results = await self._store.search_session_chunks(
-            query_embedding=query_embedding,
-            n_results=top_k * 4,
-            min_similarity=RAG_MIN_SIMILARITY,
-        )
-
-        # Keyword search on session chunks (if FTS5 available)
-        keyword_results = []
-        fts_query = build_fts_query(query)
-        if fts_query:
-            keyword_results = await self._store.keyword_search_sessions(
-                fts_query=fts_query,
-                n_results=top_k * 4,
-            )
-
-        # Merge if we have both types of results
-        if vector_results and keyword_results:
-            results = merge_hybrid_results(
-                vector_results,
-                keyword_results,
-                vector_weight=0.7,
-                text_weight=0.3,
-            )
-        elif vector_results:
-            results = vector_results
-        elif keyword_results:
-            results = keyword_results
-        else:
-            return ""
-
-        # Apply similarity threshold and limit
-        results = [r for r in results if (1.0 - r.distance) >= RAG_MIN_SIMILARITY][
-            :top_k
-        ]
-
-        if not results:
-            return ""
-
-        # Format session chunks as context
-        lines = ["Relevant previous conversations:"]
-        for r in results:
-            text = r.text
-            if len(text) > 500:
-                text = text[:500] + "..."
-            lines.append(f"---\n{text}")
-
-        _LOGGER.debug(
-            "Session context: %d chunks found for query: %s...",
-            len(results),
-            query[:50],
-        )
-        return "\n".join(lines)

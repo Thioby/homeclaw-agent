@@ -134,7 +134,7 @@ class Agent:
         Yields:
             AgentEvent objects.
         """
-        from .events import TextEvent, CompletionEvent
+        from .events import TextEvent, CompletionEvent, CompactionEvent
 
         accumulated_text = ""
         success = False
@@ -155,6 +155,8 @@ class Agent:
             "system_prompt", self._system_prompt
         )
 
+        was_compacted = False
+
         async for chunk in self._query_processor.process_stream(
             query=query,
             messages=messages,
@@ -166,13 +168,20 @@ class Agent:
                 accumulated_text += chunk.content
             elif isinstance(chunk, CompletionEvent):
                 success = True
+            elif isinstance(chunk, CompactionEvent):
+                # Update history with compacted state to prevent loops
+                # Only update if we rely on the internal conversation
+                if conversation_history is None:
+                    self._conversation.set_messages(chunk.messages)
+                    was_compacted = True
 
             # Yield all chunks to caller
             yield chunk
 
         # Update in-memory conversation history if successful
         if success and accumulated_text:
-            self._conversation.add_user_message(query)
+            if not was_compacted:
+                self._conversation.add_user_message(query)
             self._conversation.add_assistant_message(accumulated_text)
 
     # === Entity Operations (delegate to EntityManager) ===
