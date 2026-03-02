@@ -92,31 +92,15 @@ class QueryProcessor:
         system_prompt: str | None = None,
         rag_context: str | None = None,
         **kwargs: Any,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], bool]:
         """Build the message list for the AI provider.
 
         Assembles system prompt, conversation history, and the current query
         into a flat list.  When the result exceeds the model's context budget,
         automatically triggers compaction (AI summarization of old messages).
-
-        Supports multimodal content: when attachments are present, image
-        attachments produce provider-specific content blocks, and text/PDF
-        attachments have their extracted content appended to the query.
-
-        Args:
-            query: The current user query.
-            history: Previous conversation messages.
-            system_prompt: Optional system message to prepend.
-            rag_context: Optional RAG context to include.
-            **kwargs: Extra context forwarded to compaction, including:
-                - context_window (int): Model's context window in tokens.
-                - memory_flush_fn: Async callable for pre-compaction memory capture.
-                - user_id (str): For memory flush scoping.
-                - session_id (str): For memory flush context.
-                - attachments: List of ProcessedAttachment objects.
-
+        
         Returns:
-            List of message dictionaries ready for the provider.
+            Tuple of (messages, was_compacted_boolean).
         """
         messages: list[dict[str, Any]] = []
 
@@ -217,7 +201,10 @@ class QueryProcessor:
         if kwargs.get("model"):
             provider_kwargs["model"] = kwargs["model"]
 
-        messages = await compact_messages(
+        # Capture reference before compaction to detect changes
+        pre_compaction_messages = messages
+
+        compacted_messages = await compact_messages(
             messages,
             context_window=context_window,
             provider=self.provider,
@@ -226,10 +213,14 @@ class QueryProcessor:
             session_id=session_id,
             **provider_kwargs,
         )
+        
+        was_compacted = compacted_messages is not pre_compaction_messages
 
         from ..tools.base import ToolRegistry
         known_tools = {t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)}
-        return self._repair_tool_history(messages, allowed_tool_names=known_tools)
+        final_messages = self._repair_tool_history(compacted_messages, allowed_tool_names=known_tools)
+        
+        return final_messages, was_compacted
 
     def _repair_tool_history(
         self,
@@ -529,6 +520,7 @@ class QueryProcessor:
             "max_iterations", self.max_iterations
         )
         from .events import (
+            CompactionEvent,
             CompletionEvent,
             ErrorEvent,
             StatusEvent,
@@ -583,7 +575,7 @@ class QueryProcessor:
                 )
 
         # Build the message list with RAG context and compaction
-        built_messages = await self._build_messages(
+        built_messages, was_compacted = await self._build_messages(
             sanitized_query,
             messages,
             system_prompt=system_prompt,
@@ -595,6 +587,10 @@ class QueryProcessor:
             model=kwargs.get("model"),
             attachments=attachments,
         )
+
+        if was_compacted:
+            yield CompactionEvent(messages=built_messages)
+
 
         hass = kwargs.get("hass")
         current_iteration = 0
@@ -976,7 +972,7 @@ class QueryProcessor:
                 )
 
         # Build the message list with RAG context and compaction
-        built_messages = await self._build_messages(
+        built_messages, _ = await self._build_messages(
             sanitized_query,
             messages,
             system_prompt=system_prompt,

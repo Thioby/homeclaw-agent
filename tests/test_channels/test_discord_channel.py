@@ -186,7 +186,8 @@ class TestDiscordChannel:
 
         intake.process_message_stream = _stream
         env = SimpleNamespace(text="x", ha_user_id="u1")
-        answer, completion_messages = await ch._run_stream(env, "s1", [])
+        storage_mock = MagicMock()
+        answer, completion_messages = await ch._run_stream(env, "s1", [], storage_mock)
         assert answer == "Sorry, I encountered an error."
         assert completion_messages == []
 
@@ -571,7 +572,7 @@ class TestDiscordProviderModel:
         intake.process_message_stream = _capture_stream
 
         env = SimpleNamespace(text="hi", ha_user_id="user1")
-        await ch._run_stream(env, "s1", [])
+        await ch._run_stream(env, "s1", [], storage)
 
         assert captured_kwargs.get("provider") == "gemini_oauth"
         assert captured_kwargs.get("model") == "gemini-2.5-pro"
@@ -634,9 +635,9 @@ class TestHistoryLimit:
         history = await ch._load_history(storage, "s1")
 
         assert len(history) == 3
-        # Should be the LAST 3 messages
-        assert history[0]["content"] == "msg 7"
-        assert history[2]["content"] == "msg 9"
+        # Should be the LAST 3 messages of the 9 remaining
+        assert history[0]["content"] == "msg 6"
+        assert history[-1]["content"] == "msg 8"
 
     @pytest.mark.asyncio
     async def test_load_history_default_limit_applies(self, hass, intake):
@@ -660,9 +661,9 @@ class TestHistoryLimit:
 
         # Default limit is 24 messages (~12 turns) to stay under MAX_HISTORY_TURNS
         assert len(history) == 24
-        # Should be the LAST 24 messages
-        assert history[0]["content"] == "msg 6"
-        assert history[-1]["content"] == "msg 29"
+        # Should be the LAST 24 messages of the 29 remaining
+        assert history[0]["content"] == "msg 5"
+        assert history[-1]["content"] == "msg 28"
 
 
 class TestCompactionPersistence:

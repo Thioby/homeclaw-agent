@@ -109,7 +109,7 @@ class TestBuildMessages:
         ]
         query = "New question"
 
-        result = await processor._build_messages(query, history)
+        result, was_compacted = await processor._build_messages(query, history)
 
         assert len(result) == 3
         assert result[0] == {"role": "user", "content": "Previous question"}
@@ -126,7 +126,7 @@ class TestBuildMessages:
         query = "New question"
         system_prompt = "You are a helpful assistant."
 
-        result = await processor._build_messages(
+        result, was_compacted = await processor._build_messages(
             query, history, system_prompt=system_prompt
         )
 
@@ -145,7 +145,7 @@ class TestBuildMessages:
         processor = QueryProcessor(provider)
 
         query = "Hello"
-        result = await processor._build_messages(query, [])
+        result, was_compacted = await processor._build_messages(query, [])
 
         assert len(result) == 1
         assert result[0] == {"role": "user", "content": "Hello"}
@@ -157,7 +157,7 @@ class TestBuildMessages:
         processor = QueryProcessor(provider)
 
         query = "Hello"
-        result = await processor._build_messages(query, [], system_prompt="Be concise.")
+        result, was_compacted = await processor._build_messages(query, [], system_prompt="Be concise.")
 
         assert len(result) == 2
         assert result[0] == {"role": "system", "content": "Be concise."}
@@ -303,7 +303,7 @@ class TestBuildMessagesWithRagContext:
         processor = QueryProcessor(provider)
 
         rag_context = "Entity: sensor.temp, State: 22°C, Area: Living Room"
-        result = await processor._build_messages(
+        result, was_compacted = await processor._build_messages(
             "What's the temperature?",
             [],
             system_prompt="You are a helpful assistant.",
@@ -323,7 +323,7 @@ class TestBuildMessagesWithRagContext:
         processor = QueryProcessor(provider)
 
         rag_context = "Entity: light.kitchen, State: on"
-        result = await processor._build_messages(
+        result, was_compacted = await processor._build_messages(
             "Turn off the kitchen light", [], rag_context=rag_context
         )
 
@@ -337,7 +337,7 @@ class TestBuildMessagesWithRagContext:
         provider = MockProvider()
         processor = QueryProcessor(provider)
 
-        result = await processor._build_messages(
+        result, was_compacted = await processor._build_messages(
             "Hello", [], system_prompt="Be helpful."
         )
 
@@ -498,14 +498,28 @@ class TestAgenticLoop:
         )
         processor = QueryProcessor(provider, max_iterations=3)
 
-        mock_result = ToolResult(output="Done", success=True)
+        from custom_components.homeclaw.tools.base import Tool, ToolResult
 
+        class EndlessTool(Tool):
+            id = "endless"
+            name = "endless"
+            description = "Tool that loops"
+            async def execute(self, hass, **kwargs):
+                pass
+                
         with patch(
+            "custom_components.homeclaw.tools.base.ToolRegistry.get_all_tools",
+            return_value=[EndlessTool()]
+        ), patch(
             "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
             new_callable=AsyncMock,
-            return_value=mock_result,
+            return_value=ToolResult(output="Done", success=True),
         ):
-            result = await processor.process(query="Loop forever", messages=[])
+            result = await processor.process(
+                query="Loop forever",
+                messages=[],
+                tools=[{"function": {"name": "endless"}}],
+            )
 
         assert result["success"] is True
         assert result["response"] == final_response
@@ -516,7 +530,14 @@ class TestAgenticLoop:
     async def test_tool_execution_error_handling(self) -> None:
         """Test that tool execution errors are handled gracefully."""
         from unittest.mock import patch
-        from custom_components.homeclaw.tools.base import ToolExecutionError
+        from custom_components.homeclaw.tools.base import Tool, ToolExecutionError
+
+        class BrokenTool(Tool):
+            id = "broken_tool"
+            name = "broken_tool"
+            description = "Tool that breaks"
+            async def execute(self, hass, **kwargs):
+                pass
 
         # First call returns function call, second returns final response
         provider = MockProvider()
@@ -529,11 +550,18 @@ class TestAgenticLoop:
         processor = QueryProcessor(provider)
 
         with patch(
+            "custom_components.homeclaw.tools.base.ToolRegistry.get_all_tools",
+            return_value=[BrokenTool()]
+        ), patch(
             "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
             new_callable=AsyncMock,
             side_effect=ToolExecutionError("Tool failed", tool_id="broken_tool"),
         ):
-            result = await processor.process(query="Use broken tool", messages=[])
+            result = await processor.process(
+                query="Use broken tool",
+                messages=[],
+                tools=[{"function": {"name": "broken_tool"}}],
+            )
 
         # Should still succeed with final response
         assert result["success"] is True
@@ -557,7 +585,21 @@ class TestAgenticLoop:
     async def test_multiple_tool_calls_in_sequence(self) -> None:
         """Test multiple sequential tool calls."""
         from unittest.mock import patch
-        from custom_components.homeclaw.tools.base import ToolResult
+        from custom_components.homeclaw.tools.base import Tool, ToolResult
+
+        class ToolA(Tool):
+            id = "tool_a"
+            name = "tool_a"
+            description = "Tool A"
+            async def execute(self, hass, **kwargs):
+                pass
+                
+        class ToolB(Tool):
+            id = "tool_b"
+            name = "tool_b"
+            description = "Tool B"
+            async def execute(self, hass, **kwargs):
+                pass
 
         provider = MockProvider()
         provider.get_response = AsyncMock(
@@ -572,11 +614,21 @@ class TestAgenticLoop:
         mock_result = ToolResult(output="Tool output", success=True)
 
         with patch(
+            "custom_components.homeclaw.tools.base.ToolRegistry.get_all_tools",
+            return_value=[ToolA(), ToolB()]
+        ), patch(
             "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
             new_callable=AsyncMock,
             return_value=mock_result,
         ):
-            result = await processor.process(query="Use multiple tools", messages=[])
+            result = await processor.process(
+                query="Use multiple tools",
+                messages=[],
+                tools=[
+                    {"function": {"name": "tool_a"}},
+                    {"function": {"name": "tool_b"}},
+                ],
+            )
 
         assert result["success"] is True
         assert result["response"] == "Final result after two tools."

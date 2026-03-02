@@ -25,7 +25,7 @@ from .helpers import (
 )
 from .pairing import create_pairing_request, extract_pairing_code, get_request_by_code
 from .rest import DiscordRestClient
-from ...ws_handlers.chat import _persist_compaction_if_needed
+from ...ws_handlers.chat import _persist_compaction_if_needed, _persist_tool_messages
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -395,7 +395,7 @@ class DiscordChannel(Channel):
         try:
             history = await self._load_history(storage, session_id)
             answer, completion_messages = await self._run_stream(
-                envelope, session_id, history
+                envelope, session_id, history, storage
             )
             await self.send_response(envelope.target, answer)
             _LOGGER.debug(
@@ -462,6 +462,7 @@ class DiscordChannel(Channel):
         envelope: MessageEnvelope,
         session_id: str,
         history: list[dict[str, Any]],
+        storage: SessionStorage,
     ) -> tuple[str, list[dict[str, Any]]]:
         """Execute message intake stream and return final assistant text + completion messages.
 
@@ -471,7 +472,10 @@ class DiscordChannel(Channel):
         Returns:
             Tuple of (assistant_text, completion_messages).
         """
-        provider, model = await self._resolve_provider_model(envelope.ha_user_id)
+        pref_provider, pref_model = await self._resolve_provider_model(envelope.ha_user_id)
+        provider = pref_provider or self._default_provider()
+        model = pref_model or self._config.get("model")
+        
         accumulated = ""
         completion_messages: list[dict[str, Any]] = []
         try:
@@ -484,11 +488,19 @@ class DiscordChannel(Channel):
                 channel_source="discord",
                 conversation_history=history,
             ):
-                if isinstance(event, TextEvent):
-                    accumulated += event.content
-                elif isinstance(event, CompletionEvent):
+                event_type = getattr(event, "type", None)
+                if event_type == "text":
+                    accumulated += getattr(event, "content", "")
+                elif event_type == "complete":
                     completion_messages = getattr(event, "messages", [])
-                elif isinstance(event, ErrorEvent):
+                elif event_type in ("tool_call", "tool_result"):
+                    await _persist_tool_messages(
+                        storage,
+                        session_id,
+                        event,
+                        datetime.now(timezone.utc).isoformat(),
+                    )
+                elif event_type == "error":
                     return "Sorry, I encountered an error.", []
         except Exception:
             _LOGGER.exception("Discord message processing failed")
@@ -512,6 +524,7 @@ class DiscordChannel(Channel):
             "sender_name": envelope.sender_name,
         }
         title = f"[Discord] {envelope.text[:30]}"
+        # Ensure we pass the resolved provider and model
         created = await storage.create_session(
             provider=provider, title=title, metadata=metadata
         )
@@ -548,6 +561,11 @@ class DiscordChannel(Channel):
         tool_use/tool_result messages for the AI provider.
         """
         messages = await storage.get_session_messages(session_id)
+
+        # Drop the last message (which is the user's current query we just saved)
+        # to prevent repetitive bias when the query processor appends it again.
+        if messages:
+            messages = messages[:-1]
 
         # Default to 24 messages (~12 turns) to stay under MAX_HISTORY_TURNS.
         # Without a limit, long sessions reload ALL messages from storage on
