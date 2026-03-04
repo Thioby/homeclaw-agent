@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.3.1 — Agent loop hardening and Discord auto-compaction
+
+### Fixed
+- **Agent loop reliability** — tool validation, circuit breaker, compaction, and truncation now cooperate correctly. Final response is guaranteed even when the tool loop hits its iteration limit.
+- **`allowed_tool_names` propagation** — wired at both `detect` call sites in `process()` and `process_stream()`, and at the `repair_tool_history` call site, so tool-name filtering is consistently enforced throughout the multi-turn loop.
+- **Function-call parser decoupled from query processor** — `function_call_parser.py` no longer depends on internal query-processor state, improving testability and preventing stale-state bugs.
+- **`response_parser.py` and `conversation.py`** — edge cases in response classification and conversation reconstruction that caused the agent to loop unnecessarily are resolved.
+
+### Added
+- **Discord auto-compaction** — when a Discord session grows beyond the token budget, conversation history is automatically compacted (summary + tool-call pruning) before the next request, preventing context-overflow errors on long Discord threads.
+- **`token_estimator.py`** — lightweight token counter used by the compaction trigger to decide when to compact without making an extra API call.
+- **`compaction.py`** — standalone compaction module: summarise-and-prune strategy with configurable keep-last-N turns.
+
+### Changed
+- **`tool_executor.py`** — emits richer event payloads so the circuit breaker in `query_processor` can distinguish hard failures from soft retries.
+- **`storage.py`** — extended to persist compaction metadata (summary text, compacted-at turn index) alongside existing session data.
+
 ## v1.2.1 — Progressive tool loading, Discord resilience, and OAuth reauth
 
 ### Added

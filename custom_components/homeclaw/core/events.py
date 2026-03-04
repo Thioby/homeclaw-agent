@@ -20,6 +20,7 @@ class ToolCallEvent(AgentEvent):
     tool_name: str
     tool_args: Dict[str, Any]
     tool_call_id: str
+    raw_function_call: Optional[Dict[str, Any]] = None
     type: Literal["tool_call"] = "tool_call"
 
 @dataclass
@@ -55,3 +56,9 @@ class CompletionEvent(AgentEvent):
     """Event emitted when the interaction is complete."""
     messages: List[Dict[str, Any]]
     type: Literal["complete"] = "complete"
+
+@dataclass
+class CompactionEvent(AgentEvent):
+    """Event emitted when context compaction occurred."""
+    messages: List[Dict[str, Any]]
+    type: Literal["compaction"] = "compaction"

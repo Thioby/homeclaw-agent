@@ -156,4 +156,13 @@ class ResponseParser:
         Returns:
             True if the data represents a tool call, False otherwise.
         """
-        return "tool_calls" in data or "function_call" in data
+        if "tool_calls" in data:
+            return isinstance(data["tool_calls"], list) and len(data["tool_calls"]) > 0
+        if "function_call" in data:
+            fc = data["function_call"]
+            return (
+                isinstance(fc, dict)
+                and "name" in fc
+                and "arguments" in fc
+            )
+        return False

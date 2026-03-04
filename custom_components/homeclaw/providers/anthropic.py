@@ -232,6 +232,7 @@ class AnthropicProvider(BaseHTTPClient):
         payload: dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
+            "temperature": self.config.get("temperature", 0.2),
             "messages": filtered_messages,
         }
 

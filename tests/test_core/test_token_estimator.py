@@ -8,6 +8,7 @@ from custom_components.homeclaw.core.token_estimator import (
     DEFAULT_OUTPUT_RESERVE,
     DEFAULT_SAFETY_MARGIN,
     MESSAGE_OVERHEAD_TOKENS,
+    TOOL_SCHEMA_RESERVE_TOKENS,
     compute_context_budget,
     estimate_messages_tokens,
     estimate_tokens,
@@ -35,7 +36,8 @@ class TestEstimateTokens:
 
     def test_long_text(self):
         text = "x" * 10_000
-        assert estimate_tokens(text) == 2500
+        # 10_000 chars / CHARS_PER_TOKEN (3) = 3333 tokens
+        assert estimate_tokens(text) == 10_000 // CHARS_PER_TOKEN
 
 
 class TestEstimateMessagesTokens:
@@ -74,7 +76,13 @@ class TestComputeContextBudget:
         assert budget["output_reserve"] == DEFAULT_OUTPUT_RESERVE
         safety = int(DEFAULT_CONTEXT_WINDOW * DEFAULT_SAFETY_MARGIN)
         assert budget["safety_buffer"] == safety
-        expected_available = DEFAULT_CONTEXT_WINDOW - DEFAULT_OUTPUT_RESERVE - safety
+        # Formula: available = window - output_reserve - safety - TOOL_SCHEMA_RESERVE_TOKENS
+        expected_available = (
+            DEFAULT_CONTEXT_WINDOW
+            - DEFAULT_OUTPUT_RESERVE
+            - safety
+            - TOOL_SCHEMA_RESERVE_TOKENS
+        )
         assert budget["available_for_input"] == expected_available
 
     def test_custom_window(self):
@@ -92,7 +100,10 @@ class TestComputeContextBudget:
     def test_zero_safety_margin(self):
         budget = compute_context_budget(context_window=100_000, safety_margin=0.0)
         assert budget["safety_buffer"] == 0
-        assert budget["available_for_input"] == 100_000 - DEFAULT_OUTPUT_RESERVE
+        # Formula: available = window - output_reserve - safety (0) - TOOL_SCHEMA_RESERVE_TOKENS
+        assert budget["available_for_input"] == (
+            100_000 - DEFAULT_OUTPUT_RESERVE - TOOL_SCHEMA_RESERVE_TOKENS
+        )
 
     def test_budget_sums_correctly(self):
         budget = compute_context_budget(context_window=128_000)

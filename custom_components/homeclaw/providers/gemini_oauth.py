@@ -365,7 +365,7 @@ class GeminiOAuthProvider(AIProvider):
         request_payload: dict[str, Any] = {
             "contents": gemini_contents,
             "generationConfig": {
-                "temperature": self.config.get("temperature", 0.7),
+                "temperature": self.config.get("temperature", 0.2),
                 "maxOutputTokens": 8192,
             },
         }

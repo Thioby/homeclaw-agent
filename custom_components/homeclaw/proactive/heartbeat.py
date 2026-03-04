@@ -68,6 +68,7 @@ HEARTBEAT_DENIED_TOOLS = frozenset(
         "memory_store",
         "memory_forget",
         "identity_set",
+        "safe_shell_execute",
     }
 )
 

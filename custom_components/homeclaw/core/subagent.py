@@ -53,6 +53,7 @@ DENIED_TOOLS = frozenset(
         "update_dashboard",
         "call_service",
         "set_entity_state",
+        "safe_shell_execute",
     }
 )
 

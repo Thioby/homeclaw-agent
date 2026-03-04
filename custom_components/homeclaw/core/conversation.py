@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Any
 
 
 @dataclass
 class Message:
     """Represents a message in a conversation."""
 
-    role: Literal["system", "user", "assistant"]
+    role: Literal["system", "user", "assistant", "function", "tool"]
     content: str
 
 
@@ -63,6 +63,17 @@ class ConversationManager:
             A copy of the messages as a list of dictionaries.
         """
         return [{"role": m.role, "content": m.content} for m in self._messages]
+
+    def set_messages(self, messages: list[dict[str, Any]]) -> None:
+        """Replace all messages with a new list.
+
+        Args:
+            messages: List of message dictionaries.
+        """
+        self._messages = [
+            Message(role=msg.get("role", "user"), content=msg.get("content", ""))
+            for msg in messages
+        ]
 
     def clear(self) -> None:
         """Clear all messages."""

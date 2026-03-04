@@ -114,7 +114,7 @@ class GeminiProvider(BaseHTTPClient):
         payload: dict[str, Any] = {
             "contents": contents,
             "generationConfig": {
-                "temperature": self.config.get("temperature", 0.7),
+                "temperature": self.config.get("temperature", 0.2),
                 "topP": self.config.get("top_p", 0.9),
             },
         }

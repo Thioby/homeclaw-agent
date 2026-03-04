@@ -122,17 +122,18 @@ class TestCompactMessagesTriggered:
 
     @pytest.mark.asyncio
     async def test_summary_injected_as_context(self):
-        """The summary should appear as a user/assistant pair in the result."""
-        messages = _make_full_conversation(20, content_len=200)
+        """The summary should appear as a system message in the result."""
+        # Use more messages to ensure compaction triggers
+        messages = _make_full_conversation(30, content_len=200)
         estimated = estimate_messages_tokens(messages)
-        # Need a window large enough that after safety margin + output reserve,
-        # compacted result fits, but original messages exceed 80% trigger.
-        # compute_context_budget: available = window * 0.8 - 8192
-        # We need: estimated > available * 0.8 (trigger) AND compacted < available (fits).
-        # Set window so available ~ estimated * 0.8 (triggers) and compacted result fits.
-        target_available = int(estimated * 1.0)
-        # Reverse: available = window * 0.8 - 8192 => window = (available + 8192) / 0.8
-        small_window = int((target_available + 8192) / 0.8)
+        # Need a window where:
+        # 1. estimated > available * 0.8 (triggers compaction)
+        # 2. compacted result < available (fits after compaction)
+        # compute_context_budget: available = window * 0.8 - 8192 - 5000 (TOOL_SCHEMA_RESERVE_TOKENS)
+        # Set available = estimated * 1.1 so original exceeds 80% but compacted fits.
+        target_available = int(estimated * 1.1)
+        # Reverse: available = window * 0.8 - 8192 - 5000 => window = (available + 8192 + 5000) / 0.8
+        small_window = int((target_available + 8192 + 5000) / 0.8)
 
         summary = "Previously: user asked about lights, assistant turned them on."
         provider = AsyncMock()
