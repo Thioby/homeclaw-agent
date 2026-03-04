@@ -127,7 +127,7 @@ class MemoryManager:
         *,
         top_k: int = RECALL_TOP_K,
         min_similarity: float = RECALL_MIN_SIMILARITY,
-    ) -> str:
+    ) -> list[dict[str, Any]]:
         """Recall relevant memories for a user query.
 
         Performs hybrid search (vector + keyword) on user's memories
@@ -140,7 +140,7 @@ class MemoryManager:
             min_similarity: Minimum relevance threshold.
 
         Returns:
-            Formatted memory context string for injection, or empty string.
+            List of memory dictionaries, or empty list.
         """
         self._ensure_initialized()
 
@@ -148,7 +148,7 @@ class MemoryManager:
             # Generate query embedding
             embeddings = await self.embedding_provider.get_embeddings([query])
             if not embeddings or not embeddings[0]:
-                return ""
+                return []
 
             query_embedding = embeddings[0]
 
@@ -174,14 +174,14 @@ class MemoryManager:
             merged = _merge_memory_results(vector_results, keyword_results, limit=top_k)
 
             if not merged:
-                return ""
+                return []
 
             # Format for system prompt injection
             return _format_memories_for_prompt(merged)
 
         except Exception as e:
             _LOGGER.debug("Memory recall failed: %s", e)
-            return ""
+            return []
 
     async def store_memory(
         self,
@@ -573,30 +573,27 @@ def _merge_memory_results(
     return ranked[:limit]
 
 
-def _format_memories_for_prompt(memories: list[Memory]) -> str:
-    """Format memories for injection into the system prompt.
+def _format_memories_for_prompt(memories: list[Memory]) -> list[dict[str, Any]]:
+    """Format memories for injection into the JSON context block.
 
     Args:
         memories: List of relevant Memory objects.
 
     Returns:
-        Formatted string with XML-style tags for clear delimitation.
+        List of dictionaries representing the memories.
     """
     import time as _time
 
-    lines = ["<relevant-memories>"]
-    lines.append(
-        "The following information was remembered from previous conversations:"
-    )
-
+    result = []
     now = _time.time()
     for mem in memories:
-        suffix = ""
+        mem_data = {
+            "category": mem.category,
+            "information": mem.text,
+        }
         if mem.expires_at:
             days_left = max(0, (mem.expires_at - now) / 86400)
-            suffix = f" (expires in {days_left:.0f}d)"
-        lines.append(f"- [{mem.category}] {mem.text}{suffix}")
+            mem_data["expires_in_days"] = int(days_left)
+        result.append(mem_data)
 
-    lines.append("</relevant-memories>")
-
-    return "\n".join(lines)
+    return result

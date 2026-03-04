@@ -63,10 +63,9 @@ class TestQueryEngine:
                     "domain": "switch",
                     "friendly_name": "Kitchen Outlet",
                     "area_name": "Kitchen",
-                    "device_class": "outlet",
-                    "state": "off",
+                    "state": "on",
                 },
-                distance=0.3,
+                distance=0.2,
             ),
             SearchResult(
                 id="sensor.temperature",
@@ -124,23 +123,38 @@ class TestQueryEngine:
         """Test building compressed context."""
         context = query_engine.build_compressed_context(sample_results)
 
-        assert "Potentially relevant entities" in context
-        assert "light.bedroom_lamp" in context
-        assert "switch.kitchen_outlet" in context
-        assert "Bedroom" in context  # Area should be included
-        assert "on" in context  # State for actionable entities
+        assert isinstance(context, list)
+        assert len(context) > 0
+        entity_ids = [c.get("entity_id") for c in context]
+        assert "light.bedroom_lamp" in entity_ids
+        assert "switch.kitchen_outlet" in entity_ids
+
+        # Check area
+        lamp = next(c for c in context if c["entity_id"] == "light.bedroom_lamp")
+        assert lamp.get("area") == "Bedroom"
+
+        # Check state for actionable entities
+        outlet = next(c for c in context if c["entity_id"] == "switch.kitchen_outlet")
+        assert outlet.get("state") == "on"
 
     def test_build_compressed_context_empty(self, query_engine):
         """Test building context with no results."""
         context = query_engine.build_compressed_context([])
-        assert context == ""
+        assert context == []
 
     def test_build_compressed_context_max_length(self, query_engine, sample_results):
-        """Test that context respects max length."""
-        # Use very short max length
+        """Test that context respects max_length budget by truncating results."""
+        # Very small budget — should only fit 1-2 entities
         context = query_engine.build_compressed_context(sample_results, max_length=100)
+        assert isinstance(context, list)
+        assert 0 < len(context) < len(sample_results)
 
-        assert len(context) <= 100
+    def test_build_compressed_context_large_budget(self, query_engine, sample_results):
+        """Test that large budget includes all results."""
+        context = query_engine.build_compressed_context(
+            sample_results, max_length=50_000
+        )
+        assert len(context) == len(sample_results)
 
     def test_format_entity_basic(self, query_engine):
         """Test basic entity formatting."""
@@ -153,8 +167,8 @@ class TestQueryEngine:
 
         formatted = query_engine._format_entity(result)
 
-        assert "light.test" in formatted
-        assert "(light)" in formatted
+        assert formatted["entity_id"] == "light.test"
+        assert formatted["domain"] == "light"
 
     def test_format_entity_with_friendly_name(self, query_engine):
         """Test formatting with friendly name."""
@@ -167,7 +181,7 @@ class TestQueryEngine:
 
         formatted = query_engine._format_entity(result)
 
-        assert '"My Special Light"' in formatted
+        assert formatted["name"] == "My Special Light"
 
     def test_format_entity_with_area(self, query_engine):
         """Test formatting with area."""
@@ -180,7 +194,7 @@ class TestQueryEngine:
 
         formatted = query_engine._format_entity(result)
 
-        assert "in Bedroom" in formatted
+        assert formatted["area"] == "Bedroom"
 
     def test_format_entity_with_learned_category(self, query_engine):
         """Test formatting with learned category."""
@@ -193,7 +207,7 @@ class TestQueryEngine:
 
         formatted = query_engine._format_entity(result)
 
-        assert "<light>" in formatted
+        assert formatted["category"] == "light"
 
     def test_format_entity_with_state(self, query_engine):
         """Test formatting actionable entity with state."""
@@ -206,7 +220,7 @@ class TestQueryEngine:
 
         formatted = query_engine._format_entity(result)
 
-        assert "state:on" in formatted
+        assert formatted["state"] == "on"
 
     def test_format_entity_sensor_no_state(self, query_engine):
         """Test that sensors don't show state in compact format."""
@@ -220,7 +234,7 @@ class TestQueryEngine:
         formatted = query_engine._format_entity(result)
 
         # Sensors don't show state in compact format (not actionable)
-        assert "state:" not in formatted
+        assert "state" not in formatted
 
     @pytest.mark.asyncio
     async def test_search_and_format(self, query_engine, mock_store, sample_results):
@@ -229,8 +243,8 @@ class TestQueryEngine:
 
         context = await query_engine.search_and_format("bedroom light")
 
-        assert "Potentially relevant entities" in context
         assert "light.bedroom_lamp" in context
+        assert "switch.kitchen_outlet" in context
 
     @pytest.mark.asyncio
     async def test_search_by_criteria(

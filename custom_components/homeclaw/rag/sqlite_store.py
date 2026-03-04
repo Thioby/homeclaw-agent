@@ -174,12 +174,33 @@ class SqliteStore(SessionChunkMixin, EmbeddingCacheMixin, FtsIndexMixin):
                 metadata TEXT,
                 start_msg INTEGER NOT NULL,
                 end_msg INTEGER NOT NULL,
-                updated_at REAL NOT NULL
+                updated_at REAL NOT NULL,
+                timestamp TEXT NOT NULL DEFAULT ''
             )
         """)
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_session_chunks_session_id
             ON session_chunks(session_id)
+        """)
+        # Migration: add timestamp column if missing (existing databases).
+        # MUST run before CREATE INDEX on timestamp — otherwise the index
+        # creation fails on legacy DBs that lack the column.
+        cols = {
+            row[1]
+            for row in cursor.execute("PRAGMA table_info(session_chunks)").fetchall()
+        }
+        if "timestamp" not in cols:
+            _LOGGER.info("Migrating session_chunks: adding timestamp column")
+            cursor.execute(
+                "ALTER TABLE session_chunks ADD COLUMN timestamp TEXT NOT NULL DEFAULT ''"
+            )
+            cursor.execute(
+                "UPDATE session_chunks SET timestamp = COALESCE(json_extract(metadata, '$.timestamp'), '')"
+            )
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_session_chunks_timestamp
+            ON session_chunks(timestamp)
         """)
 
         # Session content hashes for delta change detection

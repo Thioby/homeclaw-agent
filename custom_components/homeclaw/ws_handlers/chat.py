@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
@@ -32,6 +32,19 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class _PreparedChatRequest:
+    """Prepared request payload reused by send and send_stream handlers."""
+
+    storage: SessionStorage
+    user_id: str
+    session_id: str
+    provider: str
+    user_message: Message
+    conversation_history: list[dict[str, Any]]
+    processed_attachments: list[Any]
 
 
 async def _rag_post_conversation(
@@ -275,6 +288,135 @@ async def _persist_tool_messages(
         await storage.add_message(session_id, tool_msg)
 
 
+def _now_iso() -> str:
+    """Return current UTC timestamp in ISO format."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+async def _prepare_chat_request(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+    *,
+    user_id: str,
+    request_id: Any,
+) -> _PreparedChatRequest | None:
+    """Prepare and persist shared chat request state for send and send_stream."""
+    session_id = msg["session_id"]
+    storage = _get_storage(hass, user_id)
+
+    session = await storage.get_session(session_id)
+    if session is None:
+        connection.send_error(request_id, ERR_SESSION_NOT_FOUND, "Session not found")
+        return None
+
+    processed_attachments = []
+    raw_attachments = msg.get("attachments", [])
+    if raw_attachments:
+        try:
+            processed_attachments = await process_attachments(
+                hass, session_id, raw_attachments
+            )
+            _LOGGER.info(
+                "Processed %d attachments for session %s",
+                len(processed_attachments),
+                session_id,
+            )
+        except FileProcessingError as fp_err:
+            _LOGGER.warning("Attachment processing error: %s", fp_err)
+            connection.send_error(request_id, "invalid_attachment", str(fp_err))
+            return None
+
+    user_message = Message(
+        message_id=str(uuid.uuid4()),
+        session_id=session_id,
+        role="user",
+        content=msg["message"],
+        timestamp=_now_iso(),
+        status="completed",
+        attachments=[a.to_storage_dict() for a in processed_attachments],
+    )
+    await storage.add_message(session_id, user_message)
+
+    # Exclude the just-added user message; QueryProcessor appends current query itself.
+    all_messages = await storage.get_session_messages(session_id)
+    conversation_history = await _build_conversation_history(hass, all_messages[:-1])
+
+    provider = msg.get("provider") or session.provider or "anthropic"
+
+    return _PreparedChatRequest(
+        storage=storage,
+        user_id=user_id,
+        session_id=session_id,
+        provider=provider,
+        user_message=user_message,
+        conversation_history=conversation_history,
+        processed_attachments=processed_attachments,
+    )
+
+
+async def _run_agent_stream(
+    hass: HomeAssistant,
+    *,
+    storage: SessionStorage,
+    user_text: str,
+    user_id: str,
+    session_id: str,
+    provider: str,
+    model: str | None,
+    conversation_history: list[dict[str, Any]],
+    attachments: list[Any],
+    on_text: Callable[[str], None] | None = None,
+    on_status: Callable[[str], None] | None = None,
+    tool_timestamp_factory: Callable[[], str] | None = None,
+    error_log_prefix: str = "AI streaming error",
+) -> tuple[str, str | None]:
+    """Execute the shared streaming event loop and return final text/error."""
+    intake = MessageIntake(hass)
+    accumulated_text = ""
+    stream_error: str | None = None
+    timestamp_factory = tool_timestamp_factory or _now_iso
+
+    try:
+        async for event in intake.process_message_stream(
+            user_text,
+            user_id=user_id,
+            session_id=session_id,
+            provider=provider,
+            model=model,
+            conversation_history=conversation_history,
+            attachments=attachments or None,
+        ):
+            event_type = getattr(event, "type", None)
+
+            if event_type == "text":
+                content = getattr(event, "content", "")
+                if content:
+                    accumulated_text += content
+                    if on_text:
+                        on_text(content)
+            elif event_type == "status":
+                if on_status:
+                    on_status(getattr(event, "message", ""))
+            elif event_type in ("tool_call", "tool_result"):
+                await _persist_tool_messages(
+                    storage,
+                    session_id,
+                    event,
+                    timestamp_factory(),
+                )
+            elif event_type == "error":
+                stream_error = getattr(event, "message", "Unknown error")
+                break
+            elif event_type == "complete":
+                break
+    except Exception as ai_err:
+        _LOGGER.error("%s for session %s: %s", error_log_prefix, session_id, ai_err)
+        stream_error = str(ai_err)
+
+    return accumulated_text, stream_error
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "homeclaw/chat/send",
@@ -308,128 +450,64 @@ async def ws_send_message(
     """Send a chat message and get AI response."""
     user_id = _get_user_id(connection)
     session_id = msg["session_id"]
+    request_id = msg["id"]
 
     try:
-        storage = _get_storage(hass, user_id)
-
-        # Verify session exists
-        session = await storage.get_session(session_id)
-        if session is None:
-            connection.send_error(msg["id"], ERR_SESSION_NOT_FOUND, "Session not found")
+        prepared = await _prepare_chat_request(
+            hass,
+            connection,
+            msg,
+            user_id=user_id,
+            request_id=request_id,
+        )
+        if prepared is None:
             return
-
-        now = datetime.now(timezone.utc).isoformat()
-
-        # Process file attachments if present
-        processed_attachments = []
-        raw_attachments = msg.get("attachments", [])
-        if raw_attachments:
-            try:
-                processed_attachments = await process_attachments(
-                    hass, session_id, raw_attachments
-                )
-                _LOGGER.info(
-                    "Processed %d attachments for session %s",
-                    len(processed_attachments),
-                    session_id,
-                )
-            except FileProcessingError as fp_err:
-                _LOGGER.warning("Attachment processing error: %s", fp_err)
-                connection.send_error(msg["id"], "invalid_attachment", str(fp_err))
-                return
-
-        # Create and save user message (with attachment refs)
-        user_message = Message(
-            message_id=str(uuid.uuid4()),
-            session_id=session_id,
-            role="user",
-            content=msg["message"],
-            timestamp=now,
-            status="completed",
-            attachments=[a.to_storage_dict() for a in processed_attachments],
-        )
-        await storage.add_message(session_id, user_message)
-
-        # Build conversation history for AI context.
-        # Exclude the last message (the one we just saved) -- it will be appended
-        # by _build_messages() in QueryProcessor to avoid duplication.
-        # Reconstructs _images for historical user messages with image attachments.
-        all_messages = await storage.get_session_messages(session_id)
-        conversation_history = await _build_conversation_history(
-            hass, all_messages[:-1]
-        )
-
-        # Determine provider
-        provider = msg.get("provider") or session.provider or "anthropic"
 
         # Create assistant message (will be updated with response)
         assistant_message = Message(
             message_id=str(uuid.uuid4()),
-            session_id=session_id,
+            session_id=prepared.session_id,
             role="assistant",
             content="",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=_now_iso(),
             status="pending",
         )
 
-        # Call AI agent via MessageIntake (using streaming internally to capture tool events)
-        try:
-            intake = MessageIntake(hass)
-            accumulated_text = ""
-            stream_error: str | None = None
-            tool_timestamp = datetime.now(timezone.utc).isoformat()
+        tool_timestamp = _now_iso()
+        accumulated_text, stream_error = await _run_agent_stream(
+            hass,
+            storage=prepared.storage,
+            user_text=msg["message"],
+            user_id=prepared.user_id,
+            session_id=prepared.session_id,
+            provider=prepared.provider,
+            model=msg.get("model"),
+            conversation_history=prepared.conversation_history,
+            attachments=prepared.processed_attachments,
+            tool_timestamp_factory=lambda: tool_timestamp,
+            error_log_prefix="AI error",
+        )
 
-            # Use streaming internally to capture and persist tool_use/tool_result events
-            async for event in intake.process_message_stream(
-                msg["message"],
-                user_id=user_id,
-                session_id=session_id,
-                provider=provider,
-                model=msg.get("model"),
-                conversation_history=conversation_history,
-                attachments=processed_attachments or None,
-            ):
-                event_type = getattr(event, "type", None)
-
-                if event_type == "text":
-                    accumulated_text += getattr(event, "content", "")
-                elif event_type in ("tool_call", "tool_result"):
-                    # Persist tool messages for history reconstruction
-                    await _persist_tool_messages(
-                        storage, session_id, event, tool_timestamp
-                    )
-                elif event_type == "error":
-                    stream_error = getattr(event, "message", "Unknown error")
-                    break
-                elif event_type == "complete":
-                    break
-
-            # Update assistant message based on result
-            if stream_error:
-                assistant_message.status = "error"
-                assistant_message.error_message = stream_error
-                _LOGGER.error(
-                    "AI agent error for session %s: %s",
-                    session_id,
-                    stream_error,
-                )
-            else:
-                assistant_message.content = accumulated_text
-                assistant_message.status = "completed"
-
-        except Exception as ai_err:
+        if stream_error:
             assistant_message.status = "error"
-            assistant_message.error_message = str(ai_err)
-            _LOGGER.error("AI error for session %s: %s", session_id, ai_err)
+            assistant_message.error_message = stream_error
+            _LOGGER.error(
+                "AI agent error for session %s: %s",
+                prepared.session_id,
+                stream_error,
+            )
+        else:
+            assistant_message.content = accumulated_text
+            assistant_message.status = "completed"
 
         # Save assistant message
-        await storage.add_message(session_id, assistant_message)
+        await prepared.storage.add_message(prepared.session_id, assistant_message)
 
         # Send result immediately — don't block on post-processing
         connection.send_result(
-            msg["id"],
+            request_id,
             {
-                "user_message": asdict(user_message),
+                "user_message": asdict(prepared.user_message),
                 "assistant_message": asdict(assistant_message),
                 "success": assistant_message.status == "completed",
             },
@@ -440,11 +518,11 @@ async def ws_send_message(
             hass.async_create_task(
                 _rag_post_conversation(
                     hass,
-                    session_id=session_id,
-                    user_id=user_id,
+                    session_id=prepared.session_id,
+                    user_id=prepared.user_id,
                     user_text=msg["message"],
                     assistant_text=assistant_message.content,
-                    storage=storage,
+                    storage=prepared.storage,
                 )
             )
 
@@ -492,91 +570,37 @@ async def ws_send_message_stream(
     session_id = msg["session_id"]
     request_id = msg["id"]
 
-    _LOGGER.info("=" * 80)
-    _LOGGER.info(
-        "WS_SEND_MESSAGE_STREAM CALLED! User: %s, Session: %s", user_id, session_id
-    )
-    _LOGGER.info("Message: %s", msg.get("message", "")[:100])
-    _LOGGER.info("=" * 80)
-
     try:
-        storage = _get_storage(hass, user_id)
-
-        # Verify session exists
-        session = await storage.get_session(session_id)
-        if session is None:
-            _LOGGER.warning("Session %s NOT FOUND for user %s", session_id, user_id)
-            connection.send_error(
-                request_id, ERR_SESSION_NOT_FOUND, "Session not found"
-            )
+        prepared = await _prepare_chat_request(
+            hass,
+            connection,
+            msg,
+            user_id=user_id,
+            request_id=request_id,
+        )
+        if prepared is None:
             return
 
-        now = datetime.now(timezone.utc).isoformat()
-
-        # Process file attachments if present
-        processed_attachments = []
-        raw_attachments = msg.get("attachments", [])
-        if raw_attachments:
-            try:
-                processed_attachments = await process_attachments(
-                    hass, session_id, raw_attachments
-                )
-                _LOGGER.info(
-                    "Processed %d attachments for session %s",
-                    len(processed_attachments),
-                    session_id,
-                )
-            except FileProcessingError as fp_err:
-                _LOGGER.warning("Attachment processing error: %s", fp_err)
-                connection.send_error(request_id, "invalid_attachment", str(fp_err))
-                return
-
-        # Create and save user message (with attachment refs)
-        user_message = Message(
-            message_id=str(uuid.uuid4()),
-            session_id=session_id,
-            role="user",
-            content=msg["message"],
-            timestamp=now,
-            status="completed",
-            attachments=[a.to_storage_dict() for a in processed_attachments],
-        )
-        await storage.add_message(session_id, user_message)
-
         # Send initial response with user message
-        _LOGGER.info("Sending user_message event")
         connection.send_message(
             {
                 "id": request_id,
                 "type": "event",
                 "event": {
                     "type": "user_message",
-                    "message": asdict(user_message),
+                    "message": asdict(prepared.user_message),
                 },
             }
         )
-        _LOGGER.info("user_message event sent")
-
-        # Build conversation history for AI context.
-        # Exclude the last message (the one we just saved) -- it will be appended
-        # by _build_messages() in QueryProcessor to avoid duplication.
-        # Reconstructs _images for historical user messages with image attachments.
-        all_messages = await storage.get_session_messages(session_id)
-        conversation_history = await _build_conversation_history(
-            hass, all_messages[:-1]
-        )
-
-        # Determine provider
-        provider = msg.get("provider") or session.provider or "anthropic"
 
         # Create assistant message (will be updated with streamed content)
         assistant_message_id = str(uuid.uuid4())
         assistant_message = Message(
             message_id=assistant_message_id,
-            session_id=session_id,
+            session_id=prepared.session_id,
             role="assistant",
             content="",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=_now_iso(),
             status="streaming",
         )
 
@@ -592,68 +616,45 @@ async def ws_send_message_stream(
                 },
             }
         )
-        _LOGGER.info("stream_start event sent")
 
-        # Stream AI response via MessageIntake
-        accumulated_text = ""
-        stream_error = None
+        def _send_stream_chunk(content: str) -> None:
+            connection.send_message(
+                {
+                    "id": request_id,
+                    "type": "event",
+                    "event": {
+                        "type": "stream_chunk",
+                        "message_id": assistant_message_id,
+                        "chunk": content,
+                    },
+                }
+            )
 
-        try:
-            intake = MessageIntake(hass)
-            async for event in intake.process_message_stream(
-                msg["message"],
-                user_id=user_id,
-                session_id=session_id,
-                provider=provider,
-                model=msg.get("model"),
-                conversation_history=conversation_history,
-                attachments=processed_attachments or None,
-            ):
-                # Convert AgentEvent dataclasses to WS event messages
-                event_type = getattr(event, "type", None)
+        def _send_status(status_message: str) -> None:
+            connection.send_message(
+                {
+                    "id": request_id,
+                    "type": "event",
+                    "event": {
+                        "type": "status",
+                        "message": status_message,
+                    },
+                }
+            )
 
-                if event_type == "text":
-                    content = getattr(event, "content", "")
-                    accumulated_text += content
-                    connection.send_message(
-                        {
-                            "id": request_id,
-                            "type": "event",
-                            "event": {
-                                "type": "stream_chunk",
-                                "message_id": assistant_message_id,
-                                "chunk": content,
-                            },
-                        }
-                    )
-                elif event_type == "status":
-                    connection.send_message(
-                        {
-                            "id": request_id,
-                            "type": "event",
-                            "event": {
-                                "type": "status",
-                                "message": getattr(event, "message", ""),
-                            },
-                        }
-                    )
-                elif event_type in ("tool_call", "tool_result"):
-                    # Persist tool messages to storage for history reconstruction
-                    await _persist_tool_messages(
-                        storage,
-                        session_id,
-                        event,
-                        datetime.now(timezone.utc).isoformat(),
-                    )
-                elif event_type == "error":
-                    stream_error = getattr(event, "message", "Unknown error")
-                    break
-                elif event_type == "complete":
-                    break
-
-        except Exception as ai_err:
-            _LOGGER.error("AI streaming error for session %s: %s", session_id, ai_err)
-            stream_error = str(ai_err)
+        accumulated_text, stream_error = await _run_agent_stream(
+            hass,
+            storage=prepared.storage,
+            user_text=msg["message"],
+            user_id=prepared.user_id,
+            session_id=prepared.session_id,
+            provider=prepared.provider,
+            model=msg.get("model"),
+            conversation_history=prepared.conversation_history,
+            attachments=prepared.processed_attachments,
+            on_text=_send_stream_chunk,
+            on_status=_send_status,
+        )
 
         # Update assistant message with final content
         _LOGGER.info(
@@ -672,7 +673,7 @@ async def ws_send_message_stream(
             assistant_message.error_message = stream_error
 
         # Save assistant message
-        await storage.add_message(session_id, assistant_message)
+        await prepared.storage.add_message(prepared.session_id, assistant_message)
 
         # Send stream end event immediately — don't block on post-processing
         connection.send_message(
@@ -692,7 +693,7 @@ async def ws_send_message_stream(
         connection.send_result(
             request_id,
             {
-                "user_message": asdict(user_message),
+                "user_message": asdict(prepared.user_message),
                 "assistant_message": asdict(assistant_message),
                 "success": assistant_message.status == "completed",
             },
@@ -703,11 +704,11 @@ async def ws_send_message_stream(
             hass.async_create_task(
                 _rag_post_conversation(
                     hass,
-                    session_id=session_id,
-                    user_id=user_id,
+                    session_id=prepared.session_id,
+                    user_id=prepared.user_id,
                     user_text=msg["message"],
                     assistant_text=accumulated_text,
-                    storage=storage,
+                    storage=prepared.storage,
                 )
             )
 

@@ -238,7 +238,9 @@ class TestRAGManagerIntegration:
             await rag.async_shutdown()
 
     @pytest.mark.asyncio
-    async def test_entity_reindex(self, hass, setup_mocks, mock_embedding_responses, tmp_path):
+    async def test_entity_reindex(
+        self, hass, setup_mocks, mock_embedding_responses, tmp_path
+    ):
         """Test reindexing a single entity."""
         from custom_components.homeclaw.rag import RAGManager
         from custom_components.homeclaw.rag.embeddings import OpenAIEmbeddings
@@ -269,7 +271,9 @@ class TestRAGManagerIntegration:
             await rag.async_shutdown()
 
     @pytest.mark.asyncio
-    async def test_remove_entity(self, hass, setup_mocks, mock_embedding_responses, tmp_path):
+    async def test_remove_entity(
+        self, hass, setup_mocks, mock_embedding_responses, tmp_path
+    ):
         """Test removing an entity from the index."""
         from custom_components.homeclaw.rag import RAGManager
         from custom_components.homeclaw.rag.embeddings import OpenAIEmbeddings

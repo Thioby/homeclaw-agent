@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from ..providers.registry import AIProvider
 
 _LOGGER = logging.getLogger(__name__)
+EMPTY_QUERY_ERROR = "Query is empty or contains only whitespace"
 
 # Invisible characters that should be stripped from queries
 INVISIBLE_CHARS = [
@@ -85,6 +86,82 @@ class QueryProcessor:
 
         return sanitized
 
+    @staticmethod
+    def _normalize_query_with_attachments(
+        sanitized_query: str,
+        attachments: list[Any] | None,
+    ) -> str:
+        """Apply image-only fallback prompt when text is empty but attachments exist."""
+        if not sanitized_query and attachments:
+            return "Describe what you see in the attached image(s)."
+        return sanitized_query
+
+    @staticmethod
+    def _extract_runtime_context(kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Pop shared runtime context keys consumed by QueryProcessor."""
+        return {
+            "rag_context": kwargs.pop("rag_context", None),
+            "denied_tools": kwargs.pop("denied_tools", None),
+            "config": kwargs.pop("config", None),
+            "context_window": kwargs.pop("context_window", DEFAULT_CONTEXT_WINDOW),
+            "memory_flush_fn": kwargs.pop("memory_flush_fn", None),
+            "user_id": kwargs.get("user_id", ""),
+            "session_id": kwargs.get("session_id", ""),
+        }
+
+    @staticmethod
+    def _filter_denied_tools(
+        tools: list[dict[str, Any]] | None,
+        denied_tools: frozenset[str] | None,
+        *,
+        non_stream: bool = False,
+    ) -> list[dict[str, Any]] | None:
+        """Filter denied tools from the list passed to the LLM."""
+        if not denied_tools or not tools:
+            return tools
+
+        effective_tools = [
+            t for t in tools if t.get("function", {}).get("name") not in denied_tools
+        ]
+        filtered_count = len(tools) - len(effective_tools)
+        if filtered_count:
+            suffix = " (non-stream)" if non_stream else ""
+            _LOGGER.debug(
+                "Filtered %d denied tools from LLM tool list%s",
+                filtered_count,
+                suffix,
+            )
+        return effective_tools
+
+    @staticmethod
+    def _build_provider_kwargs(
+        kwargs: dict[str, Any],
+        effective_tools: list[dict[str, Any]] | None,
+    ) -> dict[str, Any]:
+        """Build provider kwargs and attach effective tools when present."""
+        provider_kwargs: dict[str, Any] = {**kwargs}
+        if effective_tools is not None:
+            provider_kwargs["tools"] = effective_tools
+        return provider_kwargs
+
+    @staticmethod
+    def _build_updated_messages(
+        built_messages: list[dict[str, Any]],
+        response_text: str,
+        system_prompt: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Build returned messages list with assistant response appended."""
+        updated_messages = list(built_messages)
+        if (
+            system_prompt
+            and updated_messages
+            and updated_messages[0].get("role") == "system"
+        ):
+            updated_messages = updated_messages[1:]
+
+        updated_messages.append({"role": "assistant", "content": response_text})
+        return updated_messages
+
     async def _build_messages(
         self,
         query: str,
@@ -125,10 +202,11 @@ class QueryProcessor:
 
         if rag_context:
             rag_section = (
-                "\n\n--- SUGGESTED ENTITIES ---\n"
+                "\n\n--- RELEVANT CONTEXT ---\n"
                 f"{rag_context}\n"
-                "--- END SUGGESTIONS ---\n\n"
-                "These are suggestions based on your query. Use available tools "
+                "--- END CONTEXT ---\n\n"
+                "The above context may include relevant_entities, previous_conversations, "
+                "and long_term_memories. Use available tools "
                 "(get_entities_by_domain, get_state, etc.) to find other entities if needed."
             )
             final_system_prompt = (
@@ -446,59 +524,32 @@ class QueryProcessor:
             ToolResultEvent,
         )
 
-        # Sanitize the query
-        sanitized_query = self._sanitize_query(query)
-
-        # Check for empty query (allow empty text if attachments are present)
-        attachments = kwargs.get("attachments")
+        attachments = kwargs.pop("attachments", None)
+        sanitized_query = self._normalize_query_with_attachments(
+            self._sanitize_query(query), attachments
+        )
         if not sanitized_query and not attachments:
-            yield ErrorEvent(message="Query is empty or contains only whitespace")
+            yield ErrorEvent(message=EMPTY_QUERY_ERROR)
             return
 
-        # Default to a generic prompt for image-only messages
-        if not sanitized_query and attachments:
-            sanitized_query = "Describe what you see in the attached image(s)."
-
-        # Extract RAG context from kwargs
-        rag_context = kwargs.pop("rag_context", None)
-
-        # Extract denied tools (for subagent/heartbeat security restrictions)
-        denied_tools: frozenset[str] | None = kwargs.pop("denied_tools", None)
-
-        # Extract config for tool instantiation (API keys, etc.)
-        config: dict[str, Any] | None = kwargs.pop("config", None)
-
-        # Extract compaction-related kwargs (don't pass to provider)
-        context_window = kwargs.pop("context_window", DEFAULT_CONTEXT_WINDOW)
-        memory_flush_fn = kwargs.pop("memory_flush_fn", None)
-        user_id = kwargs.get("user_id", "")
-        session_id = kwargs.get("session_id", "")
-
-        # Extract file attachments (consumed by _build_messages, not passed to provider)
-        attachments = kwargs.pop("attachments", None)
+        runtime = self._extract_runtime_context(kwargs)
+        denied_tools: frozenset[str] | None = runtime["denied_tools"]
+        config: dict[str, Any] | None = runtime["config"]
+        context_window: int = runtime["context_window"]
+        user_id = runtime["user_id"]
+        session_id = runtime["session_id"]
 
         # Filter denied tools from the tools list sent to the LLM (two-layer defense)
-        effective_tools = tools
-        if denied_tools and tools:
-            effective_tools = [
-                t
-                for t in tools
-                if t.get("function", {}).get("name") not in denied_tools
-            ]
-            filtered_count = len(tools) - len(effective_tools)
-            if filtered_count:
-                _LOGGER.debug(
-                    "Filtered %d denied tools from LLM tool list", filtered_count
-                )
+        effective_tools = self._filter_denied_tools(tools, denied_tools)
 
         # Build the message list with RAG context and compaction
         built_messages = await self._build_messages(
             sanitized_query,
             messages,
             system_prompt=system_prompt,
-            rag_context=rag_context,
+            rag_context=runtime["rag_context"],
             context_window=context_window,
-            memory_flush_fn=memory_flush_fn,
+            memory_flush_fn=runtime["memory_flush_fn"],
             user_id=user_id,
             session_id=session_id,
             model=kwargs.get("model"),
@@ -514,9 +565,7 @@ class QueryProcessor:
                 if not hasattr(self.provider, "get_response_stream"):
                     # Fall back to non-streaming
                     _LOGGER.debug("Provider doesn't support streaming, using fallback")
-                    provider_kwargs: dict[str, Any] = {**kwargs}
-                    if effective_tools is not None:
-                        provider_kwargs["tools"] = effective_tools
+                    provider_kwargs = self._build_provider_kwargs(kwargs, effective_tools)
 
                     response_text = await self.provider.get_response(
                         built_messages, **provider_kwargs
@@ -545,16 +594,10 @@ class QueryProcessor:
 
                     if not function_calls:
                         # No function call, return the response
-                        updated_messages = list(built_messages)
-                        if (
-                            system_prompt
-                            and updated_messages
-                            and updated_messages[0].get("role") == "system"
-                        ):
-                            updated_messages = updated_messages[1:]
-
-                        updated_messages.append(
-                            {"role": "assistant", "content": response_text}
+                        updated_messages = self._build_updated_messages(
+                            built_messages,
+                            response_text,
+                            system_prompt=system_prompt,
                         )
 
                         yield CompletionEvent(messages=updated_messages)
@@ -602,9 +645,7 @@ class QueryProcessor:
                     continue
 
                 # Provider supports streaming
-                provider_kwargs = {**kwargs}
-                if effective_tools is not None:
-                    provider_kwargs["tools"] = effective_tools
+                provider_kwargs = self._build_provider_kwargs(kwargs, effective_tools)
 
                 accumulated_text = ""
                 accumulated_tool_calls = []
@@ -750,16 +791,10 @@ class QueryProcessor:
                     len(accumulated_text),
                 )
 
-                updated_messages = list(built_messages)
-                if (
-                    system_prompt
-                    and updated_messages
-                    and updated_messages[0].get("role") == "system"
-                ):
-                    updated_messages = updated_messages[1:]
-
-                updated_messages.append(
-                    {"role": "assistant", "content": accumulated_text}
+                updated_messages = self._build_updated_messages(
+                    built_messages,
+                    accumulated_text,
+                    system_prompt=system_prompt,
                 )
 
                 yield CompletionEvent(messages=updated_messages)
@@ -828,62 +863,41 @@ class QueryProcessor:
         effective_max_iterations: int = kwargs.pop(
             "max_iterations", self.max_iterations
         )
-        # Sanitize the query
-        sanitized_query = self._sanitize_query(query)
-
-        # Check for empty query (allow empty text if attachments are present)
-        attachments_p = kwargs.get("attachments")
-        if not sanitized_query and not attachments_p:
+        attachments = kwargs.pop("attachments", None)
+        sanitized_query = self._normalize_query_with_attachments(
+            self._sanitize_query(query), attachments
+        )
+        if not sanitized_query and not attachments:
             return {
                 "success": False,
-                "error": "Query is empty or contains only whitespace",
+                "error": EMPTY_QUERY_ERROR,
             }
 
-        # Default to a generic prompt for image-only messages
-        if not sanitized_query and attachments_p:
-            sanitized_query = "Describe what you see in the attached image(s)."
-
-        # Extract RAG context from kwargs
-        rag_context = kwargs.pop("rag_context", None)
-
-        # Extract denied tools (for subagent/heartbeat security restrictions)
-        denied_tools_p: frozenset[str] | None = kwargs.pop("denied_tools", None)
-
-        # Extract config for tool instantiation (API keys, etc.)
-        config_p: dict[str, Any] | None = kwargs.pop("config", None)
-
-        # Extract compaction-related kwargs (don't pass to provider)
-        context_window_p = kwargs.pop("context_window", DEFAULT_CONTEXT_WINDOW)
-        memory_flush_fn_p = kwargs.pop("memory_flush_fn", None)
-        user_id_p = kwargs.get("user_id", "")
-        session_id_p = kwargs.get("session_id", "")
+        runtime = self._extract_runtime_context(kwargs)
+        denied_tools: frozenset[str] | None = runtime["denied_tools"]
+        config: dict[str, Any] | None = runtime["config"]
+        context_window: int = runtime["context_window"]
+        user_id = runtime["user_id"]
+        session_id = runtime["session_id"]
 
         # Filter denied tools from the tools list sent to the LLM (two-layer defense)
-        effective_tools_p = tools
-        if denied_tools_p and tools:
-            effective_tools_p = [
-                t
-                for t in tools
-                if t.get("function", {}).get("name") not in denied_tools_p
-            ]
-            filtered_count = len(tools) - len(effective_tools_p)
-            if filtered_count:
-                _LOGGER.debug(
-                    "Filtered %d denied tools from LLM tool list (non-stream)",
-                    filtered_count,
-                )
+        effective_tools = self._filter_denied_tools(
+            tools,
+            denied_tools,
+            non_stream=True,
+        )
 
         # Build the message list with RAG context and compaction
         built_messages = await self._build_messages(
             sanitized_query,
             messages,
             system_prompt=system_prompt,
-            rag_context=rag_context,
-            attachments=kwargs.pop("attachments", None),
-            context_window=context_window_p,
-            memory_flush_fn=memory_flush_fn_p,
-            user_id=user_id_p,
-            session_id=session_id_p,
+            rag_context=runtime["rag_context"],
+            attachments=attachments,
+            context_window=context_window,
+            memory_flush_fn=runtime["memory_flush_fn"],
+            user_id=user_id,
+            session_id=session_id,
             model=kwargs.get("model"),
         )
 
@@ -893,9 +907,7 @@ class QueryProcessor:
         try:
             while current_iteration < effective_max_iterations:
                 # Call the provider
-                provider_kwargs: dict[str, Any] = {**kwargs}
-                if effective_tools_p is not None:
-                    provider_kwargs["tools"] = effective_tools_p
+                provider_kwargs = self._build_provider_kwargs(kwargs, effective_tools)
 
                 response_text = await self.provider.get_response(
                     built_messages, **provider_kwargs
@@ -906,18 +918,10 @@ class QueryProcessor:
 
                 if not function_calls:
                     # No function call, return the response
-                    # Build the updated message list with the response
-                    updated_messages = list(built_messages)
-                    # Remove system prompt from returned messages if present
-                    if (
-                        system_prompt
-                        and updated_messages
-                        and updated_messages[0].get("role") == "system"
-                    ):
-                        updated_messages = updated_messages[1:]
-
-                    updated_messages.append(
-                        {"role": "assistant", "content": response_text}
+                    updated_messages = self._build_updated_messages(
+                        built_messages,
+                        response_text,
+                        system_prompt=system_prompt,
                     )
 
                     return {
@@ -938,23 +942,23 @@ class QueryProcessor:
                     hass,
                     built_messages,
                     yield_mode="none",
-                    denied_tools=denied_tools_p,
-                    user_id=user_id_p,
+                    denied_tools=denied_tools,
+                    user_id=user_id,
                 ):
                     pass  # ToolExecutor with yield_mode="none" shouldn't yield anything
 
                 # Expand effective_tools if load_tool was called
-                effective_tools_p = self._expand_loaded_tools(
+                effective_tools = self._expand_loaded_tools(
                     function_calls,
-                    effective_tools_p,
+                    effective_tools,
                     hass,
-                    denied_tools=denied_tools_p,
-                    config=config_p,
+                    denied_tools=denied_tools,
+                    config=config,
                 )
 
                 # Re-check context budget after tool results were appended
                 built_messages = await self._recompact_if_needed(
-                    built_messages, context_window=context_window_p
+                    built_messages, context_window=context_window
                 )
 
                 current_iteration += 1

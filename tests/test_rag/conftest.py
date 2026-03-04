@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+
 @pytest.fixture
 def hass(hass):
     """Return a Home Assistant instance with a temporary directory config path."""
@@ -186,7 +187,10 @@ def mock_states():
         MockState(
             entity_id="sensor.living_room_temperature",
             state="22.5",
-            attributes={"friendly_name": "Living Room Temperature", "unit_of_measurement": "°C"},
+            attributes={
+                "friendly_name": "Living Room Temperature",
+                "unit_of_measurement": "°C",
+            },
         ),
         MockState(
             entity_id="switch.bedroom_lamp_switch",
@@ -216,6 +220,14 @@ def hass_with_entities(hass, mock_entity_registry, mock_area_registry, mock_stat
     hass.states = mock_states
 
     # Configure the module-level registry mocks using patch to ensure they stay in place
-    with patch("homeassistant.helpers.entity_registry.async_get", return_value=mock_entity_registry), \
-         patch("homeassistant.helpers.area_registry.async_get", return_value=mock_area_registry):
+    with (
+        patch(
+            "homeassistant.helpers.entity_registry.async_get",
+            return_value=mock_entity_registry,
+        ),
+        patch(
+            "homeassistant.helpers.area_registry.async_get",
+            return_value=mock_area_registry,
+        ),
+    ):
         yield hass

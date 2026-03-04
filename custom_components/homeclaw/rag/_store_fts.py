@@ -11,7 +11,12 @@ import logging
 import sqlite3
 from typing import Any
 
-from ._store_utils import SearchResult, bm25_rank_to_score
+from ._store_utils import (
+    SearchResult,
+    bm25_rank_to_score,
+    build_date_filter_clauses,
+    validate_date_param,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -170,12 +175,16 @@ class FtsIndexMixin:
         self,
         fts_query: str,
         n_results: int = 5,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> list[SearchResult]:
         """Search session chunks using FTS5 full-text search.
 
         Args:
             fts_query: FTS5 MATCH query string.
             n_results: Maximum number of results to return.
+            start_date: Optional start date (YYYY-MM-DD).
+            end_date: Optional end date (YYYY-MM-DD).
 
         Returns:
             List of SearchResult objects with BM25-based scores.
@@ -185,20 +194,39 @@ class FtsIndexMixin:
         if not fts_query:
             return []
 
+        start_date = validate_date_param(start_date, "start_date")
+        end_date = validate_date_param(end_date, "end_date")
+
         try:
             cursor = self._conn.cursor()  # type: ignore[union-attr]
 
-            cursor.execute(
-                """
-                SELECT chunk_id, session_id, text,
-                       bm25(session_chunks_fts) AS rank
-                FROM session_chunks_fts
-                WHERE session_chunks_fts MATCH ?
-                ORDER BY rank ASC
-                LIMIT ?
-                """,
-                (fts_query, n_results),
+            # FTS5 does NOT support table aliases for bm25()/MATCH — use full table name
+            if start_date or end_date:
+                query_parts = [
+                    "SELECT session_chunks_fts.chunk_id, session_chunks_fts.session_id,"
+                    " session_chunks_fts.text, bm25(session_chunks_fts) AS rank",
+                    "FROM session_chunks_fts"
+                    " JOIN session_chunks c ON session_chunks_fts.chunk_id = c.id",
+                    "WHERE session_chunks_fts MATCH ?",
+                ]
+            else:
+                query_parts = [
+                    "SELECT chunk_id, session_id, text, bm25(session_chunks_fts) AS rank",
+                    "FROM session_chunks_fts",
+                    "WHERE session_chunks_fts MATCH ?",
+                ]
+            params: list[Any] = [fts_query]
+
+            date_clauses, date_params = build_date_filter_clauses(
+                start_date, end_date, timestamp_col="c.timestamp"
             )
+            query_parts.extend(date_clauses)
+            params.extend(date_params)
+
+            query_parts.append("ORDER BY rank ASC LIMIT ?")
+            params.append(n_results)
+
+            cursor.execute(" ".join(query_parts), tuple(params))
             rows = cursor.fetchall()
 
             results = []

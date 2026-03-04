@@ -33,7 +33,7 @@ EXPLICIT_COMMAND_PATTERN = re.compile(
 # Patterns that indicate the text is NOT worth capturing
 ANTI_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"<relevant-memories>", re.IGNORECASE),
-    re.compile(r"--- SUGGESTED ENTITIES ---", re.IGNORECASE),
+    re.compile(r"--- RELEVANT CONTEXT ---", re.IGNORECASE),
     re.compile(r"^(yes|no|ok|sure|thanks|dzięki|tak|nie|dobra)$", re.IGNORECASE),
     re.compile(r"^\d+$"),
 ]

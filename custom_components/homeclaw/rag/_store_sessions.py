@@ -13,9 +13,11 @@ from typing import Any
 
 from ._store_utils import (
     SearchResult,
+    build_date_filter_clauses,
     cosine_distance,
     embedding_to_blob,
     read_embedding,
+    validate_date_param,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,11 +64,14 @@ class SessionChunkMixin:
                 embedding = embeddings[i] if i < len(embeddings) else []
                 metadata = metadatas[i] if metadatas and i < len(metadatas) else {}
 
+                # Extract timestamp for denormalized column (avoids json_extract in queries)
+                ts = metadata.get("timestamp", "")
+
                 cursor.execute(
                     """
                     INSERT OR REPLACE INTO session_chunks
-                        (id, session_id, text, embedding, metadata, start_msg, end_msg, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        (id, session_id, text, embedding, metadata, start_msg, end_msg, updated_at, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         chunk_id,
@@ -77,6 +82,7 @@ class SessionChunkMixin:
                         metadata.get("start_msg", 0),
                         metadata.get("end_msg", 0),
                         now,
+                        ts,
                     ),
                 )
 
@@ -180,6 +186,8 @@ class SessionChunkMixin:
         n_results: int = 5,
         min_similarity: float | None = None,
         session_id: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> list[SearchResult]:
         """Search session chunks using cosine similarity.
 
@@ -188,24 +196,34 @@ class SessionChunkMixin:
             n_results: Maximum number of results to return.
             min_similarity: Minimum cosine similarity (0-1) for results.
             session_id: If provided, limit search to this session only.
+            start_date: Optional start date (YYYY-MM-DD).
+            end_date: Optional end date (YYYY-MM-DD).
 
         Returns:
             List of SearchResult objects sorted by similarity (lowest distance first).
         """
         self._ensure_initialized()
 
+        start_date = validate_date_param(start_date, "start_date")
+        end_date = validate_date_param(end_date, "end_date")
+
         try:
             cursor = self._conn.cursor()  # type: ignore[union-attr]
 
+            query_parts = [
+                "SELECT id, session_id, text, embedding, metadata FROM session_chunks WHERE 1=1"
+            ]
+            params: list[Any] = []
+
             if session_id:
-                cursor.execute(
-                    "SELECT id, session_id, text, embedding, metadata FROM session_chunks WHERE session_id = ?",
-                    (session_id,),
-                )
-            else:
-                cursor.execute(
-                    "SELECT id, session_id, text, embedding, metadata FROM session_chunks"
-                )
+                query_parts.append("AND session_id = ?")
+                params.append(session_id)
+
+            date_clauses, date_params = build_date_filter_clauses(start_date, end_date)
+            query_parts.extend(date_clauses)
+            params.extend(date_params)
+
+            cursor.execute(" ".join(query_parts), tuple(params))
             rows = cursor.fetchall()
 
             if not rows:

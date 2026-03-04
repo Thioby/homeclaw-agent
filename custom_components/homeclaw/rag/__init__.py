@@ -118,6 +118,8 @@ class RAGManager:
         query: str,
         top_k: int = 10,
         user_id: str | None = None,
+        provider: Any | None = None,
+        model: str | None = None,
     ) -> str:
         """Get relevant entity context for a user query.
 
@@ -125,12 +127,16 @@ class RAGManager:
             query: The user's query text.
             top_k: Maximum number of entities to include.
             user_id: Optional user ID for memory recall.
+            provider: Optional AI provider for query expansion.
+            model: Optional model name for query expansion.
 
         Returns:
-            Compressed context string for the LLM, or empty string if no results.
+            JSON-formatted context string for the LLM, or empty string if no results.
         """
         self._ensure_initialized()
-        return await self._retriever.get_relevant_context(query, top_k, user_id)
+        return await self._retriever.get_relevant_context(
+            query, top_k, user_id, provider, model
+        )
 
     # ------------------------------------------------------------------
     # Session indexing (delegate to lifecycle components)
@@ -139,7 +145,7 @@ class RAGManager:
     async def index_session(
         self,
         session_id: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         force: bool = False,
     ) -> int:
@@ -151,7 +157,7 @@ class RAGManager:
             force: If True, skip delta check and always reindex.
 
         Returns:
-            Number of chunks indexed (0 if skipped due to delta threshold).
+            Number of rounds indexed (0 if skipped due to delta threshold).
         """
         self._ensure_initialized()
 
@@ -160,10 +166,24 @@ class RAGManager:
             _LOGGER.debug("Session indexer not available, skipping")
             return 0
 
+        # Convert flat messages to rounds for the indexer
+        from ._round_utils import group_messages_into_rounds
+
+        raw_rounds = group_messages_into_rounds(messages)
+        rounds = [
+            {
+                "timestamp": r["timestamp"],
+                "user_message": r["user"],
+                "assistant_message": r["assistant"],
+                "user_facts": "",
+            }
+            for r in raw_rounds
+        ]
+
         try:
             return await session_indexer.index_session(
                 session_id=session_id,
-                messages=messages,
+                rounds=rounds,
                 force=force,
             )
         except Exception as e:
@@ -191,7 +211,7 @@ class RAGManager:
             model: Optional model override for the LLM call.
 
         Returns:
-            Number of chunks indexed (0 if sanitization or indexing failed).
+            Number of rounds indexed (0 if sanitization or indexing failed).
         """
         self._ensure_initialized()
 
@@ -211,7 +231,7 @@ class RAGManager:
 
             return await session_indexer.index_session(
                 session_id=session_id,
-                messages=sanitized,
+                rounds=sanitized,
                 force=True,
             )
         except Exception as e:

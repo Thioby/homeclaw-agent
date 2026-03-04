@@ -164,17 +164,19 @@ class TestRecallForQuery:
         # Recall
         context = await memory_manager.recall_for_query("answer style", user_id="user1")
 
-        assert "<relevant-memories>" in context
-        assert "</relevant-memories>" in context
-        assert "preference" in context
-        assert "detailed answers" in context
+        assert isinstance(context, list)
+        assert len(context) > 0
+        categories = [c.get("category") for c in context]
+        assert "preference" in categories
+        info = [c.get("information") for c in context]
+        assert any("detailed answers" in i for i in info)
 
     @pytest.mark.asyncio
     async def test_recall_empty_when_no_memories(self, memory_manager) -> None:
         context = await memory_manager.recall_for_query(
             "anything", user_id="user_with_no_memories"
         )
-        assert context == ""
+        assert context == []
 
     @pytest.mark.asyncio
     async def test_recall_embedding_failure(
@@ -182,7 +184,7 @@ class TestRecallForQuery:
     ) -> None:
         mock_embedding_provider.get_embeddings = AsyncMock(return_value=[])
         context = await memory_manager.recall_for_query("test", user_id="user1")
-        assert context == ""
+        assert context == []
 
 
 class TestStoreAndForget:
@@ -335,12 +337,14 @@ class TestHelperFunctions:
         ]
         result = _format_memories_for_prompt(memories)
 
-        assert "<relevant-memories>" in result
-        assert "</relevant-memories>" in result
-        assert "[preference]" in result
-        assert "[fact]" in result
-        assert "short answers" in result
-        assert "floor 2" in result
+        assert isinstance(result, list)
+        assert len(result) == 2
+        categories = [r.get("category") for r in result]
+        assert "preference" in categories
+        assert "fact" in categories
+        info = [r.get("information") for r in result]
+        assert any("short answers" in i for i in info)
+        assert any("floor 2" in i for i in info)
 
 
 class TestFlushFromMessages:

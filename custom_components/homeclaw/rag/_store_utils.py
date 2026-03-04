@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import re
 import struct
 from dataclasses import dataclass
 from typing import Any
@@ -156,3 +157,59 @@ def filter_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
         else:
             filtered[key] = str(value)
     return filtered
+
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def validate_date_param(date_str: str | None, name: str) -> str | None:
+    """Validate an optional YYYY-MM-DD date string.
+
+    Returns the string unchanged if valid, or ``None`` (with a warning) if
+    the format is wrong.  Passing ``None`` is a no-op.
+    """
+    if date_str is None:
+        return None
+    if _DATE_RE.match(date_str):
+        return date_str
+    _LOGGER.warning("Invalid %s date format (expected YYYY-MM-DD): %s", name, date_str)
+    return None
+
+
+def build_date_filter_clauses(
+    start_date: str | None,
+    end_date: str | None,
+    *,
+    timestamp_col: str = "timestamp",
+) -> tuple[list[str], list[Any]]:
+    """Build SQL WHERE clauses for date range filtering.
+
+    Guards against empty-string timestamps leaking through comparisons
+    (empty string ``''`` is lexicographically less than any ISO date,
+    so ``timestamp <= '2024-03-31T23:59:59Z'`` would match ``''``).
+
+    Args:
+        start_date: Validated YYYY-MM-DD start date (or None).
+        end_date: Validated YYYY-MM-DD end date (or None).
+        timestamp_col: SQL column expression for the timestamp field.
+
+    Returns:
+        Tuple of (clause_parts, params) to append to a WHERE query.
+    """
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if not start_date and not end_date:
+        return clauses, params
+
+    # Exclude rows with empty/missing timestamp when any date filter is active
+    clauses.append(f"AND {timestamp_col} != ''")
+
+    if start_date:
+        clauses.append(f"AND {timestamp_col} >= ?")
+        params.append(start_date)
+    if end_date:
+        clauses.append(f"AND {timestamp_col} <= ?")
+        params.append(f"{end_date}T23:59:59Z")
+
+    return clauses, params

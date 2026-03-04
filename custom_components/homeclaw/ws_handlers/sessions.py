@@ -180,7 +180,7 @@ async def _sanitize_previous_session(
         # Load messages from the previous session
         messages = await storage.get_session_messages(previous.session_id)
         msg_dicts = [
-            {"role": m.role, "content": m.content}
+            {"role": m.role, "content": m.content, "timestamp": m.timestamp}
             for m in messages
             if m.role in ("user", "assistant") and m.status == "completed"
         ]

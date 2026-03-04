@@ -248,82 +248,25 @@ class HomeclawAgent:
             system_prompt: Optional system prompt override (e.g. for subagent/heartbeat).
             max_iterations: Override max tool-call iterations (default: agent's own limit).
         """
-        # If external conversation history provided, use it
-        if conversation_history:
-            # Inject history into conversation manager
-            self._agent._conversation.clear()
-            for msg in conversation_history:
-                self._agent._conversation.add_message(
-                    msg.get("role", "user"), msg.get("content", "")
-                )
+        self._apply_external_conversation_history(conversation_history)
 
-        # Build kwargs
-        kwargs: dict[str, Any] = {"hass": self.hass}  # Pass hass for tool execution
-        if debug:
-            kwargs["debug"] = debug
-        if model:
-            kwargs["model"] = model
-        if user_id:
-            kwargs["user_id"] = user_id
-        if session_id:
-            kwargs["session_id"] = session_id
-
-        # Add tools for native function calling
-        tools = self._get_tools_for_provider()
-        if tools:
-            # Auto-load ON_DEMAND tools when query obviously needs them
-            auto_loaded = self._auto_load_tools(user_query, tools)
-            if auto_loaded:
-                _LOGGER.debug(
-                    "Auto-loaded %d ON_DEMAND tool(s) in non-stream path",
-                    len(auto_loaded),
-                )
-            # Filter out denied tools from the LLM tool list (first layer of defense)
-            if denied_tools:
-                tools = [
-                    t
-                    for t in tools
-                    if t.get("function", {}).get("name") not in denied_tools
-                ]
-            kwargs["tools"] = tools
-
-        # Pass denied_tools for ToolExecutor enforcement (second layer of defense)
-        if denied_tools:
-            kwargs["denied_tools"] = denied_tools
-
-        # Context window for compaction
-        from .models import get_context_window
-
-        effective_provider = provider or self._provider_name
-        kwargs["context_window"] = get_context_window(effective_provider, model)
-
-        # Memory flush function for pre-compaction capture
-        if self._rag_manager and self._rag_manager.is_initialized:
-            mem_mgr = getattr(self._rag_manager, "_memory_manager", None)
-            if mem_mgr:
-                kwargs["memory_flush_fn"] = mem_mgr.flush_from_messages
-
-        # Add RAG context if available
-        if self._rag_manager:
-            _LOGGER.debug("Starting RAG context retrieval...")
-            rag_context = await self._get_rag_context(user_query, user_id=user_id)
-            if rag_context:
-                _LOGGER.debug("RAG context retrieved successfully, adding to kwargs")
-                kwargs["rag_context"] = rag_context
-            else:
-                _LOGGER.debug("RAG returned empty context, not adding to kwargs")
-        else:
-            _LOGGER.debug("RAG manager not configured, skipping context retrieval")
-
-        # System prompt: use override if provided, otherwise build default
-        # (includes ON_DEMAND tool catalog for the LLM)
-        # NOTE: Agent.process_query() only honors system_prompt_override, not system_prompt
-        if system_prompt:
-            kwargs["system_prompt_override"] = system_prompt
-        else:
-            default_prompt = await self._get_system_prompt(user_id or "")
-            if default_prompt:
-                kwargs["system_prompt_override"] = default_prompt
+        kwargs = self.build_query_kwargs(
+            user_query,
+            user_id=user_id,
+            session_id=session_id,
+            model=model,
+            provider=provider,
+            debug=debug,
+            denied_tools=denied_tools,
+            include_config=False,
+        )
+        await self._add_async_query_context(
+            query=user_query,
+            kwargs=kwargs,
+            user_id=user_id,
+            system_prompt_override=system_prompt,
+            prompt_key="system_prompt_override",
+        )
 
         # Pass max_iterations through kwargs (consumed by QueryProcessor.process)
         # — no shared state mutation, safe for concurrent async calls
@@ -351,6 +294,42 @@ class HomeclawAgent:
                 "success": False,
                 "error": str(e),
             }
+
+    def _apply_external_conversation_history(
+        self, conversation_history: list[dict] | None
+    ) -> None:
+        """Inject external conversation history into the in-memory manager."""
+        if not conversation_history:
+            return
+
+        self._agent._conversation.clear()
+        for msg in conversation_history:
+            self._agent._conversation.add_message(
+                msg.get("role", "user"), msg.get("content", "")
+            )
+
+    async def _add_async_query_context(
+        self,
+        *,
+        query: str,
+        kwargs: dict[str, Any],
+        user_id: str | None,
+        system_prompt_override: str | None = None,
+        prompt_key: str,
+    ) -> None:
+        """Add async context fields shared by sync and stream query paths."""
+        if self._rag_manager:
+            rag_context = await self._get_rag_context(query, user_id=user_id)
+            if rag_context:
+                kwargs["rag_context"] = rag_context
+
+        prompt = (
+            system_prompt_override
+            if system_prompt_override
+            else await self._get_system_prompt(user_id or "")
+        )
+        if prompt:
+            kwargs[prompt_key] = prompt
 
     # === PUBLIC API — channels and MessageIntake use ONLY these ===
 
@@ -392,16 +371,12 @@ class HomeclawAgent:
             attachments=attachments,
             channel_source=channel_source,
         )
-
-        # Add async parts: RAG context + system prompt
-        if self._rag_manager:
-            rag_context = await self._get_rag_context(text, user_id=user_id)
-            if rag_context:
-                kwargs["rag_context"] = rag_context
-
-        system_prompt = await self._get_system_prompt(user_id)
-        if system_prompt:
-            kwargs["system_prompt"] = system_prompt
+        await self._add_async_query_context(
+            query=text,
+            kwargs=kwargs,
+            user_id=user_id,
+            prompt_key="system_prompt",
+        )
 
         async for event in self._agent.process_query_stream(text, **kwargs):
             yield event
@@ -410,41 +385,55 @@ class HomeclawAgent:
         self,
         text: str,
         *,
-        user_id: str,
+        user_id: str | None = None,
         session_id: str = "",
         model: str | None = None,
+        provider: str | None = None,
+        debug: bool = False,
         conversation_history: list[dict] | None = None,
         attachments: list | None = None,
         channel_source: str = "panel",
+        denied_tools: frozenset[str] | None = None,
+        include_config: bool = True,
+        auto_load_on_demand: bool = True,
     ) -> dict[str, Any]:
-        """Build kwargs dict for process_query / process_query_stream.
-
-        Encapsulates all the boilerplate: tools, RAG context lookup, system
-        prompt, context window, memory flush. No ``_agent`` access needed.
+        """Build shared sync kwargs for process_query / process_query_stream.
 
         Args:
             text: User message text.
-            user_id: HA user ID.
+            user_id: Optional HA user ID.
             session_id: Session ID.
             model: Optional model override.
+            provider: Optional provider override (context-window lookup).
+            debug: Include debug output in non-stream responses.
             conversation_history: Optional history from storage.
             attachments: Optional attachments.
-            channel_source: Origin channel identifier.
+            channel_source: Origin channel identifier (reserved for future use).
+            denied_tools: Optional frozenset of tool names blocked from execution.
+            include_config: Include legacy config in kwargs (needed by stream path).
+            auto_load_on_demand: Auto-load ON_DEMAND tools by keyword hints.
 
         Returns:
-            Dict of kwargs ready for ``process_query()`` or ``stream_query()``.
+            Dict of sync kwargs. Async context (RAG + system prompt) is added
+            separately by ``_add_async_query_context``.
         """
         from .models import get_context_window
 
-        kwargs: dict[str, Any] = {
-            "hass": self.hass,
-            "user_id": user_id,
-            "session_id": session_id,
-            "config": self.config,  # For tool instantiation (API keys, etc.)
-        }
+        kwargs: dict[str, Any] = {"hass": self.hass}
 
+        # Keep for forward compatibility without unused-arg warnings.
+        _ = channel_source
+
+        if user_id is not None:
+            kwargs["user_id"] = user_id
+        if session_id:
+            kwargs["session_id"] = session_id
         if model:
             kwargs["model"] = model
+        if debug:
+            kwargs["debug"] = debug
+        if include_config:
+            kwargs["config"] = self.config  # For tool instantiation (API keys, etc.)
         if conversation_history is not None:
             kwargs["conversation_history"] = conversation_history
         if attachments:
@@ -453,16 +442,27 @@ class HomeclawAgent:
         # Tools — CORE tools always loaded; ON_DEMAND auto-loaded by heuristic
         tools = self._get_tools_for_provider()
         if tools:
-            auto_loaded = self._auto_load_tools(text, tools)
-            if auto_loaded:
-                _LOGGER.debug(
-                    "Auto-loaded %d ON_DEMAND tool(s) based on query hints",
-                    len(auto_loaded),
-                )
+            if auto_load_on_demand:
+                auto_loaded = self._auto_load_tools(text, tools)
+                if auto_loaded:
+                    _LOGGER.debug(
+                        "Auto-loaded %d ON_DEMAND tool(s) based on query hints",
+                        len(auto_loaded),
+                    )
+            if denied_tools:
+                tools = [
+                    t
+                    for t in tools
+                    if t.get("function", {}).get("name") not in denied_tools
+                ]
             kwargs["tools"] = tools
 
+        if denied_tools:
+            kwargs["denied_tools"] = denied_tools
+
         # Context window for compaction
-        kwargs["context_window"] = get_context_window(self._provider_name, model)
+        effective_provider = provider or self._provider_name
+        kwargs["context_window"] = get_context_window(effective_provider, model)
 
         # Memory flush for pre-compaction capture
         if self._rag_manager and self._rag_manager.is_initialized:
@@ -571,8 +571,12 @@ class HomeclawAgent:
         try:
             _LOGGER.debug("Querying RAG for context: %s", query[:100])
             # RAGManager.get_relevant_context returns compressed context string
+            model = self.config.get("models", {}).get(self._provider_name)
             context = await self._rag_manager.get_relevant_context(
-                query, user_id=user_id
+                query,
+                user_id=user_id,
+                provider=self._provider,
+                model=model,
             )
             if context:
                 _LOGGER.info("RAG found relevant context (%d chars)", len(context))

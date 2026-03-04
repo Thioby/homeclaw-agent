@@ -69,6 +69,36 @@ def _make_entity(
     agent._get_system_prompt = AsyncMock(return_value="You are Homeclaw.")
     agent._get_tools_for_provider = MagicMock(return_value=None)
 
+    def _build_query_kwargs(text: str, **kwargs: Any) -> dict[str, Any]:
+        del text  # unused in the lightweight test stub
+        from custom_components.homeclaw.models import get_context_window
+
+        built: dict[str, Any] = {"hass": agent.hass}
+        user_id = kwargs.get("user_id")
+        if user_id is not None:
+            built["user_id"] = user_id
+        session_id = kwargs.get("session_id", "")
+        if session_id:
+            built["session_id"] = session_id
+        conversation_history = kwargs.get("conversation_history")
+        if conversation_history is not None:
+            built["conversation_history"] = conversation_history
+
+        tools = agent._get_tools_for_provider()
+        if tools:
+            built["tools"] = tools
+
+        built["context_window"] = get_context_window(provider, None)
+
+        if agent._rag_manager and agent._rag_manager.is_initialized:
+            mem_mgr = getattr(agent._rag_manager, "_memory_manager", None)
+            if mem_mgr:
+                built["memory_flush_fn"] = mem_mgr.flush_from_messages
+
+        return built
+
+    agent.build_query_kwargs = MagicMock(side_effect=_build_query_kwargs)
+
     entity = HomeclawConversationEntity(config_entry, provider, agent)
     entity.hass = agent.hass
     return entity
@@ -294,109 +324,111 @@ class TestTransformProviderStream:
     @pytest.mark.asyncio
     async def test_text_chunks(self):
         entity = _make_entity()
+        from custom_components.homeclaw.core.events import TextEvent, CompletionEvent
         stream = _fake_provider_stream([
-            {"type": "text", "content": "Hello "},
-            {"type": "text", "content": "world"},
-            {"type": "complete"},
+            TextEvent(content="Hello "),
+            TextEvent(content="world"),
+            CompletionEvent(messages=[]),
         ])
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        deltas = await _collect_stream(entity._transform_provider_stream(stream, MagicMock()))
 
-        assert deltas[0] == {"role": "assistant"}
-        assert deltas[1] == {"content": "Hello "}
-        assert deltas[2] == {"content": "world"}
-        assert len(deltas) == 3  # no fallback needed
+        assert deltas[0] == {"content": "Hello "}
+        assert deltas[1] == {"content": "world"}
+        assert len(deltas) == 2  # no fallback needed
 
     @pytest.mark.asyncio
     async def test_empty_text_chunks_skipped(self):
         entity = _make_entity()
+        from custom_components.homeclaw.core.events import TextEvent, CompletionEvent
         stream = _fake_provider_stream([
-            {"type": "text", "content": ""},
-            {"type": "text", "content": "Real text"},
-            {"type": "complete"},
+            TextEvent(content=""),
+            TextEvent(content="Real text"),
+            CompletionEvent(messages=[]),
         ])
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        deltas = await _collect_stream(entity._transform_provider_stream(stream, MagicMock()))
 
-        assert deltas[0] == {"role": "assistant"}
-        assert deltas[1] == {"content": "Real text"}
-        assert len(deltas) == 2
+        assert deltas[0] == {"content": "Real text"}
+        assert len(deltas) == 1
 
     @pytest.mark.asyncio
     async def test_status_chunks_skipped(self):
         entity = _make_entity()
+        from custom_components.homeclaw.core.events import TextEvent, StatusEvent, CompletionEvent
         stream = _fake_provider_stream([
-            {"type": "text", "content": "Hi"},
-            {"type": "status", "message": "Calling tool..."},
-            {"type": "text", "content": " there"},
-            {"type": "complete"},
+            TextEvent(content="Hi"),
+            StatusEvent(message="Calling tool..."),
+            TextEvent(content=" there"),
+            CompletionEvent(messages=[]),
         ])
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        deltas = await _collect_stream(entity._transform_provider_stream(stream, MagicMock()))
 
         # status should not appear in output
-        assert {"role": "assistant"} in deltas
         assert {"content": "Hi"} in deltas
         assert {"content": " there"} in deltas
-        assert len(deltas) == 3
+        assert len(deltas) == 2
 
     @pytest.mark.asyncio
     async def test_error_chunk(self):
         entity = _make_entity()
+        from custom_components.homeclaw.core.events import ErrorEvent
         stream = _fake_provider_stream([
-            {"type": "error", "message": "API rate limit"},
+            ErrorEvent(message="API rate limit"),
         ])
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        deltas = await _collect_stream(entity._transform_provider_stream(stream, MagicMock()))
 
-        assert deltas[0] == {"role": "assistant"}
         # Error details should NOT be exposed to user (sanitized)
-        assert "error" in deltas[1]["content"].lower()
-        assert "API rate limit" not in deltas[1]["content"]
+        assert "error" in deltas[0]["content"].lower()
+        assert "API rate limit" not in deltas[0]["content"]
 
     @pytest.mark.asyncio
     async def test_empty_stream_fallback(self):
         """Empty stream should still yield a minimal assistant delta."""
         entity = _make_entity()
+        from custom_components.homeclaw.core.events import CompletionEvent
         stream = _fake_provider_stream([
-            {"type": "complete"},
+            CompletionEvent(messages=[]),
         ])
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        deltas = await _collect_stream(entity._transform_provider_stream(stream, MagicMock()))
 
-        assert deltas[0] == {"role": "assistant"}
-        assert deltas[1] == {"content": ""}
+        assert deltas[0] == {"content": " "}
+        assert len(deltas) == 1
 
     @pytest.mark.asyncio
     async def test_tools_only_stream_fallback(self):
         """Stream with only tool events should yield fallback assistant delta."""
         entity = _make_entity()
+        from custom_components.homeclaw.core.events import ToolCallEvent, ToolResultEvent, CompletionEvent
         stream = _fake_provider_stream([
-            {"type": "tool_call", "name": "get_state", "args": {}},
-            {"type": "tool_result", "name": "get_state", "result": "on"},
-            {"type": "complete"},
+            ToolCallEvent(tool_name="get_state", tool_args={}, tool_call_id="call-1"),
+            ToolResultEvent(tool_name="get_state", tool_result="on", tool_call_id="call-1"),
+            CompletionEvent(messages=[]),
         ])
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        deltas = await _collect_stream(entity._transform_provider_stream(stream, MagicMock()))
 
-        assert deltas[0] == {"role": "assistant"}
-        assert deltas[1] == {"content": ""}
-        assert len(deltas) == 2
+        assert deltas[0] == {"content": " "}
+        assert len(deltas) == 1
 
     @pytest.mark.asyncio
     async def test_error_after_text_no_duplicate_role(self):
         """Error after text chunks should not start a new assistant role."""
         entity = _make_entity()
+        from custom_components.homeclaw.core.events import TextEvent, ErrorEvent
         stream = _fake_provider_stream([
-            {"type": "text", "content": "Starting..."},
-            {"type": "error", "message": "Oops"},
+            TextEvent(content="Starting..."),
+            ErrorEvent(message="Oops"),
         ])
 
-        deltas = await _collect_stream(entity._transform_provider_stream(stream))
+        deltas = await _collect_stream(entity._transform_provider_stream(stream, MagicMock()))
 
         # Only one role delta
         role_deltas = [d for d in deltas if d.get("role") == "assistant"]
-        assert len(role_deltas) == 1
+        assert len(role_deltas) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +446,7 @@ class TestBuildStreamKwargs:
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="Turn on kitchen light",
                 user_id="user1",
                 system_prompt="System prompt",
                 conversation_history=[],
@@ -436,6 +469,7 @@ class TestBuildStreamKwargs:
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="Prompt",
                 user_id="user1",
                 system_prompt="Prompt",
                 conversation_history=None,
@@ -452,6 +486,7 @@ class TestBuildStreamKwargs:
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="Prompt",
                 user_id="user1",
                 system_prompt="Prompt",
                 conversation_history=[],
@@ -470,6 +505,7 @@ class TestBuildStreamKwargs:
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="Get state",
                 user_id="user1",
                 system_prompt="Prompt",
                 conversation_history=[],
@@ -486,6 +522,7 @@ class TestBuildStreamKwargs:
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="What's in living room?",
                 user_id="user1",
                 system_prompt="Prompt",
                 conversation_history=[],
@@ -507,6 +544,7 @@ class TestBuildStreamKwargs:
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="Prompt",
                 user_id="user1",
                 system_prompt="Prompt",
                 conversation_history=[],

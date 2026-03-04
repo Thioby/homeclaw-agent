@@ -40,7 +40,9 @@ class TestSemanticLearner:
     def mock_states(self):
         """Return mock states for entity resolution."""
         states = [
-            MockState("switch.bedroom_lamp", "on", {"friendly_name": "Bedroom Lamp Switch"}),
+            MockState(
+                "switch.bedroom_lamp", "on", {"friendly_name": "Bedroom Lamp Switch"}
+            ),
             MockState("light.kitchen", "off", {"friendly_name": "Kitchen Light"}),
             MockState("sensor.temperature", "22", {"friendly_name": "Temperature"}),
         ]
@@ -49,10 +51,17 @@ class TestSemanticLearner:
     @pytest.fixture
     def learner(self, hass, mock_indexer, mock_states, tmp_path):
         """Return a SemanticLearner instance."""
-        with patch("homeassistant.core.StateMachine.async_all", return_value=mock_states), \
-             patch("homeassistant.core.StateMachine.get", side_effect=lambda eid: next(
-                (s for s in mock_states if s.entity_id == eid), None
-            )):
+        with (
+            patch(
+                "homeassistant.core.StateMachine.async_all", return_value=mock_states
+            ),
+            patch(
+                "homeassistant.core.StateMachine.get",
+                side_effect=lambda eid: next(
+                    (s for s in mock_states if s.entity_id == eid), None
+                ),
+            ),
+        ):
             yield SemanticLearner(
                 hass=hass,
                 indexer=mock_indexer,

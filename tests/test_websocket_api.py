@@ -23,6 +23,7 @@ from custom_components.homeclaw.websocket_api import (
     ws_list_sessions,
     ws_rename_session,
     ws_send_message,
+    ws_send_message_stream,
     ws_get_available_models,
     _get_user_id,
     _validate_session_id,
@@ -46,6 +47,8 @@ if hasattr(ws_rename_session, "__wrapped__"):
     ws_rename_session = ws_rename_session.__wrapped__
 if hasattr(ws_send_message, "__wrapped__"):
     ws_send_message = ws_send_message.__wrapped__
+if hasattr(ws_send_message_stream, "__wrapped__"):
+    ws_send_message_stream = ws_send_message_stream.__wrapped__
 if hasattr(ws_get_available_models, "__wrapped__"):
     ws_get_available_models = ws_get_available_models.__wrapped__
 
@@ -64,12 +67,16 @@ class MockConnection:
         self.user = user or MockUser()
         self.results: list[tuple[int, Any]] = []
         self.errors: list[tuple[int, str, str]] = []
+        self.messages: list[dict[str, Any]] = []
 
     def send_result(self, msg_id: int, result: Any) -> None:
         self.results.append((msg_id, result))
 
     def send_error(self, msg_id: int, code: str, message: str) -> None:
         self.errors.append((msg_id, code, message))
+
+    def send_message(self, message: dict[str, Any]) -> None:
+        self.messages.append(message)
 
 
 @pytest.fixture
@@ -750,6 +757,71 @@ class TestWsSendMessage:
         )  # 2 existing messages (current query added by _build_messages)
         assert history[0]["content"] == "Turn on lights"
         assert history[1]["content"] == "Done, lights are on"
+
+
+class TestWsSendMessageStream:
+    """Tests for ws_send_message_stream command."""
+
+    @pytest.mark.asyncio
+    async def test_send_stream_success(
+        self, hass: HomeAssistant, mock_connection: MockConnection
+    ) -> None:
+        """Test streaming message sends WS events and final result."""
+        from custom_components.homeclaw.core.events import CompletionEvent, StatusEvent, TextEvent
+
+        storage = SessionStorage(hass, "test_user_123")
+        session = await storage.create_session(provider="anthropic")
+
+        async def mock_stream_query(*args, **kwargs):
+            yield StatusEvent(message="Calling tools: get_entities...")
+            yield TextEvent(content="Hello ")
+            yield TextEvent(content="stream!")
+            yield CompletionEvent(messages=[])
+
+        mock_agent = AsyncMock()
+        mock_agent.stream_query = mock_stream_query
+        hass.data[DOMAIN] = {
+            "agents": {"anthropic": mock_agent},
+        }
+
+        msg = {
+            "id": 1,
+            "type": "homeclaw/chat/send_stream",
+            "session_id": session.session_id,
+            "message": "Hello, AI!",
+        }
+        await ws_send_message_stream(hass, mock_connection, msg)
+
+        assert len(mock_connection.results) == 1
+        _, result = mock_connection.results[0]
+        assert result["success"] is True
+        assert result["assistant_message"]["content"] == "Hello stream!"
+        assert result["assistant_message"]["status"] == "completed"
+
+        assert mock_connection.messages
+        event_types = [m.get("event", {}).get("type") for m in mock_connection.messages]
+        assert "user_message" in event_types
+        assert "stream_start" in event_types
+        assert "stream_chunk" in event_types
+        assert "status" in event_types
+        assert "stream_end" in event_types
+
+    @pytest.mark.asyncio
+    async def test_send_stream_session_not_found(
+        self, hass: HomeAssistant, mock_connection: MockConnection
+    ) -> None:
+        """Test streaming message to non-existent session."""
+        msg = {
+            "id": 1,
+            "type": "homeclaw/chat/send_stream",
+            "session_id": "non-existent",
+            "message": "Hello",
+        }
+        await ws_send_message_stream(hass, mock_connection, msg)
+
+        assert len(mock_connection.errors) == 1
+        _, code, _ = mock_connection.errors[0]
+        assert code == ERR_SESSION_NOT_FOUND
 
 
 class TestUserIsolation:

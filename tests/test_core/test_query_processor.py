@@ -312,7 +312,7 @@ class TestBuildMessagesWithRagContext:
 
         assert len(result) == 2  # system + user
         assert result[0]["role"] == "system"
-        assert "SUGGESTED ENTITIES" in result[0]["content"]
+        assert "RELEVANT CONTEXT" in result[0]["content"]
         assert rag_context in result[0]["content"]
         assert "You are a helpful assistant." in result[0]["content"]
 

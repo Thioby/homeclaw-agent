@@ -62,12 +62,14 @@ class TestIntentDetector:
 
         # Mock get_embedding_for_query to return predictable embeddings
         call_count = 0
+
         async def mock_embedding(provider, query):
             nonlocal call_count
             call_count += 1
             return [float(call_count), 0.0, 0.0]  # Different embedding each call
 
         import custom_components.homeclaw.rag.intent_detector as module
+
         original_func = module.get_embedding_for_query
         module.get_embedding_for_query = mock_embedding
 
@@ -103,19 +105,24 @@ class TestIntentDetector:
         assert result == {}
 
     @pytest.mark.asyncio
-    async def test_detect_intent_finds_matching_prototype(self, mock_embedding_provider):
+    async def test_detect_intent_finds_matching_prototype(
+        self, mock_embedding_provider
+    ):
         """Test detect_intent finds matching intent based on similarity."""
         detector = IntentDetector(embedding_provider=mock_embedding_provider)
         detector._initialized = True
 
         # Setup: cache a temperature prototype with embedding [1, 0, 0]
-        detector._prototype_cache["device_class:temperature:what is the temperature"] = [1.0, 0.0, 0.0]
+        detector._prototype_cache[
+            "device_class:temperature:what is the temperature"
+        ] = [1.0, 0.0, 0.0]
 
         # Mock get_embedding_for_query to return similar embedding
         async def mock_embedding(provider, query):
             return [0.95, 0.1, 0.1]  # Very similar to [1, 0, 0]
 
         import custom_components.homeclaw.rag.intent_detector as module
+
         original_func = module.get_embedding_for_query
         module.get_embedding_for_query = mock_embedding
 
@@ -134,13 +141,16 @@ class TestIntentDetector:
         detector._initialized = True
 
         # Setup: cache a temperature prototype with embedding [1, 0, 0]
-        detector._prototype_cache["device_class:temperature:what is the temperature"] = [1.0, 0.0, 0.0]
+        detector._prototype_cache[
+            "device_class:temperature:what is the temperature"
+        ] = [1.0, 0.0, 0.0]
 
         # Mock get_embedding_for_query to return dissimilar embedding
         async def mock_embedding(provider, query):
             return [0.0, 0.0, 1.0]  # Orthogonal to [1, 0, 0]
 
         import custom_components.homeclaw.rag.intent_detector as module
+
         original_func = module.get_embedding_for_query
         module.get_embedding_for_query = mock_embedding
 
@@ -163,6 +173,7 @@ class TestIntentDetector:
             raise Exception("Embedding API error")
 
         import custom_components.homeclaw.rag.intent_detector as module
+
         original_func = module.get_embedding_for_query
         module.get_embedding_for_query = mock_embedding
 

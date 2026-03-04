@@ -95,7 +95,7 @@ class TestIsExplicitCommand:
 
     def test_anti_pattern_rag_context(self) -> None:
         assert (
-            is_explicit_command("--- SUGGESTED ENTITIES --- remember light.bedroom")
+            is_explicit_command("--- RELEVANT CONTEXT --- remember light.bedroom")
             is False
         )
 

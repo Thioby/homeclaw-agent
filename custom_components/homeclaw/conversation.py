@@ -173,6 +173,7 @@ class HomeclawConversationEntity(
 
             # Build kwargs for Agent.process_query_stream()
             stream_kwargs = self._build_stream_kwargs(
+                text=user_input.text,
                 user_id=user_id,
                 system_prompt=system_prompt,
                 conversation_history=conversation_history,
@@ -230,6 +231,7 @@ class HomeclawConversationEntity(
 
     def _build_stream_kwargs(
         self,
+        text: str,
         user_id: str,
         system_prompt: str,
         conversation_history: list[dict[str, str]] | None,
@@ -241,37 +243,19 @@ class HomeclawConversationEntity(
         Mirrors the setup logic from HomeclawAgent.process_query() but
         adapts it for the streaming path.
         """
-        kwargs: dict[str, Any] = {
-            "hass": self._agent.hass,
-            "user_id": user_id,
-            "system_prompt_override": system_prompt,
-            "session_id": session_id,
-        }
+        kwargs = self._agent.build_query_kwargs(
+            text,
+            user_id=user_id,
+            session_id=session_id,
+            conversation_history=conversation_history,
+            include_config=False,
+            auto_load_on_demand=False,
+        )
+        kwargs["system_prompt_override"] = system_prompt
 
-        # Always pass conversation_history (even empty list) to prevent
-        # process_query_stream from falling back to global in-memory history.
-        if conversation_history is not None:
-            kwargs["conversation_history"] = conversation_history
-
-        # Add tools for native function calling
-        tools = self._agent._get_tools_for_provider()
-        if tools:
-            kwargs["tools"] = tools
-
-        # Context window for compaction
-        from .models import get_context_window
-
-        kwargs["context_window"] = get_context_window(self._provider_name, None)
-
-        # RAG context — pre-fetched async in _async_handle_message
+        # RAG context is pre-fetched async in _async_handle_message.
         if rag_context:
             kwargs["rag_context"] = rag_context
-
-        # Memory flush function for pre-compaction capture
-        if self._agent._rag_manager and self._agent._rag_manager.is_initialized:
-            mem_mgr = getattr(self._agent._rag_manager, "_memory_manager", None)
-            if mem_mgr:
-                kwargs["memory_flush_fn"] = mem_mgr.flush_from_messages
 
         return kwargs
 

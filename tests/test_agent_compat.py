@@ -21,9 +21,7 @@ class TestHomeclawAgentCompat:
     def patch_managers(self):
         """Patch all managers at their import locations."""
         with (
-            patch(
-                "custom_components.homeclaw.managers.entity_manager.EntityManager"
-            ),
+            patch("custom_components.homeclaw.managers.entity_manager.EntityManager"),
             patch(
                 "custom_components.homeclaw.managers.registry_manager.RegistryManager"
             ),
@@ -33,9 +31,7 @@ class TestHomeclawAgentCompat:
             patch(
                 "custom_components.homeclaw.managers.dashboard_manager.DashboardManager"
             ),
-            patch(
-                "custom_components.homeclaw.managers.control_manager.ControlManager"
-            ),
+            patch("custom_components.homeclaw.managers.control_manager.ControlManager"),
         ):
             yield
 
@@ -133,8 +129,12 @@ class TestHomeclawAgentCompat:
         result = await agent._get_rag_context("turn on bedroom light")
 
         # Verify correct method was called (with user_id=None default)
+        model = agent.config.get("models", {}).get(agent._provider_name)
         rag.get_relevant_context.assert_called_once_with(
-            "turn on bedroom light", user_id=None
+            "turn on bedroom light",
+            user_id=None,
+            provider=agent._provider,
+            model=model,
         )
         assert result == "Entity: light.bedroom, state: on"
 
@@ -282,6 +282,154 @@ class TestHomeclawAgentCompat:
         assert result["success"] is True
         agent._agent._conversation.clear.assert_called_once()
         assert agent._agent._conversation.add_message.call_count == 2
+
+    @pytest.mark.asyncio
+    @patch("custom_components.homeclaw.agent_compat.ProviderRegistry")
+    async def test_process_query_uses_system_prompt_override_key(
+        self, mock_registry, patch_managers, hass, config
+    ):
+        """Test process_query passes system prompt under system_prompt_override."""
+        mock_provider = MagicMock()
+        mock_provider.supports_tools = False
+        mock_registry.create.return_value = mock_provider
+        agent = HomeclawAgent(hass, config)
+        rag_manager = MagicMock()
+        rag_manager.is_initialized = False
+        agent.set_rag_manager(rag_manager)
+        agent._get_rag_context = AsyncMock(return_value="rag context")
+        agent._get_system_prompt = AsyncMock(return_value="default prompt")
+        agent._agent.process_query = AsyncMock(
+            return_value={
+                "success": True,
+                "response": "ok",
+            }
+        )
+
+        await agent.process_query("question", user_id="user-1")
+
+        kwargs = agent._agent.process_query.call_args.kwargs
+        assert kwargs["system_prompt_override"] == "default prompt"
+        assert kwargs["rag_context"] == "rag context"
+        assert "config" not in kwargs
+
+    @pytest.mark.asyncio
+    @patch("custom_components.homeclaw.agent_compat.ProviderRegistry")
+    async def test_process_query_respects_explicit_system_prompt_override(
+        self, mock_registry, patch_managers, hass, config
+    ):
+        """Test explicit system prompt override bypasses default prompt builder."""
+        mock_provider = MagicMock()
+        mock_provider.supports_tools = False
+        mock_registry.create.return_value = mock_provider
+        agent = HomeclawAgent(hass, config)
+        agent._get_rag_context = AsyncMock(return_value=None)
+        agent._get_system_prompt = AsyncMock(return_value="default prompt")
+        agent._agent.process_query = AsyncMock(
+            return_value={
+                "success": True,
+                "response": "ok",
+            }
+        )
+
+        await agent.process_query("question", user_id="user-1", system_prompt="override prompt")
+
+        kwargs = agent._agent.process_query.call_args.kwargs
+        assert kwargs["system_prompt_override"] == "override prompt"
+        agent._get_system_prompt.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("custom_components.homeclaw.agent_compat.ProviderRegistry")
+    async def test_stream_query_uses_shared_kwargs_and_system_prompt_key(
+        self, mock_registry, patch_managers, hass, config
+    ):
+        """Test stream_query uses shared kwargs prep and passes system_prompt key."""
+        mock_provider = MagicMock()
+        mock_provider.supports_tools = False
+        mock_registry.create.return_value = mock_provider
+        agent = HomeclawAgent(hass, config)
+        rag_manager = MagicMock()
+        rag_manager.is_initialized = False
+        agent.set_rag_manager(rag_manager)
+        agent._get_rag_context = AsyncMock(return_value="rag stream")
+        agent._get_system_prompt = AsyncMock(return_value="stream prompt")
+
+        async def _mock_stream():
+            yield {"type": "text", "content": "hello"}
+
+        agent._agent.process_query_stream = MagicMock(
+            side_effect=lambda *args, **kwargs: _mock_stream()
+        )
+        attachments = [MagicMock()]
+
+        events = []
+        async for event in agent.stream_query(
+            "hello",
+            user_id="user-1",
+            session_id="session-1",
+            conversation_history=[],
+            attachments=attachments,
+        ):
+            events.append(event)
+
+        kwargs = agent._agent.process_query_stream.call_args.kwargs
+        assert kwargs["system_prompt"] == "stream prompt"
+        assert "system_prompt_override" not in kwargs
+        assert kwargs["rag_context"] == "rag stream"
+        assert kwargs["conversation_history"] == []
+        assert kwargs["attachments"] == attachments
+        assert kwargs["config"] == config
+        assert events == [{"type": "text", "content": "hello"}]
+
+    @patch("custom_components.homeclaw.agent_compat.ProviderRegistry")
+    def test_build_query_kwargs_filters_denied_tools(
+        self, mock_registry, patch_managers, hass, config
+    ):
+        """Test denied tools are removed from schemas and passed for executor enforcement."""
+        mock_provider = MagicMock()
+        mock_provider.supports_tools = False
+        mock_registry.create.return_value = mock_provider
+        agent = HomeclawAgent(hass, config)
+
+        agent._get_tools_for_provider = MagicMock(
+            return_value=[
+                {"function": {"name": "allowed_tool"}},
+                {"function": {"name": "blocked_tool"}},
+            ]
+        )
+        agent._auto_load_tools = MagicMock(return_value=[])
+
+        kwargs = agent.build_query_kwargs(
+            "query",
+            denied_tools=frozenset({"blocked_tool"}),
+            include_config=False,
+        )
+
+        tool_names = [tool["function"]["name"] for tool in kwargs["tools"]]
+        assert tool_names == ["allowed_tool"]
+        assert kwargs["denied_tools"] == frozenset({"blocked_tool"})
+
+    @patch("custom_components.homeclaw.agent_compat.ProviderRegistry")
+    def test_build_query_kwargs_uses_provider_override_for_context_window(
+        self, mock_registry, patch_managers, hass, config
+    ):
+        """Test provider override is used for context window lookup."""
+        mock_provider = MagicMock()
+        mock_provider.supports_tools = False
+        mock_registry.create.return_value = mock_provider
+        agent = HomeclawAgent(hass, config)
+
+        with patch(
+            "custom_components.homeclaw.models.get_context_window",
+            return_value=12345,
+        ) as mock_context_window:
+            kwargs = agent.build_query_kwargs(
+                "query",
+                provider="anthropic",
+                include_config=False,
+            )
+
+        assert kwargs["context_window"] == 12345
+        mock_context_window.assert_called_once_with("anthropic", None)
 
     @pytest.mark.asyncio
     @patch("custom_components.homeclaw.agent_compat.ProviderRegistry")

@@ -6,6 +6,7 @@ and context compression for providing relevant entity information to the LLM.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -202,89 +203,93 @@ class QueryEngine:
         self,
         results: list[SearchResult],
         max_length: int = MAX_CONTEXT_LENGTH,
-    ) -> str:
-        """Build a compressed context string from search results.
+    ) -> list[dict[str, Any]]:
+        """Build a compressed context structure from search results.
 
-        Formats results into a compact representation that provides
+        Formats results into a compact dictionary representation that provides
         relevant entity information without wasting tokens.
+
+        Respects the ``max_length`` token-budget by estimating JSON size and
+        truncating the result list when the budget is exceeded.
 
         Args:
             results: Search results to format.
-            max_length: Maximum character length for the context.
+            max_length: Approximate character budget for the serialized JSON output.
 
         Returns:
-            Formatted context string.
+            List of formatted entity dictionaries within the budget.
         """
         if not results:
-            return ""
+            return []
 
-        lines = []
-        current_length = 0
-
-        # Header - suggest entities but don't restrict LLM
-        header = "Potentially relevant entities (use tools to find others if needed):"
-        lines.append(header)
-        current_length += len(header)
+        formatted_results: list[dict[str, Any]] = []
+        total_chars = 2  # account for surrounding JSON brackets "[]"
 
         for result in results:
-            # Format each entity compactly
-            line = self._format_entity(result)
-
-            # Check if adding this line would exceed max length
-            if current_length + len(line) + 1 > max_length:
+            entity = self._format_entity(result)
+            # Estimate serialized size (compact JSON, no indent)
+            entry_chars = (
+                len(json.dumps(entity, ensure_ascii=False)) + 2
+            )  # comma + space
+            if total_chars + entry_chars > max_length and formatted_results:
+                _LOGGER.debug(
+                    "Context budget reached (%d/%d chars), truncating at %d entities",
+                    total_chars,
+                    max_length,
+                    len(formatted_results),
+                )
                 break
+            formatted_results.append(entity)
+            total_chars += entry_chars
 
-            lines.append(line)
-            current_length += len(line) + 1  # +1 for newline
+        return formatted_results
 
-        return "\n".join(lines)
-
-    def _format_entity(self, result: SearchResult) -> str:
+    def _format_entity(self, result: SearchResult) -> dict[str, Any]:
         """Format a single entity result compactly.
 
         Args:
             result: The search result to format.
 
         Returns:
-            Compact string representation.
+            Dictionary representing the entity.
         """
         metadata = result.metadata
         entity_id = result.id
 
         # Build compact representation
-        parts = [f"- {entity_id}"]
+        entity_data: dict[str, Any] = {"entity_id": entity_id}
 
         # Add friendly name if different from entity_id
         friendly_name = metadata.get("friendly_name")
         if friendly_name and friendly_name.lower() not in entity_id.lower():
-            parts.append(f'"{friendly_name}"')
+            entity_data["name"] = friendly_name
 
         # Add domain if not obvious from entity_id
         domain = metadata.get("domain")
         if domain:
-            parts.append(f"({domain})")
+            entity_data["domain"] = domain
 
         # Add area if available
         area_name = metadata.get("area_name")
         if area_name:
-            parts.append(f"in {area_name}")
+            entity_data["area"] = area_name
 
         # Add device class if useful
         device_class = metadata.get("device_class")
         if device_class and device_class != domain:
-            parts.append(f"[{device_class}]")
+            entity_data["device_class"] = device_class
 
         # Add learned category if available
         learned_cat = metadata.get("learned_category")
         if learned_cat:
-            parts.append(f"<{learned_cat}>")
+            entity_data["category"] = learned_cat
 
         # Add current state for actionable entities
         state = metadata.get("state")
         if state and domain in ("light", "switch", "cover", "lock", "fan"):
-            parts.append(f"state:{state}")
+            entity_data["state"] = state
 
-        return " ".join(parts)
+        return entity_data
 
     async def search_and_format(
         self,
@@ -302,10 +307,11 @@ class QueryEngine:
             max_context_length: Maximum context length.
 
         Returns:
-            Formatted context string, or empty string if no results.
+            Formatted context string (JSON), or empty string if no results.
         """
         results = await self.search_entities(query, top_k)
-        return self.build_compressed_context(results, max_context_length)
+        formatted = self.build_compressed_context(results, max_context_length)
+        return json.dumps(formatted, ensure_ascii=False) if formatted else ""
 
     async def search_by_criteria(
         self,

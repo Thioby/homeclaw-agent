@@ -1,5 +1,7 @@
 "Unit tests for the RAGManager facade."
 
+import json
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -89,7 +91,11 @@ def mock_dependencies():
         mock_query.search_entities = AsyncMock(return_value=[])
         mock_query.search_by_criteria = AsyncMock(return_value=[])
         mock_query.hybrid_search = AsyncMock(return_value=[])
-        mock_query.build_compressed_context = MagicMock(return_value="context")
+        mock_query.build_compressed_context = MagicMock(
+            return_value=[
+                {"entity_id": "light.living_room", "state": "on", "area": "Living Room"}
+            ]
+        )
 
         mock_intent = mock_intent_cls.return_value
         mock_intent.async_initialize = AsyncMock()
@@ -237,7 +243,9 @@ async def test_get_relevant_context_success(hass, mock_dependencies):
 
     context = await rag.get_relevant_context("turn on light")
 
-    assert context == "context"
+    result = json.loads(context)
+    assert isinstance(result["relevant_entities"], list)
+    assert result["relevant_entities"][0]["entity_id"] == "light.living_room"
     mock_dependencies["query"].hybrid_search.assert_called_with(
         query="turn on light", top_k=10, where=None, min_similarity=0.5
     )
@@ -265,8 +273,8 @@ async def test_get_relevant_context_stale_entity(hass, mock_dependencies):
     # Should attempt to remove the stale entity
     mock_dependencies["indexer"].remove_entity.assert_called_with("light.removed")
 
-    # Should build context with empty list (since the only result was stale)
-    mock_dependencies["query"].build_compressed_context.assert_called_with([])
+    # build_compressed_context should NOT be called (valid_results is empty after stale removal)
+    mock_dependencies["query"].build_compressed_context.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -512,7 +520,14 @@ async def test_index_session_delegates_to_session_indexer(hass, mock_dependencie
     assert result == 2
     mock_dependencies["session_indexer"].index_session.assert_called_once_with(
         session_id="sess1",
-        messages=messages,
+        rounds=[
+            {
+                "timestamp": "",
+                "user_message": "Hello",
+                "assistant_message": "Hi",
+                "user_facts": "",
+            }
+        ],
         force=False,
     )
 

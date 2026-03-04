@@ -46,27 +46,43 @@ class SubsystemLifecycle:
         self._channel_mgr: Any | None = None
         self._rag_mgr: Any | None = None
 
-    async def async_setup_entry(self, hass: HomeAssistant, entry: ConfigEntry, config_data: dict[str, Any]) -> None:
+    async def async_setup_entry(
+        self, hass: HomeAssistant, entry: ConfigEntry, config_data: dict[str, Any]
+    ) -> None:
         """Register *entry* and start global subsystems on first call."""
         async with self._lock:
             self._entry_ids.add(entry.entry_id)
             if self._initialized:
-                _LOGGER.debug("Subsystems already running, entry %s ref-counted", entry.entry_id)
+                # RAG may have been skipped on first entry — try to start if this entry enables it
+                if not self._rag_mgr and config_data.get(
+                    CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED
+                ):
+                    _LOGGER.info("Late RAG init triggered by entry %s", entry.entry_id)
+                    await self._start_rag(hass, config_data, entry)
+                _LOGGER.debug(
+                    "Subsystems already running, entry %s ref-counted", entry.entry_id
+                )
                 return
             self._first_entry = entry
             try:
                 await self._start_all(hass, entry, config_data)
                 self._initialized = True
-                _LOGGER.info("Global subsystems initialized (first entry: %s)", entry.entry_id)
+                _LOGGER.info(
+                    "Global subsystems initialized (first entry: %s)", entry.entry_id
+                )
             except Exception:
-                _LOGGER.warning("Global subsystem init failed — degraded mode", exc_info=True)
+                _LOGGER.warning(
+                    "Global subsystem init failed — degraded mode", exc_info=True
+                )
 
     async def async_unload_entry(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Unregister *entry*; tear down subsystems when the last entry leaves."""
         async with self._lock:
             self._entry_ids.discard(entry.entry_id)
             if self._entry_ids:
-                _LOGGER.debug("Entry %s unloaded, %d remain", entry.entry_id, len(self._entry_ids))
+                _LOGGER.debug(
+                    "Entry %s unloaded, %d remain", entry.entry_id, len(self._entry_ids)
+                )
                 return
             await self._stop_all(hass)
             self._initialized = False
@@ -85,7 +101,9 @@ class SubsystemLifecycle:
 
     # -- ordered init --------------------------------------------------
 
-    async def _start_all(self, hass: HomeAssistant, entry: ConfigEntry, config_data: dict[str, Any]) -> None:
+    async def _start_all(
+        self, hass: HomeAssistant, entry: ConfigEntry, config_data: dict[str, Any]
+    ) -> None:
         """Start subsystems in order.  Each group is independent."""
         await self._start_proactive(hass)
         await self._start_channels(hass, entry)
@@ -135,18 +153,32 @@ class SubsystemLifecycle:
 
             intake = MessageIntake(hass)
             manager = ChannelManager(hass, intake)
-            channel_config = await build_channel_runtime_config(hass, {**entry.data, **entry.options})
+            channel_config = await build_channel_runtime_config(
+                hass, {**entry.data, **entry.options}
+            )
             await manager.async_setup(channel_config)
             self._channel_mgr = manager
             hass.data[DOMAIN]["channel_manager"] = manager
-            _LOGGER.info("Channel manager started (active: %s)", manager.active_channels)
+            _LOGGER.info(
+                "Channel manager started (active: %s)", manager.active_channels
+            )
         except Exception:
             _LOGGER.warning("Channel subsystem failed", exc_info=True)
 
-    async def _start_rag(self, hass: HomeAssistant, config_data: dict[str, Any], entry: ConfigEntry) -> None:
-        """Start the RAG manager if enabled in config."""
-        if not config_data.get(CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED):
-            _LOGGER.debug("RAG not enabled, skipping")
+    async def _start_rag(
+        self, hass: HomeAssistant, config_data: dict[str, Any], entry: ConfigEntry
+    ) -> None:
+        """Start the RAG manager if enabled in any config entry."""
+        rag_enabled = config_data.get(CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED)
+        if not rag_enabled:
+            # Check all entries — any entry with rag_enabled=True is enough
+            for e in hass.config_entries.async_entries(DOMAIN):
+                if e.data.get(CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED):
+                    rag_enabled = True
+                    _LOGGER.debug("RAG enabled by entry %s (%s)", e.title, e.entry_id)
+                    break
+        if not rag_enabled:
+            _LOGGER.debug("RAG not enabled in any entry, skipping")
             return
         try:
             from .rag import RAGManager
@@ -283,13 +315,19 @@ class SubsystemLifecycle:
     def _cleanup_storage_cache(self, hass: HomeAssistant) -> None:
         """Remove cached storage instances from hass.data."""
         prefix = f"{DOMAIN}_storage_"
-        keys = [k for k in list(hass.data.keys()) if isinstance(k, str) and k.startswith(prefix)]
+        keys = [
+            k
+            for k in list(hass.data.keys())
+            if isinstance(k, str) and k.startswith(prefix)
+        ]
         for key in keys:
             hass.data.pop(key, None)
 
     # -- rollback helper -----------------------------------------------
 
-    async def _rollback(self, hass: HomeAssistant, started: list[tuple[str, _StopFn]]) -> None:
+    async def _rollback(
+        self, hass: HomeAssistant, started: list[tuple[str, _StopFn]]
+    ) -> None:
         """Best-effort rollback of already-started subsystems (reverse order)."""
         for name, stop_fn in reversed(started):
             try:

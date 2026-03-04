@@ -253,7 +253,9 @@ class TestEntityIndexer:
         mock_store.add_documents.assert_called()
 
     @pytest.mark.asyncio
-    async def test_index_entities_batch(self, indexer, mock_store, mock_embedding_provider):
+    async def test_index_entities_batch(
+        self, indexer, mock_store, mock_embedding_provider
+    ):
         """Test batch indexing of entities."""
         mock_entries = [
             MockEntityEntry(entity_id="light.one", name="Light One"),
