@@ -1,0 +1,4 @@
+interface:
+  display_name: "Orchestrator Workbench"
+  short_description: "Conductor workflow across coding stages"
+  default_prompt: "Orchestrate this task end-to-end: analyze, plan, implement, QA, and review with explicit gates and status tracking."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Coding Workbench"
+  short_description: "Focused implementation with minimal diff"
+  default_prompt: "Implement the change with a minimal, testable diff and verify behavior before finishing."

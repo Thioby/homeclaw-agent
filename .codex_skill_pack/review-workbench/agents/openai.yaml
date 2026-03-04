@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Workbench"
+  short_description: "Code review for bugs and regressions"
+  default_prompt: "Review the change for correctness risks, regressions, and missing tests, then prioritize findings."

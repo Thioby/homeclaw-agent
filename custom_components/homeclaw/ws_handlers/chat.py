@@ -288,6 +288,41 @@ async def _persist_tool_messages(
         await storage.add_message(session_id, tool_msg)
 
 
+async def _persist_compaction_if_needed(
+    storage: SessionStorage,
+    session_id: str,
+    completion_messages: list[dict[str, Any]],
+) -> None:
+    """Persist compaction to storage if it happened during the AI stream.
+
+    Checks if the completion messages start with a compaction summary
+    (injected by compact_messages) and if so, trims old messages in
+    storage to prevent re-triggering compaction on every request.
+
+    Args:
+        storage: SessionStorage instance.
+        session_id: Current session ID.
+        completion_messages: Messages from CompletionEvent (post-compaction).
+    """
+    if not completion_messages:
+        return
+
+    first_msg = completion_messages[0]
+    if first_msg.get("role") not in ("user", "system"):
+        return
+
+    prefix = "[Previous conversation summary]\n"
+    content = first_msg.get("content", "")
+    if not content.startswith(prefix):
+        return
+
+    summary_text = content[len(prefix) :]
+    try:
+        await storage.compact_session_messages(session_id, summary_text)
+    except Exception as err:
+        _LOGGER.debug("Storage compaction persistence failed (non-fatal): %s", err)
+
+
 def _now_iso() -> str:
     """Return current UTC timestamp in ISO format."""
     return datetime.now(timezone.utc).isoformat()

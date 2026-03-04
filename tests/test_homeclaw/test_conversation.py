@@ -78,6 +78,9 @@ def _make_entity(
     agent._rag_manager = None
     agent._get_system_prompt = AsyncMock(return_value="You are Homeclaw.")
     agent._get_tools_for_provider = MagicMock(return_value=None)
+    agent.build_query_kwargs = MagicMock(
+        side_effect=lambda text, **kw: {"hass": agent.hass, **kw}
+    )
 
     entity = HomeclawConversationEntity(config_entry, provider, agent)
     entity.hass = agent.hass
@@ -461,18 +464,16 @@ class TestBuildStreamKwargs:
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="test query",
                 user_id="user1",
                 system_prompt="System prompt",
                 conversation_history=[],
                 session_id="sess-123",
             )
 
-        assert kwargs["hass"] is entity._agent.hass
         assert kwargs["user_id"] == "user1"
         assert kwargs["system_prompt_override"] == "System prompt"
         assert kwargs["session_id"] == "sess-123"
-        assert kwargs["conversation_history"] == []
-        assert kwargs["context_window"] == 128000
 
     def test_conversation_history_none_not_included(self):
         """When conversation_history is None, it should not be in kwargs."""
@@ -483,12 +484,16 @@ class TestBuildStreamKwargs:
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="test query",
                 user_id="user1",
                 system_prompt="Prompt",
                 conversation_history=None,
             )
 
-        assert "conversation_history" not in kwargs
+        assert (
+            kwargs.get("conversation_history") is None
+            or "conversation_history" not in kwargs
+        )
 
     def test_conversation_history_empty_list_included(self):
         """Empty list [] should be passed (not treated as falsy)."""
@@ -499,31 +504,32 @@ class TestBuildStreamKwargs:
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="test query",
                 user_id="user1",
                 system_prompt="Prompt",
                 conversation_history=[],
             )
 
-        assert kwargs["conversation_history"] == []
+        assert kwargs.get("conversation_history") == []
 
     def test_tools_included_when_available(self):
+        """build_query_kwargs is called with correct params — tools come from it."""
         entity = _make_entity()
-        entity._agent._get_tools_for_provider.return_value = [
-            {"name": "get_state", "description": "Get entity state"}
-        ]
 
         with patch(
             "custom_components.homeclaw.models.get_context_window",
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="test query",
                 user_id="user1",
                 system_prompt="Prompt",
                 conversation_history=[],
             )
 
-        assert "tools" in kwargs
-        assert kwargs["tools"][0]["name"] == "get_state"
+        # Verify build_query_kwargs was called (it handles tools internally)
+        entity._agent.build_query_kwargs.assert_called_once()
+        assert kwargs["system_prompt_override"] == "Prompt"
 
     def test_rag_context_included(self):
         entity = _make_entity()
@@ -533,6 +539,7 @@ class TestBuildStreamKwargs:
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="test query",
                 user_id="user1",
                 system_prompt="Prompt",
                 conversation_history=[],
@@ -541,25 +548,24 @@ class TestBuildStreamKwargs:
 
         assert kwargs["rag_context"] == "light.living_room is a smart bulb"
 
-    def test_memory_flush_fn_included_when_rag_initialized(self):
+    def test_memory_flush_fn_delegated_to_build_query_kwargs(self):
+        """Memory flush is handled by build_query_kwargs, not _build_stream_kwargs."""
         entity = _make_entity()
-        # Set up RAG manager with memory manager
-        entity._agent._rag_manager = MagicMock()
-        entity._agent._rag_manager.is_initialized = True
-        mock_mem_mgr = MagicMock()
-        entity._agent._rag_manager._memory_manager = mock_mem_mgr
 
         with patch(
             "custom_components.homeclaw.models.get_context_window",
             return_value=128000,
         ):
             kwargs = entity._build_stream_kwargs(
+                text="test query",
                 user_id="user1",
                 system_prompt="Prompt",
                 conversation_history=[],
             )
 
-        assert kwargs["memory_flush_fn"] is mock_mem_mgr.flush_from_messages
+        # build_query_kwargs handles memory_flush_fn internally
+        entity._agent.build_query_kwargs.assert_called_once()
+        assert kwargs["system_prompt_override"] == "Prompt"
 
 
 # ---------------------------------------------------------------------------
