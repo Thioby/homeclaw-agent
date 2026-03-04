@@ -713,7 +713,7 @@ class TestSchedulerLifecycle:
 
 
 class TestProactiveInitLock:
-    """Verify _initialize_proactive runs exactly once under concurrent calls.
+    """Verify SubsystemLifecycle starts proactive exactly once under concurrent calls.
 
     Root cause of the triple-execution bug: ``async_setup_entry`` is called
     once per config entry.  The old boolean guard ``_proactive_initialized``
@@ -721,15 +721,15 @@ class TestProactiveInitLock:
     (``async_initialize`` + ``async_start``).  In asyncio, the ``await``
     yields control, so all N config-entry coroutines could pass the guard
     before the first one finished.  The fix wraps the whole block in an
-    ``asyncio.Lock``.
+    ``asyncio.Lock`` inside ``SubsystemLifecycle``.
     """
 
     @pytest.mark.asyncio
     async def test_concurrent_calls_initialize_once(self, mock_hass):
-        """Three concurrent _initialize_proactive calls must create only 1 SchedulerService."""
+        """Three concurrent async_setup_entry calls must create only 1 SchedulerService."""
         import asyncio
 
-        from custom_components.homeclaw.__init__ import _initialize_proactive
+        from custom_components.homeclaw.lifecycle import SubsystemLifecycle
 
         mock_hass.data = {DOMAIN: {"agents": {}}}
         scheduler_init_count = 0
@@ -774,6 +774,17 @@ class TestProactiveInitLock:
             def __init__(self, hass):
                 pass
 
+        lifecycle = SubsystemLifecycle()
+
+        # Create 3 fake config entries
+        entries = []
+        for i in range(3):
+            entry = MagicMock()
+            entry.entry_id = f"entry_{i}"
+            entry.data = {"ai_provider": "openai"}
+            entry.options = {}
+            entries.append(entry)
+
         with (
             patch(
                 "custom_components.homeclaw.proactive.SchedulerService",
@@ -787,30 +798,48 @@ class TestProactiveInitLock:
                 "custom_components.homeclaw.core.subagent.SubagentManager",
                 _FakeSubagent,
             ),
+            patch.object(lifecycle, "_start_channels", new_callable=AsyncMock),
+            patch.object(lifecycle, "_start_rag", new_callable=AsyncMock),
+            patch.object(lifecycle, "_start_services", new_callable=AsyncMock),
+            patch.object(lifecycle, "_start_websocket", new_callable=AsyncMock),
+            patch.object(lifecycle, "_start_frontend", new_callable=AsyncMock),
         ):
-            # Simulate 3 config entries calling _initialize_proactive concurrently
-            results = await asyncio.gather(
-                _initialize_proactive(mock_hass),
-                _initialize_proactive(mock_hass),
-                _initialize_proactive(mock_hass),
+            # Simulate 3 config entries calling async_setup_entry concurrently
+            await asyncio.gather(
+                lifecycle.async_setup_entry(
+                    mock_hass, entries[0], {"ai_provider": "openai"}
+                ),
+                lifecycle.async_setup_entry(
+                    mock_hass, entries[1], {"ai_provider": "openai"}
+                ),
+                lifecycle.async_setup_entry(
+                    mock_hass, entries[2], {"ai_provider": "openai"}
+                ),
             )
 
         # Exactly 1 scheduler should have been created
         assert scheduler_init_count == 1, (
             f"Expected 1 SchedulerService instance, got {scheduler_init_count}. "
-            "Race condition in _initialize_proactive!"
+            "Race condition in SubsystemLifecycle!"
         )
-        assert mock_hass.data[DOMAIN]["_proactive_initialized"] is True
 
     @pytest.mark.asyncio
-    async def test_second_call_after_init_skips(self, mock_hass):
-        """A single call after init should skip immediately."""
-        from custom_components.homeclaw.__init__ import _initialize_proactive
+    async def test_second_setup_entry_skips_init(self, mock_hass):
+        """A second async_setup_entry call should skip subsystem init."""
+        from custom_components.homeclaw.lifecycle import SubsystemLifecycle
 
-        mock_hass.data = {DOMAIN: {"agents": {}, "_proactive_initialized": True}}
+        mock_hass.data = {DOMAIN: {"agents": {}, "scheduler": MagicMock()}}
 
-        # Should return immediately without error
-        await _initialize_proactive(mock_hass)
+        lifecycle = SubsystemLifecycle()
+        # Mark as already initialized
+        lifecycle._initialized = True
 
-        # No scheduler/heartbeat should have been created
-        assert "scheduler" not in mock_hass.data[DOMAIN]
+        entry = MagicMock()
+        entry.entry_id = "second_entry"
+        entry.data = {"ai_provider": "openai"}
+
+        # Should return immediately, only ref-counting the entry
+        await lifecycle.async_setup_entry(mock_hass, entry, {"ai_provider": "openai"})
+
+        # Entry should be tracked but no new subsystems created
+        assert "second_entry" in lifecycle._entry_ids

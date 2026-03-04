@@ -455,11 +455,6 @@ def _is_abbrev_of_blocked_long_option(arg: str, base_cmd: str) -> str | None:
     return None
 
 
-def _looks_like_path(arg: str) -> bool:
-    """Heuristic: does this argument look like a filesystem path?"""
-    return arg.startswith("/") or arg.startswith("./")
-
-
 def validate_path(path_str: str) -> tuple[bool, str | None]:
     """Validate a filesystem path against security rules.
 

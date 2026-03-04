@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
@@ -28,9 +29,7 @@ from ._store_sessions import SessionChunkMixin
 from ._store_utils import (
     SearchResult,
     blob_to_embedding,
-    bm25_rank_to_score,
     cosine_distance,
-    cosine_similarity,
     embedding_to_blob,
     filter_metadata,
     read_embedding,
@@ -44,13 +43,8 @@ DEFAULT_TABLE_NAME = "ha_entities"
 # FTS5 virtual table name (derived from main table)
 FTS_TABLE_SUFFIX = "_fts"
 
-
-# ---------------------------------------------------------------------------
-# Backward-compatible private aliases used by legacy callers / tests
-# ---------------------------------------------------------------------------
-_cosine_similarity = cosine_similarity
-_bm25_rank_to_score = bm25_rank_to_score
-_cosine_distance = cosine_distance
+# Regex for safe SQL table names (letters/underscores, max 64 chars)
+_SAFE_TABLE_NAME = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,63}$")
 
 
 @dataclass
@@ -87,6 +81,10 @@ class SqliteStore(SessionChunkMixin, EmbeddingCacheMixin, FtsIndexMixin):
         if self._initialized:
             _LOGGER.debug("SqliteStore already initialized")
             return
+
+        # Validate table name to prevent SQL injection via f-string queries
+        if not _SAFE_TABLE_NAME.match(self.table_name):
+            raise ValueError(f"Invalid table name: {self.table_name!r}")
 
         try:
             # Ensure persist directory exists
