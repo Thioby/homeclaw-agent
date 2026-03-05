@@ -1,4 +1,0 @@
-interface:
-  display_name: "QA Workbench"
-  short_description: "Risk-based testing and quality gates"
-  default_prompt: "Build and run a risk-based QA checklist, execute tests, and report pass/fail evidence and regressions."

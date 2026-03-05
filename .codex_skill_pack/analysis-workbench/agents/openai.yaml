@@ -1,4 +1,0 @@
-interface:
-  display_name: "Analysis Workbench"
-  short_description: "Evidence-first codebase analysis"
-  default_prompt: "Analyze the task, map constraints, and gather evidence snippets before proposing changes."

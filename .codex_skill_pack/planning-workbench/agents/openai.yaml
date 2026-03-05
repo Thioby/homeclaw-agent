@@ -1,4 +1,0 @@
-interface:
-  display_name: "Planning Workbench"
-  short_description: "Minimal viable implementation planning"
-  default_prompt: "Turn the findings into a step-by-step plan with acceptance criteria, risks, and validation strategy."
