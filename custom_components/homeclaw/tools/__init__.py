@@ -17,6 +17,8 @@ Adding New Tools:
     4. Import the module in this __init__.py
 """
 
+from __future__ import annotations
+
 # Import tools to trigger registration
 # Each tool module uses @ToolRegistry.register decorator
 from . import (

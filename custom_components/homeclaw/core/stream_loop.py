@@ -246,6 +246,19 @@ async def _nonstream_fallback_iteration(
                 tool_call_id=tool_event.get("id", "unknown"),
             )
 
+    # Expand effective_tools if load_tool was called (parity with streaming path)
+    expand_loaded_tools(
+        function_calls,
+        effective_tools,
+        hass,
+        denied_tools=denied_tools,
+        config=config,
+    )
+    # Recompact messages after tool results
+    built_messages[:] = await recompact_if_needed(
+        built_messages, context_window=context_window
+    )
+
 
 async def _handle_stream_tool_calls(
     *,
