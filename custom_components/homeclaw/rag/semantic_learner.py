@@ -117,14 +117,15 @@ class SemanticLearner:
 
     async def async_load(self) -> None:
         """Load persisted categories from storage."""
-        if not os.path.exists(self.storage_path):
+        if not await self.hass.async_add_executor_job(
+            os.path.exists, self.storage_path
+        ):
             _LOGGER.debug("No persisted categories found at %s", self.storage_path)
             return
 
         try:
-            with open(self.storage_path, "r") as f:
-                data = json.load(f)
-                self.categories = data.get("categories", {})
+            data = await self.hass.async_add_executor_job(self._read_categories_file)
+            self.categories = data.get("categories", {})
 
             # Update indexer with loaded categories
             self.indexer.set_learned_categories(self.categories)
@@ -138,23 +139,29 @@ class SemanticLearner:
         except Exception as e:
             _LOGGER.error("Failed to load categories: %s", e)
 
+    def _read_categories_file(self) -> dict:
+        """Read and parse the categories JSON file (sync, for executor)."""
+        with open(self.storage_path, "r") as f:
+            return json.load(f)
+
     async def async_save(self) -> None:
         """Save categories to persistent storage."""
         if not self._dirty:
             return
 
         try:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
-
-            with open(self.storage_path, "w") as f:
-                json.dump({"categories": self.categories}, f, indent=2)
-
+            await self.hass.async_add_executor_job(self._write_categories_file)
             self._dirty = False
             _LOGGER.debug("Saved %d learned categories", len(self.categories))
 
         except Exception as e:
             _LOGGER.error("Failed to save categories: %s", e)
+
+    def _write_categories_file(self) -> None:
+        """Write categories JSON file to disk (sync, for executor)."""
+        os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
+        with open(self.storage_path, "w") as f:
+            json.dump({"categories": self.categories}, f, indent=2)
 
     def detect_corrections(
         self,
