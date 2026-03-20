@@ -1,4 +1,5 @@
 """AI Provider plugin system for homeclaw."""
+
 from __future__ import annotations
 
 from .base_client import BaseHTTPClient
@@ -13,5 +14,7 @@ from . import groq  # noqa: F401
 from . import local  # noqa: F401
 from . import openai  # noqa: F401
 from . import openrouter  # noqa: F401
+from . import zai  # noqa: F401
+from . import xiaomi  # noqa: F401
 
 __all__ = ["AIProvider", "ProviderRegistry", "BaseHTTPClient"]
