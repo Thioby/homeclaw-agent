@@ -114,7 +114,7 @@ class HomeclawAgent:
             "local": None,  # No token needed
         }
 
-        token_key = token_keys.get(base_provider, f"{base_provider}_token")
+        token_key = token_keys.get(provider, token_keys.get(base_provider, f"{base_provider}_token"))
         token = self.config.get(token_key, "") if token_key else ""
 
         # Get model for this provider
