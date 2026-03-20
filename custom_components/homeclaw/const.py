@@ -30,6 +30,7 @@ AI_PROVIDERS = [
     "alter",
     "zai",
     "local",
+    "xiaomi",
 ]
 
 # Valid providers for WebSocket API validation

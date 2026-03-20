@@ -6,6 +6,7 @@ tool call/result pairs.  Extracted from QueryProcessor.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import TYPE_CHECKING, Any
@@ -77,9 +78,21 @@ async def build_messages(
         from ..file_processor import get_image_base64
 
         text_parts: list[str] = []
+        image_atts = [att for att in attachments if att.is_image]
         for att in attachments:
-            if att.is_image:
-                b64 = get_image_base64(att)
+            if not att.is_image and att.content_text:
+                text_parts.append(
+                    f"--- Attached file: {att.filename} ---\n"
+                    f"{att.content_text}\n"
+                    f"--- End of {att.filename} ---"
+                )
+
+        # Read all images concurrently
+        if image_atts:
+            b64_results = await asyncio.gather(
+                *(get_image_base64(att) for att in image_atts)
+            )
+            for att, b64 in zip(image_atts, b64_results):
                 if b64:
                     image_attachments.append(
                         {
@@ -88,12 +101,6 @@ async def build_messages(
                             "filename": att.filename,
                         }
                     )
-            elif att.content_text:
-                text_parts.append(
-                    f"--- Attached file: {att.filename} ---\n"
-                    f"{att.content_text}\n"
-                    f"--- End of {att.filename} ---"
-                )
 
         if text_parts:
             enriched_query = query + "\n\n" + "\n\n".join(text_parts)
@@ -171,14 +178,18 @@ def repair_tool_history(
 
         if role == "assistant":
             content = msg.get("content", "")
+            detected_count = 0
+            accepted_count = 0
 
             # Check text-encoded first
             try:
                 fcs = detect_function_call_fn(content)
                 if fcs:
+                    detected_count += len(fcs)
                     for fc in fcs:
                         if allowed_tool_names is None or fc.name in allowed_tool_names:
                             pending_tool_calls[fc.id] = fc.name
+                            accepted_count += 1
                         else:
                             _LOGGER.warning("Dropped unknown tool call: %s", fc.name)
             except Exception:
@@ -187,22 +198,37 @@ def repair_tool_history(
             # Check standard JSON formats
             if "tool_calls" in msg:
                 for tc in msg["tool_calls"]:
+                    detected_count += 1
                     tc_id = tc.get("id") or tc.get("function", {}).get(
                         "name", "unknown"
                     )
                     tc_name = tc.get("function", {}).get("name", "unknown")
                     if allowed_tool_names is None or tc_name in allowed_tool_names:
                         pending_tool_calls[tc_id] = tc_name
+                        accepted_count += 1
                     else:
                         _LOGGER.warning("Dropped unknown tool call: %s", tc_name)
             elif "function_call" in msg:
+                detected_count += 1
                 fc_data = msg["function_call"]
                 tc_id = msg.get("tool_use_id") or fc_data.get("name", "unknown")
                 tc_name = fc_data.get("name", "unknown")
                 if allowed_tool_names is None or tc_name in allowed_tool_names:
                     pending_tool_calls[tc_id] = tc_name
+                    accepted_count += 1
                 else:
                     _LOGGER.warning("Dropped unknown tool call: %s", tc_name)
+
+            # Safety net: if message had tool calls but ALL were dropped,
+            # omit the entire message to prevent orphaned tool_use blocks
+            # that would cause Anthropic API errors.
+            if detected_count > 0 and accepted_count == 0:
+                _LOGGER.warning(
+                    "Removed assistant message with %d unrecognized tool call(s) "
+                    "to prevent orphaned tool_use blocks",
+                    detected_count,
+                )
+                continue
 
             sanitized.append(msg)
 

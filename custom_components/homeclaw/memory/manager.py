@@ -404,7 +404,12 @@ class MemoryManager:
         ]
 
         try:
-            response = await provider.get_response(flush_messages)
+            # Use lightweight model for background memory extraction
+            flush_kwargs: dict[str, Any] = {}
+            if provider.lightweight_model:
+                flush_kwargs["model"] = provider.lightweight_model
+
+            response = await provider.get_response(flush_messages, **flush_kwargs)
             if not response:
                 _LOGGER.debug("AI flush returned empty response")
                 return 0

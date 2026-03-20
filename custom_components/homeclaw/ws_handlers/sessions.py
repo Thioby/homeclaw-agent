@@ -414,8 +414,15 @@ async def ws_generate_emoji(
             f"Title: {title}"
         )
 
+        # Use lightweight model for background emoji task to avoid
+        # exhausting quota on the primary (expensive) model.
+        bg_kwargs: dict[str, Any] = {}
+        if provider.lightweight_model:
+            bg_kwargs["model"] = provider.lightweight_model
+
         response = await provider.get_response(
             [{"role": "user", "content": prompt}],
+            **bg_kwargs,
         )
 
         emoji = _extract_emoji(response.strip())

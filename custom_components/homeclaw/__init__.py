@@ -156,6 +156,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     config_data = dict(entry.data)
     provider = config_data.get("ai_provider")
     if DOMAIN in hass.data:
+        # Close provider HTTP session if it has one (e.g. GeminiOAuthProvider)
+        agent = hass.data[DOMAIN].get("agents", {}).get(provider)
+        if (
+            agent
+            and hasattr(agent, "_provider")
+            and hasattr(agent._provider, "async_close")
+        ):
+            try:
+                await agent._provider.async_close()
+            except Exception:  # noqa: BLE001
+                pass
         hass.data[DOMAIN].get("agents", {}).pop(provider, None)
         hass.data[DOMAIN].get("configs", {}).pop(provider, None)
 

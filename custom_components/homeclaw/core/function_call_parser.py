@@ -100,17 +100,31 @@ class FunctionCallParser:
     def _try_openai(content: dict[str, Any]) -> list[FunctionCall] | None:
         """Try OpenAI tool_calls format.
 
+        Only matches when tool_calls items have the OpenAI ``"function"``
+        wrapper (``{"id": ..., "function": {"name": ..., "arguments": ...}}``).
+        Our canonical format (``{"id": ..., "name": ..., "args": ...}``) must
+        NOT match here — it is handled by ``_try_anthropic`` via the
+        ``"tool_use"`` key that ``build_assistant_tool_message`` always adds.
+
         Args:
             content: Parsed JSON dict.
 
         Returns:
             List of FunctionCall if detected, None otherwise.
         """
-        if "tool_calls" not in content:
+        tool_calls = content.get("tool_calls")
+        if not isinstance(tool_calls, list) or not tool_calls:
+            return None
+
+        # Validate at least one item has the OpenAI "function" wrapper.
+        # Without this check we'd match our canonical format and produce
+        # FunctionCalls with empty names (the root cause of orphaned
+        # tool_use blocks that break the Anthropic API).
+        if not any(isinstance(tc, dict) and "function" in tc for tc in tool_calls):
             return None
 
         return FunctionCallHandler.parse_openai_response(
-            {"choices": [{"message": {"tool_calls": content["tool_calls"]}}]}
+            {"choices": [{"message": {"tool_calls": tool_calls}}]}
         )
 
     @staticmethod

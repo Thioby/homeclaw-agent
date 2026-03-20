@@ -55,3 +55,4 @@ deploy-quick.sh
 
 # Frontend dependencies
 custom_components/homeclaw/frontend/node_modules/
+.planning/

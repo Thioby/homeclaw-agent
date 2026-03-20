@@ -15,4 +15,3 @@ export type {
 } from './message';
 export type { Session, SessionListItem, SessionWithMessages } from './session';
 export type { Provider, Model, ProviderInfo, ProviderConfig, ProvidersConfig } from './provider';
-export { PROVIDERS } from './provider';

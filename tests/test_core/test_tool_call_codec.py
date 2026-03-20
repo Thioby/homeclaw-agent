@@ -55,3 +55,37 @@ def test_extract_tool_calls_from_openai_style_tool_calls() -> None:
             "args": {"entity_id": "light.kitchen"},
         }
     ]
+
+
+def test_extract_tool_calls_gemini_thought_signature() -> None:
+    """Gemini thoughtSignature should be extracted from parsed_content (part level), not from functionCall."""
+    # This is a Gemini part-level structure: thoughtSignature is sibling of functionCall
+    parsed_content = {
+        "functionCall": {
+            "name": "call_service",
+            "args": {"entity_id": "light.bedroom"},
+        },
+        "thoughtSignature": "base64sig==",
+    }
+
+    calls = extract_tool_calls_from_assistant_content(parsed_content)
+
+    assert len(calls) == 1
+    assert calls[0]["name"] == "call_service"
+    assert calls[0]["thought_signature"] == "base64sig=="
+
+
+def test_extract_tool_calls_gemini_no_thought_signature() -> None:
+    """Without thoughtSignature, the key should not appear in the result."""
+    parsed_content = {
+        "functionCall": {
+            "name": "call_service",
+            "args": {"entity_id": "light.bedroom"},
+        },
+    }
+
+    calls = extract_tool_calls_from_assistant_content(parsed_content)
+
+    assert len(calls) == 1
+    assert calls[0]["name"] == "call_service"
+    assert "thought_signature" not in calls[0]

@@ -14,6 +14,7 @@ from homeassistant.components import websocket_api
 
 from ..channels.intake import MessageIntake
 from ..const import DOMAIN
+from ..core.compaction import MIN_RECENT_MESSAGES
 from ..file_processor import (
     FileProcessingError,
     process_attachments,
@@ -318,7 +319,9 @@ async def _persist_compaction_if_needed(
 
     summary_text = content[len(prefix) :]
     try:
-        await storage.compact_session_messages(session_id, summary_text)
+        await storage.compact_session_messages(
+            session_id, summary_text, keep_last=MIN_RECENT_MESSAGES
+        )
     except Exception as err:
         _LOGGER.debug("Storage compaction persistence failed (non-fatal): %s", err)
 
@@ -405,11 +408,12 @@ async def _run_agent_stream(
     on_status: Callable[[str], None] | None = None,
     tool_timestamp_factory: Callable[[], str] | None = None,
     error_log_prefix: str = "AI streaming error",
-) -> tuple[str, str | None]:
-    """Execute the shared streaming event loop and return final text/error."""
+) -> tuple[str, str | None, list[dict[str, Any]]]:
+    """Execute the shared streaming event loop and return final text/error/completion messages."""
     intake = MessageIntake(hass)
     accumulated_text = ""
     stream_error: str | None = None
+    completion_messages: list[dict[str, Any]] = []
     timestamp_factory = tool_timestamp_factory or _now_iso
 
     try:
@@ -444,12 +448,13 @@ async def _run_agent_stream(
                 stream_error = getattr(event, "message", "Unknown error")
                 break
             elif event_type == "complete":
+                completion_messages = getattr(event, "messages", [])
                 break
     except Exception as ai_err:
         _LOGGER.error("%s for session %s: %s", error_log_prefix, session_id, ai_err)
         stream_error = str(ai_err)
 
-    return accumulated_text, stream_error
+    return accumulated_text, stream_error, completion_messages
 
 
 @websocket_api.websocket_command(
@@ -509,7 +514,7 @@ async def ws_send_message(
         )
 
         tool_timestamp = _now_iso()
-        accumulated_text, stream_error = await _run_agent_stream(
+        accumulated_text, stream_error, completion_messages = await _run_agent_stream(
             hass,
             storage=prepared.storage,
             user_text=msg["message"],
@@ -537,6 +542,12 @@ async def ws_send_message(
 
         # Save assistant message
         await prepared.storage.add_message(prepared.session_id, assistant_message)
+
+        # Persist compaction to storage so next request doesn't re-trigger
+        if not stream_error and completion_messages:
+            await _persist_compaction_if_needed(
+                prepared.storage, prepared.session_id, completion_messages
+            )
 
         # Send result immediately — don't block on post-processing
         connection.send_result(
@@ -677,7 +688,7 @@ async def ws_send_message_stream(
                 }
             )
 
-        accumulated_text, stream_error = await _run_agent_stream(
+        accumulated_text, stream_error, completion_messages = await _run_agent_stream(
             hass,
             storage=prepared.storage,
             user_text=msg["message"],
@@ -709,6 +720,12 @@ async def ws_send_message_stream(
 
         # Save assistant message
         await prepared.storage.add_message(prepared.session_id, assistant_message)
+
+        # Persist compaction to storage so next request doesn't re-trigger
+        if not stream_error and completion_messages:
+            await _persist_compaction_if_needed(
+                prepared.storage, prepared.session_id, completion_messages
+            )
 
         # Send stream end event immediately — don't block on post-processing
         connection.send_message(
