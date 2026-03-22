@@ -732,9 +732,10 @@ class TestCompactionPersistence:
 
         await ch._process_and_respond(envelope)
 
-        # Verify compaction was persisted
+        # Verify compaction was persisted with correct keep_last
+        from custom_components.homeclaw.core.compaction import MIN_RECENT_MESSAGES
         storage.compact_session_messages.assert_called_once_with(
-            "s1", summary_text, keep_last=16
+            "s1", summary_text, keep_last=MIN_RECENT_MESSAGES
         )
 
     @pytest.mark.asyncio

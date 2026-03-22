@@ -14,7 +14,6 @@ from homeassistant.components import websocket_api
 
 from ..channels.intake import MessageIntake
 from ..const import DOMAIN
-from ..core.compaction import MIN_RECENT_MESSAGES
 from ..file_processor import (
     FileProcessingError,
     process_attachments,
@@ -228,6 +227,47 @@ def _read_binary_file(path: str) -> bytes:
         return f.read()
 
 
+_COMPACTION_SUMMARY_PREFIX = "[Previous conversation summary]\n"
+
+
+async def _persist_compaction_if_needed(
+    storage: SessionStorage,
+    session_id: str,
+    completion_messages: list[dict[str, Any]],
+) -> None:
+    """Persist compaction summary to storage if one is present.
+
+    Looks for a system message with the ``[Previous conversation summary]``
+    prefix in the completion messages emitted by the agent and calls
+    ``storage.compact_session_messages`` so the next request loads already
+    compacted history instead of re-triggering compaction.
+    """
+    from ..core.compaction import MIN_RECENT_MESSAGES
+
+    for msg in completion_messages:
+        if msg.get("role") != "system":
+            continue
+        content = msg.get("content", "")
+        if content.startswith(_COMPACTION_SUMMARY_PREFIX):
+            summary = content[len(_COMPACTION_SUMMARY_PREFIX):]
+            if summary:
+                _LOGGER.debug(
+                    "Persisting compaction summary for session %s (%d chars)",
+                    session_id,
+                    len(summary),
+                )
+                try:
+                    await storage.compact_session_messages(
+                        session_id, summary, keep_last=MIN_RECENT_MESSAGES
+                    )
+                except Exception:
+                    _LOGGER.exception(
+                        "Failed to persist compaction for session %s",
+                        session_id,
+                    )
+            return
+
+
 async def _persist_tool_messages(
     storage: SessionStorage,
     session_id: str,
@@ -287,43 +327,6 @@ async def _persist_tool_messages(
             tool_call_id=event.tool_call_id,
         )
         await storage.add_message(session_id, tool_msg)
-
-
-async def _persist_compaction_if_needed(
-    storage: SessionStorage,
-    session_id: str,
-    completion_messages: list[dict[str, Any]],
-) -> None:
-    """Persist compaction to storage if it happened during the AI stream.
-
-    Checks if the completion messages start with a compaction summary
-    (injected by compact_messages) and if so, trims old messages in
-    storage to prevent re-triggering compaction on every request.
-
-    Args:
-        storage: SessionStorage instance.
-        session_id: Current session ID.
-        completion_messages: Messages from CompletionEvent (post-compaction).
-    """
-    if not completion_messages:
-        return
-
-    first_msg = completion_messages[0]
-    if first_msg.get("role") not in ("user", "system"):
-        return
-
-    prefix = "[Previous conversation summary]\n"
-    content = first_msg.get("content", "")
-    if not content.startswith(prefix):
-        return
-
-    summary_text = content[len(prefix) :]
-    try:
-        await storage.compact_session_messages(
-            session_id, summary_text, keep_last=MIN_RECENT_MESSAGES
-        )
-    except Exception as err:
-        _LOGGER.debug("Storage compaction persistence failed (non-fatal): %s", err)
 
 
 def _now_iso() -> str:
@@ -409,7 +412,7 @@ async def _run_agent_stream(
     tool_timestamp_factory: Callable[[], str] | None = None,
     error_log_prefix: str = "AI streaming error",
 ) -> tuple[str, str | None, list[dict[str, Any]]]:
-    """Execute the shared streaming event loop and return final text/error/completion messages."""
+    """Execute the shared streaming event loop and return final text/error/completion_messages."""
     intake = MessageIntake(hass)
     accumulated_text = ""
     stream_error: str | None = None
@@ -544,7 +547,7 @@ async def ws_send_message(
         await prepared.storage.add_message(prepared.session_id, assistant_message)
 
         # Persist compaction to storage so next request doesn't re-trigger
-        if not stream_error and completion_messages:
+        if completion_messages:
             await _persist_compaction_if_needed(
                 prepared.storage, prepared.session_id, completion_messages
             )
@@ -722,7 +725,7 @@ async def ws_send_message_stream(
         await prepared.storage.add_message(prepared.session_id, assistant_message)
 
         # Persist compaction to storage so next request doesn't re-trigger
-        if not stream_error and completion_messages:
+        if completion_messages:
             await _persist_compaction_if_needed(
                 prepared.storage, prepared.session_id, completion_messages
             )
