@@ -179,3 +179,28 @@ def get_context_window(provider: str, model_id: str | None = None) -> int:
         return models[0].get("context_window", _DEFAULT_CONTEXT_WINDOW)
 
     return _DEFAULT_CONTEXT_WINDOW
+
+
+def get_lightweight_model(provider: str) -> str | None:
+    """Get the cheapest/fastest model for a provider (for background tasks).
+
+    Returns the last model in the provider's model list (convention: models
+    are ordered most-capable → cheapest) or falls back to the default model.
+
+    Args:
+        provider: Provider key (e.g. 'openai', 'gemini_oauth').
+
+    Returns:
+        Model ID string, or None if no models defined.
+    """
+    models = get_models_for_provider(provider)
+    if not models:
+        return None
+
+    # Prefer a model explicitly tagged as lightweight
+    for m in models:
+        if m.get("lightweight"):
+            return m["id"]
+
+    # Convention: last model in the list is the lightest
+    return models[-1]["id"]

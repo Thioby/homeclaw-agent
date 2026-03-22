@@ -358,6 +358,31 @@
       }
     ]
   },
+  "xiaomi": {
+    "display_name": "Xiaomi MiMo",
+    "description": "Xiaomi MiMo AI models",
+    "models": [
+      {
+        "id": "mimo-v2-flash",
+        "name": "MiMo V2 Flash",
+        "description": "Fast reasoning and coding",
+        "context_window": 262144,
+        "default": true
+      },
+      {
+        "id": "mimo-v2-pro",
+        "name": "MiMo V2 Pro",
+        "description": "Flagship reasoning model, 1M context",
+        "context_window": 1048576
+      },
+      {
+        "id": "mimo-v2-omni",
+        "name": "MiMo V2 Omni",
+        "description": "Multimodal: text, image, video, audio",
+        "context_window": 262144
+      }
+    ]
+  },
   "local": {
     "display_name": "Local Model",
     "description": "Local inference (Ollama, LM Studio, etc.)",

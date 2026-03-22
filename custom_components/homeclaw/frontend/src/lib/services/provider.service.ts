@@ -2,7 +2,6 @@ import { get } from 'svelte/store';
 import type { HomeAssistant, Provider, ProvidersConfig } from '$lib/types';
 import { providerState } from '$lib/stores/providers';
 import { appState } from '$lib/stores/appState';
-import { PROVIDERS } from '$lib/types';
 
 /**
  * Provider and model management service
@@ -42,14 +41,14 @@ async function fetchProvidersConfig(hass: HomeAssistant): Promise<ProvidersConfi
  * Get display name for a provider, preferring backend config.
  */
 function getProviderLabel(provider: string, config: ProvidersConfig): string {
-  return config[provider]?.display_name || PROVIDERS[provider] || provider;
+  return config[provider]?.display_name || provider;
 }
 
 /**
  * Check if a provider key is valid (known by either backend or fallback map).
  */
 function isValidProvider(provider: string, config: ProvidersConfig): boolean {
-  return !!(config[provider] || PROVIDERS[provider]);
+  return !!config[provider];
 }
 
 /**
@@ -248,34 +247,12 @@ function resolveProviderFromEntry(
     }
   }
 
-  const titleMap: Record<string, string> = {
-    'homeclaw (openrouter)': 'openrouter',
-    'homeclaw (google gemini)': 'gemini',
-    'homeclaw (openai)': 'openai',
-    'homeclaw (llama)': 'llama',
-    'homeclaw (anthropic (claude))': 'anthropic',
-    'homeclaw (alter)': 'alter',
-    'homeclaw (z.ai)': 'zai',
-    'homeclaw (local model)': 'local',
-    'homeclaw (groq)': 'groq',
-  };
-
   if (entry.title) {
-    const lowerTitle = entry.title.toLowerCase();
-    if (titleMap[lowerTitle]) {
-      return titleMap[lowerTitle];
-    }
-
     // Try to match provider from title pattern "Homeclaw (Provider Name)"
-    const allProviderKeys = new Set([
-      ...Object.keys(PROVIDERS),
-      ...Object.keys(config),
-    ]);
-
     const match = entry.title.match(/\(([^)]+)\)/);
     if (match && match[1]) {
       const normalized = match[1].toLowerCase().replace(/[^a-z0-9]/g, '');
-      const providerKey = [...allProviderKeys].find(
+      const providerKey = Object.keys(config).find(
         (key) => key.replace(/[^a-z0-9]/g, '') === normalized,
       );
       if (providerKey) {

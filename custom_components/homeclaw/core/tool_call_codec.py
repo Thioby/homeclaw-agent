@@ -147,17 +147,19 @@ def extract_tool_calls_from_assistant_content(
     if isinstance(fc, dict):
         name = fc.get("name", "")
         if isinstance(name, str) and name:
-            calls.append(
-                {
-                    "id": str(parsed_content.get("id", "") or name),
-                    "name": name,
-                    "args": (
-                        fc.get("args", {})
-                        if isinstance(fc.get("args", {}), dict)
-                        else {}
-                    ),
-                }
-            )
+            call_entry: dict[str, Any] = {
+                "id": str(parsed_content.get("id", "") or name),
+                "name": name,
+                "args": (
+                    fc.get("args", {}) if isinstance(fc.get("args", {}), dict) else {}
+                ),
+            }
+            # Preserve Gemini thought_signature when present (required for thinking models)
+            # thoughtSignature lives at the part level, not inside functionCall
+            thought_sig = parsed_content.get("thoughtSignature")
+            if thought_sig is not None:
+                call_entry["thought_signature"] = thought_sig
+            calls.append(call_entry)
 
     # Deduplicate while preserving order.
     seen: set[tuple[str, str]] = set()

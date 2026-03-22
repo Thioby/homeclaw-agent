@@ -733,7 +733,9 @@ class TestCompactionPersistence:
         await ch._process_and_respond(envelope)
 
         # Verify compaction was persisted
-        storage.compact_session_messages.assert_called_once_with("s1", summary_text)
+        storage.compact_session_messages.assert_called_once_with(
+            "s1", summary_text, keep_last=16
+        )
 
     @pytest.mark.asyncio
     async def test_no_compaction_when_no_summary(self, hass, intake, monkeypatch):

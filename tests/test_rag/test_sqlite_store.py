@@ -3,12 +3,14 @@ import os
 import json
 import sqlite3
 import pytest
+from custom_components.homeclaw.rag._store_utils import (
+    cosine_similarity as _cosine_similarity,
+    cosine_distance as _cosine_distance,
+    bm25_rank_to_score as _bm25_rank_to_score,
+)
 from custom_components.homeclaw.rag.sqlite_store import (
     SqliteStore,
     SearchResult,
-    _cosine_similarity,
-    _cosine_distance,
-    _bm25_rank_to_score,
     DEFAULT_TABLE_NAME,
     FTS_TABLE_SUFFIX,
 )
@@ -1320,4 +1322,42 @@ async def test_keyword_search_sessions_empty(tmp_path):
     results = await store.keyword_search_sessions("", n_results=5)
     assert len(results) == 0
 
+    await store.async_shutdown()
+
+
+# --- Table Name Validation Tests ---
+
+
+@pytest.mark.asyncio
+async def test_valid_table_name_works(tmp_path):
+    """Test that a valid table name initializes successfully."""
+    store = SqliteStore(persist_directory=str(tmp_path), table_name="my_entities_01")
+    await store.async_initialize()
+    assert store._initialized is True
+    await store.async_shutdown()
+
+
+@pytest.mark.asyncio
+async def test_invalid_table_name_raises(tmp_path):
+    """Test that SQL-injection-style table names are rejected."""
+    store = SqliteStore(persist_directory=str(tmp_path), table_name="'; DROP TABLE --")
+    with pytest.raises(ValueError, match="Invalid table name"):
+        await store.async_initialize()
+
+
+@pytest.mark.asyncio
+async def test_invalid_table_name_starts_with_digit(tmp_path):
+    """Test that table names starting with a digit are rejected."""
+    store = SqliteStore(persist_directory=str(tmp_path), table_name="0bad_name")
+    with pytest.raises(ValueError, match="Invalid table name"):
+        await store.async_initialize()
+
+
+@pytest.mark.asyncio
+async def test_default_table_name_is_valid(tmp_path):
+    """Test that the default table name passes validation."""
+    store = SqliteStore(persist_directory=str(tmp_path))
+    await store.async_initialize()
+    assert store._initialized is True
+    assert store.table_name == DEFAULT_TABLE_NAME
     await store.async_shutdown()

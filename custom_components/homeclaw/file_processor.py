@@ -477,20 +477,17 @@ def _guess_extension(mime_type: str) -> str:
     return ext_map.get(mime_type, "")
 
 
-def get_image_base64(attachment: ProcessedAttachment) -> str | None:
-    """Get the full-resolution base64 content of an image for provider APIs.
+async def get_image_base64(attachment: ProcessedAttachment) -> str | None:
+    """Get the full-resolution base64 content of an image for provider APIs."""
+    import asyncio
 
-    Always reads from disk to get the original image (thumbnail_b64 is a
-    downsized version for chat history display only).
-
-    Returns:
-        Base64 string without data URL prefix, or None if not an image.
-    """
     if not attachment.is_image:
         return None
     try:
-        with open(attachment.storage_path, "rb") as f:
-            return base64.b64encode(f.read()).decode("ascii")
+        def _read() -> str:
+            with open(attachment.storage_path, "rb") as f:
+                return base64.b64encode(f.read()).decode("ascii")
+        return await asyncio.to_thread(_read)
     except Exception as err:
         _LOGGER.warning(
             "Failed to read image %s from disk: %s", attachment.filename, err

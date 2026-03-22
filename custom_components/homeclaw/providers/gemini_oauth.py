@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
@@ -14,15 +15,20 @@ from ._gemini_constants import (
     DEFAULT_MODEL,
     GEMINI_AVAILABLE_MODELS,
     GEMINI_CODE_ASSIST_ENDPOINT,
-    GEMINI_CODE_ASSIST_HEADERS,
     GEMINI_CODE_ASSIST_METADATA,
     INITIAL_DELAY_MS,
     MAX_ATTEMPTS,
     MAX_DELAY_MS,
+    TRANSPORT_MAX_RETRIES,
+    TRANSPORT_RETRY_DELAY_S,
     RateLimitError,
+    RetryableQuotaError,
+    TerminalQuotaError,
+    _build_user_agent,
+    is_retryable_status_in_text,
 )
 from ._gemini_convert import convert_messages, convert_tools, process_gemini_chunk
-from ._gemini_retry import parse_retry_delay
+from ._gemini_retry import classify_google_error, parse_retry_delay
 from .registry import AIProvider, ProviderRegistry
 
 if TYPE_CHECKING:
@@ -36,10 +42,18 @@ __all__ = [
     "GeminiOAuthProvider",
     "RateLimitError",
     "GEMINI_CODE_ASSIST_ENDPOINT",
-    "GEMINI_CODE_ASSIST_HEADERS",
     "GEMINI_CODE_ASSIST_METADATA",
     "GEMINI_AVAILABLE_MODELS",
 ]
+
+MODEL_FALLBACK_CHAINS: dict[str, list[str]] = {
+    "gemini-3-pro-preview": ["gemini-3-pro-preview", "gemini-3-flash-preview"],
+    "gemini-2.5-flash-lite": [
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+    ],
+}
 
 
 @ProviderRegistry.register("gemini_oauth")
@@ -72,15 +86,45 @@ class GeminiOAuthProvider(AIProvider):
         self._oauth_data: dict[str, Any] = {}
         self._refresh_lock = asyncio.Lock()
         self._project_lock = asyncio.Lock()
+        self._model_cooldowns: dict[str, float] = {}
+        self._session: aiohttp.ClientSession | None = None
 
         # Load OAuth data from config entry
         if self._config_entry:
             self._oauth_data = dict(self._config_entry.data.get("gemini_oauth", {}))
 
+    def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create a reusable aiohttp session with connection pooling.
+
+        Returns:
+            Shared aiohttp.ClientSession with keep-alive and connection limits.
+        """
+        if self._session is None or self._session.closed:
+            connector = aiohttp.TCPConnector(
+                limit=10,
+                keepalive_timeout=30,
+                enable_cleanup_closed=True,
+            )
+            self._session = aiohttp.ClientSession(connector=connector)
+        return self._session
+
+    async def async_close(self) -> None:
+        """Close the shared HTTP session. Call on shutdown or entry removal."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None
+
     @property
     def supports_tools(self) -> bool:
         """Return True as Gemini supports function calling."""
         return True
+
+    @property
+    def lightweight_model(self) -> str | None:
+        """Return the cheapest Gemini model for background tasks."""
+        from ..models import get_lightweight_model
+
+        return get_lightweight_model("gemini_oauth") or self._model
 
     # ------------------------------------------------------------------
     # OAuth token management
@@ -131,8 +175,7 @@ class GeminiOAuthProvider(AIProvider):
                 )
 
             try:
-                async with aiohttp.ClientSession() as session:
-                    new_tokens = await refresh_token(session, refresh_tok)
+                new_tokens = await refresh_token(self._get_session(), refresh_tok)
             except GeminiOAuthRefreshError as e:
                 _LOGGER.error("Gemini OAuth refresh failed: %s", e)
                 if e.is_permanent:
@@ -203,7 +246,7 @@ class GeminiOAuthProvider(AIProvider):
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
-                **GEMINI_CODE_ASSIST_HEADERS,
+                "User-Agent": _build_user_agent(self._model),
             }
 
             # 2. Try loadCodeAssist to get existing project
@@ -350,13 +393,7 @@ class GeminiOAuthProvider(AIProvider):
         Returns:
             Tuple of (request_payload, validated_model).
         """
-        if model not in GEMINI_AVAILABLE_MODELS:
-            _LOGGER.warning(
-                "Model '%s' not in available models, using default '%s'",
-                model,
-                self.DEFAULT_MODEL,
-            )
-            model = self.DEFAULT_MODEL
+        model = self._normalize_model(model)
 
         # Convert messages to Gemini format
         gemini_contents, system_instruction = self._convert_messages(messages)
@@ -388,14 +425,82 @@ class GeminiOAuthProvider(AIProvider):
 
         return request_payload, model
 
+    def _normalize_model(self, model: str) -> str:
+        """Validate a requested model against the configured Gemini OAuth list."""
+        if model not in GEMINI_AVAILABLE_MODELS:
+            _LOGGER.warning(
+                "Model '%s' not in available models, using default '%s'",
+                model,
+                self.DEFAULT_MODEL,
+            )
+            return self.DEFAULT_MODEL
+        return model
+
+    def _get_model_chain(self, requested_model: str) -> list[str]:
+        """Return the provider-local fallback chain for the requested model."""
+        normalized_model = self._normalize_model(requested_model)
+        chain = MODEL_FALLBACK_CHAINS.get(normalized_model, [normalized_model])
+        filtered_chain = [model for model in chain if model in GEMINI_AVAILABLE_MODELS]
+        return filtered_chain or [normalized_model]
+
+    def _get_model_cooldown_remaining(self, model: str) -> float:
+        """Return remaining cooldown seconds for a model, cleaning up expired entries."""
+        cooldown_until = self._model_cooldowns.get(model)
+        if cooldown_until is None:
+            return 0.0
+
+        remaining = cooldown_until - time.monotonic()
+        if remaining <= 0:
+            self._model_cooldowns.pop(model, None)
+            return 0.0
+
+        return remaining
+
+    def _mark_model_cooldown(self, model: str, delay_seconds: float | None) -> None:
+        """Record a temporary cooldown for a model after a retryable quota response."""
+        if not delay_seconds or delay_seconds <= 0:
+            return
+
+        cooldown_until = time.monotonic() + delay_seconds
+        previous_until = self._model_cooldowns.get(model, 0.0)
+        if cooldown_until > previous_until:
+            self._model_cooldowns[model] = cooldown_until
+            _LOGGER.info(
+                "Gemini model '%s' cooling down for %.1fs after quota response",
+                model,
+                delay_seconds,
+            )
+
+    def _select_model_for_request(self, requested_model: str) -> tuple[str, list[str]]:
+        """Choose the first available model in the local fallback chain."""
+        chain = self._get_model_chain(requested_model)
+        skipped_models: list[str] = []
+
+        for model in chain:
+            if self._get_model_cooldown_remaining(model) <= 0:
+                return model, skipped_models
+            skipped_models.append(model)
+
+        return chain[-1], skipped_models
+
+    def _record_retryable_cooldown(
+        self, model: str, status: int, error: RetryableQuotaError
+    ) -> None:
+        """Store cooldown only for retryable rate limits that apply to a model."""
+        if status in (429, 499):
+            self._mark_model_cooldown(model, error.retry_delay_seconds)
+
     # ------------------------------------------------------------------
     # Non-streaming request
     # ------------------------------------------------------------------
 
     async def _retry_with_backoff(self, func, *args, **kwargs):
-        """Retry with exponential backoff for 429 and 5xx errors."""
-        import re
+        """Application-level retry with exponential backoff for 429 and 5xx.
 
+        This is the slow retry loop (initial 5s, max 30s, 10 attempts).
+        Transport-level fast retry (3x, 1s) is handled inside _do_request().
+        TerminalQuotaError is never retried.
+        """
         attempt = 0
         current_delay = self.INITIAL_DELAY_MS / 1000
 
@@ -403,16 +508,33 @@ class GeminiOAuthProvider(AIProvider):
             attempt += 1
             try:
                 return await func(*args, **kwargs)
+            except TerminalQuotaError:
+                # Never retry terminal errors (daily limit, insufficient credits)
+                raise
+            except RetryableQuotaError as e:
+                if attempt >= self.MAX_ATTEMPTS:
+                    _LOGGER.error(
+                        "Max retry attempts (%d) reached for Gemini API",
+                        self.MAX_ATTEMPTS,
+                    )
+                    raise
+                # Use server-suggested delay if available
+                delay = (
+                    e.retry_delay_seconds if e.retry_delay_seconds else current_delay
+                )
+                _LOGGER.warning(
+                    "Gemini API retryable quota error (attempt %d/%d). Retrying in %.1fs...",
+                    attempt,
+                    self.MAX_ATTEMPTS,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                current_delay = min(self.MAX_DELAY_MS / 1000, current_delay * 2)
             except Exception as e:
                 error_str = str(e)
-
-                # Check if retryable (429 or 5xx)
-                is_429 = "429" in error_str
-                is_5xx = any(f"{code}" in error_str for code in range(500, 600))
-
-                if not (is_429 or is_5xx):
+                is_retryable = is_retryable_status_in_text(error_str)
+                if not is_retryable:
                     raise
-
                 if attempt >= self.MAX_ATTEMPTS:
                     _LOGGER.error(
                         "Max retry attempts (%d) reached for Gemini API",
@@ -421,15 +543,12 @@ class GeminiOAuthProvider(AIProvider):
                     raise
 
                 delay = parse_retry_delay(error_str, current_delay)
-
                 _LOGGER.warning(
-                    "Gemini API %s (attempt %d/%d). Retrying in %.1fs...",
-                    "429 rate limited" if is_429 else "server error",
+                    "Gemini API error (attempt %d/%d). Retrying in %.1fs...",
                     attempt,
                     self.MAX_ATTEMPTS,
                     delay,
                 )
-
                 await asyncio.sleep(delay)
                 current_delay = min(self.MAX_DELAY_MS / 1000, current_delay * 2)
 
@@ -442,7 +561,12 @@ class GeminiOAuthProvider(AIProvider):
         headers: dict,
         wrapped_payload: dict,
     ) -> str:
-        """Execute the HTTP request to Gemini API."""
+        """Execute the HTTP request with fast transport-level retry.
+
+        Transport retry: max 3 attempts, 1s delay, only on connection/timeouts.
+        HTTP error responses are classified immediately so provider-suggested
+        retry delays are respected.
+        """
         # Log request details (without sensitive data)
         request_contents = wrapped_payload.get("request", {}).get("contents", [])
         _LOGGER.debug(
@@ -458,104 +582,141 @@ class GeminiOAuthProvider(AIProvider):
                 text_preview = parts[0]["text"][:100]
                 _LOGGER.debug("Gemini OAuth request last message: %s...", text_preview)
 
-        async with session.post(
-            url,
-            headers=headers,
-            json=wrapped_payload,
-            timeout=aiohttp.ClientTimeout(total=300),
-        ) as resp:
-            response_text = await resp.text()
-
-            _LOGGER.debug(
-                "Gemini OAuth response: status=%d, length=%d",
-                resp.status,
-                len(response_text),
-            )
-
-            if resp.status != 200:
-                _LOGGER.error(
-                    "Gemini OAuth API error %d: %s", resp.status, response_text[:500]
-                )
-                raise Exception(
-                    f"Gemini OAuth API error {resp.status}: {response_text[:500]}"
-                )
-
+        # Transport-level fast retry loop (max 3, 1s delay, 429/499/5xx only)
+        last_transport_exc: Exception | None = None
+        for transport_attempt in range(TRANSPORT_MAX_RETRIES + 1):
             try:
-                data = json.loads(response_text)
-            except json.JSONDecodeError as e:
-                _LOGGER.error(
-                    "Gemini OAuth JSON decode error: %s, response: %s",
-                    e,
-                    response_text[:500],
-                )
-                raise Exception(f"Invalid JSON response from Gemini: {e}")
+                async with session.post(
+                    url,
+                    headers=headers,
+                    json=wrapped_payload,
+                    timeout=aiohttp.ClientTimeout(total=300),
+                ) as resp:
+                    response_text = await resp.text()
 
-            _LOGGER.debug(
-                "Gemini OAuth response keys: %s",
-                list(data.keys()) if isinstance(data, dict) else type(data),
-            )
-
-            # Unwrap response if it contains 'response' key (Cloud Code API)
-            if "response" in data:
-                data = data["response"]
-                _LOGGER.debug(
-                    "Gemini OAuth unwrapped response keys: %s", list(data.keys())
-                )
-
-            # Check for error in response
-            if "error" in data:
-                error_info = data["error"]
-                _LOGGER.error(
-                    "Gemini OAuth API returned error: %s", json.dumps(error_info)[:500]
-                )
-                raise Exception(f"Gemini API error: {error_info}")
-
-            # Extract response from Gemini format
-            candidates = data.get("candidates", [])
-            _LOGGER.debug("Gemini OAuth candidates count: %d", len(candidates))
-
-            if candidates:
-                finish_reason = candidates[0].get("finishReason")
-                if finish_reason:
-                    _LOGGER.debug("Gemini OAuth finish reason: %s", finish_reason)
-
-                content = candidates[0].get("content", {})
-                parts = content.get("parts", [])
-                _LOGGER.debug("Gemini OAuth parts count: %d", len(parts))
-
-                if parts:
-                    first_part = parts[0]
-                    if "functionCall" in first_part:
-                        func_name = first_part["functionCall"].get("name", "unknown")
-                        _LOGGER.debug(
-                            "Gemini OAuth function call detected: %s", func_name
-                        )
-                        return json.dumps(first_part)
-                    if "text" in first_part:
-                        text_response = first_part["text"]
-                        _LOGGER.debug(
-                            "Gemini OAuth text response length: %d, preview: %s...",
-                            len(text_response),
-                            text_response[:100],
-                        )
-                        return text_response
-                    _LOGGER.warning(
-                        "Gemini OAuth unexpected part format: %s",
-                        list(first_part.keys()),
-                    )
-                    return json.dumps(data)
-            else:
-                prompt_feedback = data.get("promptFeedback")
-                if prompt_feedback:
-                    _LOGGER.warning(
-                        "Gemini OAuth prompt feedback (possibly blocked): %s",
-                        json.dumps(prompt_feedback),
+                    _LOGGER.debug(
+                        "Gemini OAuth response: status=%d, length=%d",
+                        resp.status,
+                        len(response_text),
                     )
 
-            _LOGGER.warning(
-                "Unexpected Gemini response format: %s", response_text[:500]
+                    if resp.status != 200:
+                        _LOGGER.debug(
+                            "Gemini error response (HTTP %d, full body):\n%s",
+                            resp.status,
+                            response_text,
+                        )
+                        classified = classify_google_error(resp.status, response_text)
+                        if isinstance(classified, RetryableQuotaError):
+                            self._record_retryable_cooldown(
+                                str(wrapped_payload.get("model", self._model)),
+                                resp.status,
+                                classified,
+                            )
+                        raise classified
+
+                    return self._parse_response(response_text)
+
+            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                last_transport_exc = exc
+                if transport_attempt < TRANSPORT_MAX_RETRIES:
+                    _LOGGER.warning(
+                        "Gemini transport retry %d/%d on %s: %s",
+                        transport_attempt + 1,
+                        TRANSPORT_MAX_RETRIES,
+                        type(exc).__name__,
+                        exc,
+                    )
+                    await asyncio.sleep(TRANSPORT_RETRY_DELAY_S)
+                    continue
+                raise Exception(
+                    f"Gemini connection error after {TRANSPORT_MAX_RETRIES} retries: {exc}"
+                ) from exc
+
+        # Should never reach here, but satisfy type checker
+        if last_transport_exc:
+            raise last_transport_exc
+        raise Exception("Transport retry loop exited unexpectedly")
+
+    def _parse_response(self, response_text: str) -> str:
+        """Parse and extract the response from Gemini API JSON.
+
+        Args:
+            response_text: Raw JSON response text from the API.
+
+        Returns:
+            Extracted text response or serialized JSON.
+        """
+        try:
+            data = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            _LOGGER.error(
+                "Gemini OAuth JSON decode error: %s, response: %s",
+                e,
+                response_text[:500],
             )
-            return json.dumps(data)
+            raise Exception(f"Invalid JSON response from Gemini: {e}")
+
+        _LOGGER.debug(
+            "Gemini OAuth response keys: %s",
+            list(data.keys()) if isinstance(data, dict) else type(data),
+        )
+
+        # Unwrap response if it contains 'response' key (Cloud Code API)
+        if "response" in data:
+            data = data["response"]
+            _LOGGER.debug("Gemini OAuth unwrapped response keys: %s", list(data.keys()))
+
+        # Check for error in response
+        if "error" in data:
+            error_info = data["error"]
+            _LOGGER.error(
+                "Gemini OAuth API returned error: %s", json.dumps(error_info)[:500]
+            )
+            raise Exception(f"Gemini API error: {error_info}")
+
+        # Extract response from Gemini format
+        candidates = data.get("candidates", [])
+        _LOGGER.debug("Gemini OAuth candidates count: %d", len(candidates))
+
+        if candidates:
+            finish_reason = candidates[0].get("finishReason")
+            if finish_reason:
+                _LOGGER.debug("Gemini OAuth finish reason: %s", finish_reason)
+
+            content = candidates[0].get("content", {})
+            parts = content.get("parts", [])
+            _LOGGER.debug("Gemini OAuth parts count: %d", len(parts))
+
+            if parts:
+                first_part = parts[0]
+                if "functionCall" in first_part:
+                    func_name = first_part["functionCall"].get("name", "unknown")
+                    _LOGGER.debug("Gemini OAuth function call detected: %s", func_name)
+                    return json.dumps(first_part)
+                if "text" in first_part:
+                    text_response = first_part["text"]
+                    _LOGGER.debug(
+                        "Gemini OAuth text response length: %d, preview: %s...",
+                        len(text_response),
+                        text_response[:100],
+                    )
+                    return text_response
+                _LOGGER.warning(
+                    "Gemini OAuth unexpected part format: %s",
+                    list(first_part.keys()),
+                )
+                return json.dumps(data)
+        else:
+            prompt_feedback = data.get("promptFeedback")
+            if prompt_feedback:
+                _LOGGER.warning(
+                    "Gemini OAuth prompt feedback (possibly blocked): %s",
+                    json.dumps(prompt_feedback),
+                )
+
+        _LOGGER.warning("Unexpected Gemini response format: %s", response_text[:500])
+        return json.dumps(data)
 
     async def get_response(self, messages: list[dict[str, Any]], **kwargs: Any) -> str:
         """Get a response from Gemini using OAuth token.
@@ -569,64 +730,75 @@ class GeminiOAuthProvider(AIProvider):
         Returns:
             The AI response as a string.
         """
-        model = kwargs.get("model") or self._model
+        requested_model = self._normalize_model(kwargs.get("model") or self._model)
 
         _LOGGER.info(
             "GeminiOAuthProvider.get_response called. managed_project_id: %s, model: %s",
             self._oauth_data.get("managed_project_id", "NOT_SET"),
-            model,
+            requested_model,
         )
         access_token = await self._get_valid_token()
 
-        # Remove 'model' from kwargs to avoid duplicate argument in _build_request_payload
         build_kwargs = {k: v for k, v in kwargs.items() if k != "model"}
-        request_payload, model = self._build_request_payload(
-            messages, model, **build_kwargs
-        )
+        session = self._get_session()
+        project_id = await self._ensure_project_id(session, access_token)
+        url = f"{GEMINI_CODE_ASSIST_ENDPOINT}:generateContent"
 
-        _LOGGER.debug(
-            "Gemini OAuth message conversion: %d contents, system_instruction: %s",
-            len(request_payload.get("contents", [])),
-            "YES" if "systemInstruction" in request_payload else "NO",
-        )
-        if "systemInstruction" in request_payload:
-            si_text = request_payload["systemInstruction"]["parts"][0]["text"]
-            _LOGGER.debug(
-                "Gemini OAuth system instruction added (%d chars), preview: %s...",
-                len(si_text),
-                si_text[:200],
-            )
-        if "tools" in request_payload:
-            _LOGGER.debug(
-                "Added %d tools to Gemini OAuth request",
-                len(request_payload["tools"][0].get("functionDeclarations", [])),
+        async def _perform_request() -> str:
+            model, skipped_models = self._select_model_for_request(requested_model)
+            request_payload, model = self._build_request_payload(
+                messages, model, **build_kwargs
             )
 
-        async with aiohttp.ClientSession() as session:
-            project_id = await self._ensure_project_id(session, access_token)
+            if model != requested_model:
+                _LOGGER.info(
+                    "Gemini OAuth fallback model selected: requested=%s actual=%s skipped=%s",
+                    requested_model,
+                    model,
+                    skipped_models or None,
+                )
+
+            _LOGGER.debug(
+                "Gemini OAuth message conversion: %d contents, system_instruction: %s",
+                len(request_payload.get("contents", [])),
+                "YES" if "systemInstruction" in request_payload else "NO",
+            )
+            if "systemInstruction" in request_payload:
+                si_text = request_payload["systemInstruction"]["parts"][0]["text"]
+                _LOGGER.debug(
+                    "Gemini OAuth system instruction added (%d chars), preview: %s...",
+                    len(si_text),
+                    si_text[:200],
+                )
+            if "tools" in request_payload:
+                _LOGGER.debug(
+                    "Added %d tools to Gemini OAuth request",
+                    len(request_payload["tools"][0].get("functionDeclarations", [])),
+                )
 
             wrapped_payload = {
                 "project": project_id,
                 "model": model,
+                "user_prompt_id": str(uuid.uuid4()),
                 "request": request_payload,
             }
-
-            url = f"{GEMINI_CODE_ASSIST_ENDPOINT}:generateContent"
 
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
-                **GEMINI_CODE_ASSIST_HEADERS,
+                "User-Agent": _build_user_agent(model),
             }
 
             _LOGGER.debug("Gemini OAuth request URL: %s", url)
             _LOGGER.debug(
-                "Gemini OAuth wrapped payload: project=%s, model=%s", project_id, model
+                "Gemini OAuth wrapped payload: project=%s, model=%s",
+                project_id,
+                model,
             )
 
-            return await self._retry_with_backoff(
-                self._do_request, session, url, headers, wrapped_payload
-            )
+            return await self._do_request(session, url, headers, wrapped_payload)
+
+        return await self._retry_with_backoff(_perform_request)
 
     # ------------------------------------------------------------------
     # Streaming request
@@ -648,6 +820,8 @@ class GeminiOAuthProvider(AIProvider):
                 - {"type": "status", "message": str} - status updates
                 - {"type": "error", "message": str} - errors
         """
+        requested_model = self._normalize_model(kwargs.get("model") or self._model)
+        build_kwargs = {k: v for k, v in kwargs.items() if k != "model"}
         attempt = 0
         current_delay = self.INITIAL_DELAY_MS / 1000
         stream_started = False
@@ -656,12 +830,23 @@ class GeminiOAuthProvider(AIProvider):
             attempt += 1
 
             try:
-                async for chunk in self._do_stream_request(messages, **kwargs):
+                async for chunk in self._do_stream_request(
+                    messages, requested_model, **build_kwargs
+                ):
                     if chunk.get("type") in ["text", "tool_call"]:
                         stream_started = True
                     yield chunk
 
                 # Successfully completed streaming
+                return
+
+            except TerminalQuotaError as e:
+                _LOGGER.error("Terminal quota error during streaming: %s", e)
+                yield {
+                    "type": "error",
+                    "message": f"Quota exhausted: {e}. "
+                    "Please wait for quota reset or upgrade your plan.",
+                }
                 return
 
             except RateLimitError as e:
@@ -677,10 +862,14 @@ class GeminiOAuthProvider(AIProvider):
                     }
                     return
 
-                delay = parse_retry_delay(str(e), current_delay)
+                # Use server-suggested delay if available (RetryableQuotaError)
+                if isinstance(e, RetryableQuotaError) and e.retry_delay_seconds:
+                    delay = e.retry_delay_seconds
+                else:
+                    delay = parse_retry_delay(str(e), current_delay)
 
                 _LOGGER.warning(
-                    "Streaming rate limited (429), retrying in %.1fs (attempt %d/%d)",
+                    "Streaming rate limited, retrying in %.1fs (attempt %d/%d)",
                     delay,
                     attempt,
                     self.MAX_ATTEMPTS,
@@ -703,213 +892,190 @@ class GeminiOAuthProvider(AIProvider):
                 yield {"type": "error", "message": f"Streaming error: {str(e)}"}
                 return
 
-    async def _do_stream_request(self, messages: list[dict[str, Any]], **kwargs: Any):
+    async def _do_stream_request(
+        self, messages: list[dict[str, Any]], requested_model: str, **kwargs: Any
+    ):
         """Internal method that performs the actual streaming request.
 
         Raises RateLimitError if 429 is encountered before streaming starts.
         """
-        model = kwargs.get("model") or self._model
+        model, skipped_models = self._select_model_for_request(requested_model)
+        if model != requested_model:
+            yield {
+                "type": "status",
+                "message": f"Model {requested_model} is cooling down after rate limit; retrying with {model}.",
+            }
+            _LOGGER.info(
+                "Gemini OAuth streaming fallback model selected: requested=%s actual=%s skipped=%s",
+                requested_model,
+                model,
+                skipped_models or None,
+            )
 
         _LOGGER.info("GeminiOAuthProvider._do_stream_request called. model: %s", model)
         access_token = await self._get_valid_token()
 
-        # Remove 'model' from kwargs to avoid duplicate argument in _build_request_payload
-        build_kwargs = {k: v for k, v in kwargs.items() if k != "model"}
         request_payload, model = self._build_request_payload(
-            messages, model, **build_kwargs
+            messages, model, **kwargs
         )
 
-        async with aiohttp.ClientSession() as session:
-            project_id = await self._ensure_project_id(session, access_token)
+        session = self._get_session()
+        project_id = await self._ensure_project_id(session, access_token)
 
-            wrapped_payload = {
-                "project": project_id,
-                "model": model,
-                "request": request_payload,
-            }
+        wrapped_payload = {
+            "project": project_id,
+            "model": model,
+            "user_prompt_id": str(uuid.uuid4()),
+            "request": request_payload,
+        }
 
-            url = f"{GEMINI_CODE_ASSIST_ENDPOINT}:streamGenerateContent"
+        url = f"{GEMINI_CODE_ASSIST_ENDPOINT}:streamGenerateContent"
+        url += "?alt=sse"
 
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json",
-                **GEMINI_CODE_ASSIST_HEADERS,
-            }
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+            "User-Agent": _build_user_agent(model),
+        }
 
-            _LOGGER.info("Gemini OAuth STREAMING request to: %s", url)
-            _LOGGER.info(
-                "Gemini OAuth streaming enabled: trying streamGenerateContent endpoint"
-            )
+        _LOGGER.info("Gemini OAuth SSE STREAMING request to: %s", url)
 
-            try:
-                async with session.post(
-                    url,
-                    headers=headers,
-                    json=wrapped_payload,
-                    timeout=aiohttp.ClientTimeout(total=300),
-                ) as resp:
-                    _LOGGER.info("Gemini streaming response status: %d", resp.status)
+        try:
+            async with session.post(
+                url,
+                headers=headers,
+                json=wrapped_payload,
+                timeout=aiohttp.ClientTimeout(total=300),
+            ) as resp:
+                _LOGGER.info("Gemini streaming response status: %d", resp.status)
 
-                    if resp.status == 429:
-                        error_text = await resp.text()
-                        _LOGGER.debug(
-                            "Gemini OAuth rate limited (429): %s", error_text[:500]
-                        )
-                        raise RateLimitError(f"Rate limited: {error_text}")
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    _LOGGER.debug(
+                        "Gemini streaming error response (HTTP %d, full body):\n%s",
+                        resp.status,
+                        error_text,
+                    )
+                    classified = classify_google_error(resp.status, error_text)
 
-                    if resp.status != 200:
-                        error_text = await resp.text()
+                    if isinstance(classified, TerminalQuotaError):
                         _LOGGER.error(
-                            "Gemini OAuth streaming error %d: %s",
-                            resp.status,
-                            error_text[:500],
+                            "Gemini terminal quota error: %s (reason=%s)",
+                            classified,
+                            classified.reason,
                         )
                         yield {
                             "type": "error",
-                            "message": f"API error {resp.status}: {error_text[:200]}",
+                            "message": f"Quota exhausted: {classified}. "
+                            "Please wait for quota reset or upgrade your plan.",
                         }
                         return
 
-                    # Stream response chunks
-                    _LOGGER.info("Gemini streaming: starting to read chunks")
-                    chunk_count = 0
-                    buffer = ""
-                    decoder = json.JSONDecoder()
-                    stream_array_closed = False
+                    if isinstance(classified, RetryableQuotaError):
+                        self._record_retryable_cooldown(model, resp.status, classified)
+                        _LOGGER.warning(
+                            "Gemini rate limited (%d), delay=%.1fs: %s",
+                            resp.status,
+                            classified.retry_delay_seconds or 0,
+                            error_text[:200],
+                        )
+                        raise classified
 
-                    async for line in resp.content:
-                        if not line:
+                    if isinstance(classified, RateLimitError):
+                        raise classified
+
+                    _LOGGER.error(
+                        "Gemini OAuth streaming error %d: %s",
+                        resp.status,
+                        error_text[:500],
+                    )
+                    yield {
+                        "type": "error",
+                        "message": f"API error {resp.status}: {error_text[:200]}",
+                    }
+                    return
+
+                # Parse SSE stream: lines prefixed with "data: ", empty line = yield
+                _LOGGER.info("Gemini streaming (SSE): starting to read chunks")
+                chunk_count = 0
+                buffered_lines: list[str] = []
+
+                async for raw_line in resp.content:
+                    if not raw_line:
+                        continue
+
+                    line = raw_line.decode("utf-8").rstrip("\r\n")
+
+                    if line.startswith("data:"):
+                        # SSE spec: "data: payload" or "data:payload"
+                        payload = line[5:].lstrip(" ") if len(line) > 5 else ""
+                        buffered_lines.append(payload.strip())
+                    elif line == "" and buffered_lines:
+                        # Empty line = end of SSE event → parse buffered data
+                        joined = "\n".join(buffered_lines)
+                        buffered_lines = []
+
+                        try:
+                            chunk = json.loads(joined)
+                        except json.JSONDecodeError:
+                            _LOGGER.debug(
+                                "Gemini SSE: malformed JSON chunk (%d bytes)",
+                                len(joined),
+                            )
                             continue
 
-                        line_text = line.decode("utf-8")
-                        buffer += line_text
+                        if not isinstance(chunk, dict):
+                            continue
 
-                        # Try to parse complete JSON objects from a streamed JSON array.
-                        # API format is typically: [{...},{...},...]
-                        while buffer:
-                            buffer = buffer.lstrip(" \t\n\r")
-                            if not buffer:
-                                break
+                        chunk_count += 1
+                        if chunk_count == 1:
+                            _LOGGER.info("Gemini SSE: received first chunk")
+                        elif chunk_count % 10 == 0:
+                            _LOGGER.debug("Gemini SSE: chunk %d", chunk_count)
 
-                            # Consume array delimiters and separators incrementally.
-                            if buffer[0] in "[,":
-                                buffer = buffer[1:]
-                                continue
-                            if buffer[0] == "]":
-                                stream_array_closed = True
-                                buffer = buffer[1:]
-                                continue
+                        for result in process_gemini_chunk(chunk):
+                            yield result
+                    # Ignore comment lines, id: fields, other SSE metadata
 
-                            try:
-                                chunk, idx = decoder.raw_decode(buffer)
-                                buffer = buffer[idx:]
-
-                                if not isinstance(chunk, dict):
-                                    _LOGGER.debug(
-                                        "Gemini streaming: skipping non-object chunk type=%s",
-                                        type(chunk).__name__,
-                                    )
-                                    continue
-
-                                chunk_count += 1
-                                if chunk_count == 1:
-                                    _LOGGER.info(
-                                        "Gemini streaming: received first chunk"
-                                    )
-                                elif chunk_count % 10 == 0:
-                                    _LOGGER.debug(
-                                        "Gemini streaming: chunk %d", chunk_count
-                                    )
-
-                                for result in process_gemini_chunk(chunk):
-                                    yield result
-
-                            except json.JSONDecodeError:
-                                _LOGGER.debug(
-                                    "Incomplete JSON in buffer, waiting for more data (%d bytes): %s",
-                                    len(buffer),
-                                    buffer[:100],
-                                )
-                                break
-                            except Exception as e:
-                                _LOGGER.error("Error processing stream chunk: %s", e)
-                                break
-
-                    # Final flush: parse any remaining data in buffer
-                    if buffer and buffer.strip():
+                # Flush remaining buffered data (stream ended without trailing blank line)
+                if buffered_lines:
+                    joined = "\n".join(buffered_lines)
+                    try:
+                        chunk = json.loads(joined)
+                        if isinstance(chunk, dict):
+                            chunk_count += 1
+                            for result in process_gemini_chunk(
+                                chunk, label="[SSE flush]"
+                            ):
+                                yield result
+                    except json.JSONDecodeError:
                         _LOGGER.debug(
-                            "Final buffer flush: %d bytes remaining", len(buffer)
+                            "Gemini SSE flush: unparseable data (%d bytes)", len(joined)
                         )
-                        remaining = buffer.strip()
-                        parse_attempts = 0
-                        while remaining:
-                            remaining = remaining.lstrip(" \t\n\r")
-                            if not remaining:
-                                break
-                            if remaining[0] in "[,":
-                                remaining = remaining[1:]
-                                continue
-                            if remaining[0] == "]":
-                                stream_array_closed = True
-                                remaining = remaining[1:]
-                                continue
-                            parse_attempts += 1
-                            if parse_attempts > 50:
-                                _LOGGER.warning(
-                                    "Final flush: too many parse attempts. Remaining: %s",
-                                    remaining[:200],
-                                )
-                                break
-                            try:
-                                chunk, idx = decoder.raw_decode(remaining)
-                                remaining = remaining[idx:]
 
-                                if not isinstance(chunk, dict):
-                                    continue
-
-                                chunk_count += 1
-
-                                for result in process_gemini_chunk(
-                                    chunk, label="[Final flush]"
-                                ):
-                                    yield result
-
-                            except json.JSONDecodeError:
-                                _LOGGER.warning(
-                                    "Final flush: unparseable data (%d bytes): %s",
-                                    len(remaining),
-                                    remaining[:200],
-                                )
-                                break
-                            except Exception as e:
-                                _LOGGER.error("Final flush error: %s", e)
-                                break
-
-                    _LOGGER.info(
-                        "Gemini streaming: completed, received %d chunks total (array_closed=%s)",
-                        chunk_count,
-                        stream_array_closed,
-                    )
-
-            except aiohttp.ClientError as e:
-                error_str = str(e)
-                _LOGGER.warning("Gemini streaming connection error: %s", error_str)
-
-                is_retryable = (
-                    "429" in error_str
-                    or "rate" in error_str.lower()
-                    or any(f"{code}" in error_str for code in range(500, 600))
+                _LOGGER.info(
+                    "Gemini SSE streaming: completed, received %d chunks total",
+                    chunk_count,
                 )
 
-                if is_retryable:
-                    raise RateLimitError(
-                        f"Connection error (retryable): {error_str}"
-                    ) from e
-                else:
-                    yield {"type": "error", "message": f"Connection error: {error_str}"}
+        except aiohttp.ClientError as e:
+            error_str = str(e)
+            _LOGGER.warning("Gemini streaming connection error: %s", error_str)
 
-            except RateLimitError:
-                raise
-            except Exception as e:
-                _LOGGER.error("Gemini streaming error: %s", e)
-                yield {"type": "error", "message": str(e)}
+            is_retryable = (
+                "rate" in error_str.lower()
+                or is_retryable_status_in_text(error_str)
+            )
+
+            if is_retryable:
+                raise RateLimitError(
+                    f"Connection error (retryable): {error_str}"
+                ) from e
+            else:
+                yield {"type": "error", "message": f"Connection error: {error_str}"}
+
+        except RateLimitError:
+            raise
+        except Exception as e:
+            _LOGGER.error("Gemini streaming error: %s", e)
+            yield {"type": "error", "message": str(e)}

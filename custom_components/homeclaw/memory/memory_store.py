@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import json
 import logging
-import math
-import struct
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
+
+from ..rag._store_utils import bm25_rank_to_score as _bm25_rank_to_score
+from ..rag._store_utils import cosine_similarity as _cosine_similarity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -783,25 +784,3 @@ class MemoryStore:
             user_id[:8],
             MAX_MEMORIES_PER_USER,
         )
-
-
-def _cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
-    """Compute cosine similarity between two vectors."""
-    if len(vec1) != len(vec2):
-        return 0.0
-
-    dot_product = sum(a * b for a, b in zip(vec1, vec2))
-    norm1 = math.sqrt(sum(a * a for a in vec1))
-    norm2 = math.sqrt(sum(b * b for b in vec2))
-
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-
-    return dot_product / (norm1 * norm2)
-
-
-def _bm25_rank_to_score(rank: float) -> float:
-    """Convert SQLite FTS5 bm25() rank to a 0-1 score."""
-    if not math.isfinite(rank):
-        return 0.001
-    return 1.0 / (1.0 + abs(rank))

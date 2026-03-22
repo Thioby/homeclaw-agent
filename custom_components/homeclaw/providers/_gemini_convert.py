@@ -11,6 +11,55 @@ from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
+SYNTHETIC_THOUGHT_SIGNATURE = "skip_thought_signature_validator"
+
+
+def ensure_thought_signatures(contents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Ensure function calls in the active loop have thoughtSignature.
+
+    The Gemini API requires that functionCall parts in model turns have a
+    thoughtSignature when using thinking models. If missing, a synthetic
+    signature is injected to pass validation.
+
+    Only applies to the "active loop" — content after the last user turn
+    with a text part (not functionResponse-only turns).
+    """
+    # Find the start of the active loop
+    active_loop_start = -1
+    for i in range(len(contents) - 1, -1, -1):
+        content = contents[i]
+        if content.get("role") == "user" and any(
+            "text" in p for p in content.get("parts", [])
+        ):
+            active_loop_start = i
+            break
+
+    if active_loop_start == -1:
+        return contents
+
+    new_contents: list[dict[str, Any]] | None = None
+    for i in range(active_loop_start, len(contents)):
+        content = contents[i]
+        if content.get("role") != "model" or not content.get("parts"):
+            continue
+        for j, part in enumerate(content["parts"]):
+            if "functionCall" not in part:
+                continue
+            if part.get("thoughtSignature"):
+                break  # Already has signature — skip this turn
+            # Need to mutate: lazily copy the list on first mutation
+            if new_contents is None:
+                new_contents = list(contents)
+            new_parts = list(content["parts"])
+            new_parts[j] = {
+                **part,
+                "thoughtSignature": SYNTHETIC_THOUGHT_SIGNATURE,
+            }
+            new_contents[i] = {**content, "parts": new_parts}
+            break  # Only first functionCall per model turn
+
+    return new_contents if new_contents is not None else contents
+
 
 def convert_messages(
     messages: list[dict[str, Any]],
@@ -57,20 +106,31 @@ def convert_messages(
             try:
                 parsed = json.loads(content)
                 if isinstance(parsed, dict):
-                    from ..core.tool_call_codec import extract_tool_calls_from_assistant_content
+                    from ..core.tool_call_codec import (
+                        extract_tool_calls_from_assistant_content,
+                    )
+
                     calls = extract_tool_calls_from_assistant_content(parsed)
                     if calls:
                         parts = []
                         # Preserve any prepended text if it exists
-                        if "text" in parsed and isinstance(parsed["text"], str) and parsed["text"]:
+                        if (
+                            "text" in parsed
+                            and isinstance(parsed["text"], str)
+                            and parsed["text"]
+                        ):
                             parts.append({"text": parsed["text"]})
                         for call in calls:
-                            parts.append({
-                                "functionCall": {
-                                    "name": call.get("name", ""),
-                                    "args": call.get("args", {}),
-                                }
-                            })
+                            fc_part: dict[str, Any] = {
+                                "name": call.get("name", ""),
+                                "args": call.get("args", {}),
+                            }
+                            # Place thoughtSignature at part level (sibling of functionCall)
+                            thought_sig = call.get("thought_signature")
+                            part_obj: dict[str, Any] = {"functionCall": fc_part}
+                            if thought_sig is not None:
+                                part_obj["thoughtSignature"] = thought_sig
+                            parts.append(part_obj)
                         contents.append({"role": "model", "parts": parts})
                         continue
             except (ValueError, TypeError):
@@ -97,6 +157,7 @@ def convert_messages(
                 }
             )
 
+    contents = ensure_thought_signatures(contents)
     return contents, system_instruction
 
 
@@ -181,6 +242,10 @@ def process_gemini_chunk(chunk: Any, label: str = "") -> list[dict[str, Any]]:
         parts = content.get("parts", [])
 
         for part in parts:
+            # Skip thinking parts from Gemini thinking models
+            if part.get("thought"):
+                _LOGGER.debug("%sSkipping thought part", log_prefix)
+                continue
             if "text" in part:
                 text_content = part["text"]
                 _LOGGER.debug(
@@ -201,7 +266,7 @@ def process_gemini_chunk(chunk: Any, label: str = "") -> list[dict[str, Any]]:
                         "type": "tool_call",
                         "name": func_call.get("name", "unknown"),
                         "args": func_call.get("args", {}),
-                        "thought_signature": func_call.get("thoughtSignature"),
+                        "thought_signature": part.get("thoughtSignature"),
                         "_raw_function_call": part,
                     }
                 )

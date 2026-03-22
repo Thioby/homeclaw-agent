@@ -288,3 +288,168 @@ class TestEdgeCases:
 
         assert result is not None
         assert result[0].name == "gemini_tool"
+
+    def test_canonical_format_uses_anthropic_not_openai(self, parser):
+        """Test that our canonical format (from build_assistant_tool_message)
+        goes through _try_anthropic, not _try_openai.
+
+        build_assistant_tool_message produces JSON with both "tool_calls"
+        (canonical) and "tool_use" (Anthropic) keys. The "tool_calls" key
+        must NOT match _try_openai because our items lack the OpenAI
+        "function" wrapper — that would produce FunctionCalls with empty
+        names, causing repair_tool_history to orphan tool_use blocks.
+        """
+        from custom_components.homeclaw.core.tool_call_codec import (
+            build_assistant_tool_message,
+        )
+
+        canonical = build_assistant_tool_message(
+            [
+                {
+                    "id": "toolu_abc123",
+                    "name": "get_entities_by_domain",
+                    "args": {"domain": "light"},
+                }
+            ]
+        )
+
+        result = parser.detect(canonical)
+
+        assert result is not None
+        assert len(result) == 1
+        assert result[0].name == "get_entities_by_domain"
+        assert result[0].id == "toolu_abc123"
+        assert result[0].arguments == {"domain": "light"}
+
+    def test_canonical_format_parallel_tool_calls(self, parser):
+        """Test canonical format with parallel tool calls (additional_tool_calls)."""
+        from custom_components.homeclaw.core.tool_call_codec import (
+            build_assistant_tool_message,
+        )
+
+        canonical = build_assistant_tool_message(
+            [
+                {
+                    "id": "toolu_1",
+                    "name": "get_state",
+                    "args": {"entity_id": "light.a"},
+                },
+                {"id": "toolu_2", "name": "call_service", "args": {"domain": "light"}},
+            ]
+        )
+
+        result = parser.detect(canonical)
+
+        assert result is not None
+        assert len(result) == 2
+        assert result[0].name == "get_state"
+        assert result[0].id == "toolu_1"
+        assert result[1].name == "call_service"
+        assert result[1].id == "toolu_2"
+
+    def test_openai_format_still_works_with_function_wrapper(self, parser):
+        """Ensure real OpenAI format with 'function' wrapper still works."""
+        response = json.dumps(
+            {
+                "tool_calls": [
+                    {
+                        "id": "call_xyz",
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": json.dumps({"city": "NYC"}),
+                        },
+                    }
+                ]
+            }
+        )
+
+        result = parser.detect(response)
+
+        assert result is not None
+        assert len(result) == 1
+        assert result[0].name == "get_weather"
+        assert result[0].id == "call_xyz"
+
+
+class TestRepairToolHistory:
+    """Tests for repair_tool_history safety net."""
+
+    def test_drops_assistant_msg_when_all_tool_calls_unrecognized(self):
+        """When all tool calls in an assistant message have unknown names,
+        the entire message should be removed to prevent orphaned tool_use."""
+        from custom_components.homeclaw.core.context_builder import repair_tool_history
+        from custom_components.homeclaw.core.tool_call_codec import (
+            build_assistant_tool_message,
+        )
+
+        canonical = build_assistant_tool_message(
+            [{"id": "toolu_1", "name": "nonexistent_tool", "args": {}}]
+        )
+
+        messages = [
+            {"role": "user", "content": "do something"},
+            {"role": "assistant", "content": canonical},
+            {
+                "role": "function",
+                "name": "nonexistent_tool",
+                "tool_use_id": "toolu_1",
+                "content": '{"result": "ok"}',
+            },
+            {"role": "assistant", "content": "Done!"},
+        ]
+
+        def detect_fn(text):
+            from custom_components.homeclaw.core.function_call_parser import (
+                FunctionCallParser,
+            )
+            from custom_components.homeclaw.core.response_parser import ResponseParser
+
+            return FunctionCallParser(ResponseParser()).detect(text)
+
+        result = repair_tool_history(
+            messages, detect_fn, allowed_tool_names={"get_state", "call_service"}
+        )
+
+        # Both the tool_use assistant msg and orphaned tool_result should be gone
+        roles = [m["role"] for m in result]
+        assert roles == ["user", "assistant"]
+        assert result[1]["content"] == "Done!"
+
+    def test_keeps_assistant_msg_when_tool_calls_recognized(self):
+        """When tool calls are recognized, assistant message stays."""
+        from custom_components.homeclaw.core.context_builder import repair_tool_history
+        from custom_components.homeclaw.core.tool_call_codec import (
+            build_assistant_tool_message,
+        )
+
+        canonical = build_assistant_tool_message(
+            [{"id": "toolu_1", "name": "get_state", "args": {"entity_id": "light.a"}}]
+        )
+
+        messages = [
+            {"role": "user", "content": "check light"},
+            {"role": "assistant", "content": canonical},
+            {
+                "role": "function",
+                "name": "get_state",
+                "tool_use_id": "toolu_1",
+                "content": '{"state": "on"}',
+            },
+            {"role": "assistant", "content": "The light is on."},
+        ]
+
+        def detect_fn(text):
+            from custom_components.homeclaw.core.function_call_parser import (
+                FunctionCallParser,
+            )
+            from custom_components.homeclaw.core.response_parser import ResponseParser
+
+            return FunctionCallParser(ResponseParser()).detect(text)
+
+        result = repair_tool_history(
+            messages, detect_fn, allowed_tool_names={"get_state"}
+        )
+
+        roles = [m["role"] for m in result]
+        assert roles == ["user", "assistant", "function", "assistant"]

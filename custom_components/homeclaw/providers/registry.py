@@ -47,6 +47,18 @@ class AIProvider(ABC):
             The AI response as a string.
         """
 
+    @property
+    def lightweight_model(self) -> str | None:
+        """Return the cheapest model for lightweight background tasks.
+
+        Background operations (emoji generation, memory flush, summarization)
+        should use this model instead of the primary one to save quota.
+
+        Returns:
+            Model ID string, or None to use the provider's default model.
+        """
+        return None
+
     async def get_response_stream(
         self, messages: list[dict[str, Any]], **kwargs: Any
     ) -> AsyncGenerator[dict[str, Any], None]:

@@ -13,8 +13,6 @@ from homeassistant.helpers.typing import ConfigType
 
 from .agent_compat import HomeclawAgent
 from .const import (
-    CONF_RAG_ENABLED,
-    DEFAULT_RAG_ENABLED,
     DOMAIN,
     PLATFORMS,
     VALID_PROVIDERS,
@@ -158,6 +156,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     config_data = dict(entry.data)
     provider = config_data.get("ai_provider")
     if DOMAIN in hass.data:
+        # Close provider HTTP session if it has one (e.g. GeminiOAuthProvider)
+        agent = hass.data[DOMAIN].get("agents", {}).get(provider)
+        if (
+            agent
+            and hasattr(agent, "_provider")
+            and hasattr(agent._provider, "async_close")
+        ):
+            try:
+                await agent._provider.async_close()
+            except Exception:  # noqa: BLE001
+                pass
         hass.data[DOMAIN].get("agents", {}).pop(provider, None)
         hass.data[DOMAIN].get("configs", {}).pop(provider, None)
 
@@ -173,62 +182,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.data.pop(DOMAIN)
 
     return True
-
-
-# ---------------------------------------------------------------------------
-# Backward-compat re-exports for tests
-# ---------------------------------------------------------------------------
-
-
-async def _initialize_rag(
-    hass: HomeAssistant, config_data: dict, entry: ConfigEntry
-) -> None:
-    """Backward-compat wrapper. Delegates to lifecycle._start_rag."""
-    lifecycle = hass.data.get(DOMAIN, {}).get("_lifecycle")
-    if lifecycle:
-        await lifecycle._start_rag(hass, config_data, entry)
-
-
-async def _shutdown_rag(hass: HomeAssistant) -> None:
-    """Backward-compat wrapper. Delegates to lifecycle._stop_rag."""
-    lifecycle = hass.data.get(DOMAIN, {}).get("_lifecycle")
-    if lifecycle:
-        await lifecycle._stop_rag(hass)
-
-
-async def _initialize_proactive(hass: HomeAssistant) -> None:
-    """Backward-compat wrapper. Delegates to lifecycle._start_proactive.
-
-    Preserves the ``_proactive_initialized`` flag in ``hass.data[DOMAIN]``
-    for existing tests that check it.  Uses the lifecycle lock to guarantee
-    exactly-once semantics even under concurrent calls.
-    """
-    domain_data = hass.data.get(DOMAIN, {})
-    if domain_data.get("_proactive_initialized"):
-        _LOGGER.debug("Proactive subsystem already initialized, skipping")
-        return
-
-    # Ensure a shared lifecycle exists (create-if-absent, reuse otherwise)
-    lifecycle = domain_data.get("_lifecycle")
-    if not lifecycle:
-        lifecycle = SubsystemLifecycle()
-        if DOMAIN in hass.data:
-            hass.data[DOMAIN]["_lifecycle"] = lifecycle
-
-    async with lifecycle._lock:
-        # Re-check under lock to prevent races
-        if hass.data.get(DOMAIN, {}).get("_proactive_initialized"):
-            return
-        await lifecycle._start_proactive(hass)
-        if DOMAIN in hass.data:
-            hass.data[DOMAIN]["_proactive_initialized"] = True
-
-
-async def _panel_exists(hass: HomeAssistant, panel_name: str) -> bool:
-    """Check if a panel already exists."""
-    try:
-        return hasattr(hass.data, "frontend_panels") and panel_name in hass.data.get(
-            "frontend_panels", {}
-        )
-    except Exception:
-        return False

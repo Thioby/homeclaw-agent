@@ -1,22 +1,22 @@
-"""Query processor for AI agent interactions."""
+"""Query processor for AI agent interactions.
+
+Orchestrates query sanitization, message building, and AI provider
+coordination.  Delegates to ``context_builder``, ``tool_loop``, and
+``stream_loop``.
+"""
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from ..function_calling import FunctionCall, FunctionCallHandler
-from .compaction import compact_messages, truncation_fallback
+from .context_builder import build_messages, recompact_if_needed, repair_tool_history
 from .function_call_parser import FunctionCallParser
 from .response_parser import ResponseParser
-from .token_estimator import (
-    DEFAULT_CONTEXT_WINDOW,
-    compute_context_budget,
-    estimate_messages_tokens,
-)
-from .tool_call_codec import build_assistant_tool_message, normalize_tool_calls
-from .tool_executor import ToolExecutor
+from .stream_loop import run_tool_loop_stream
+from .token_estimator import DEFAULT_CONTEXT_WINDOW
+from .tool_loop import expand_loaded_tools, run_tool_loop_nonstream
 
 if TYPE_CHECKING:
     from ..providers.registry import AIProvider
@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 EMPTY_QUERY_ERROR = "Query is empty or contains only whitespace"
 
-# Invisible characters that should be stripped from queries
 INVISIBLE_CHARS = [
     "\ufeff",  # BOM (Byte Order Mark)
     "\u200b",  # Zero-width space
@@ -35,11 +34,7 @@ INVISIBLE_CHARS = [
 
 
 class QueryProcessor:
-    """Processes user queries for AI providers.
-
-    This class handles query sanitization, message building, and
-    coordinating with AI providers to generate responses.
-    """
+    """Processes user queries for AI providers."""
 
     def __init__(
         self,
@@ -47,13 +42,7 @@ class QueryProcessor:
         max_iterations: int = 20,
         max_query_length: int = 1000,
     ) -> None:
-        """Initialize the query processor.
-
-        Args:
-            provider: The AI provider to use for generating responses.
-            max_iterations: Maximum tool call iterations (for future use).
-            max_query_length: Maximum allowed query length after sanitization.
-        """
+        """Initialize the query processor."""
         self.provider = provider
         self.max_iterations = max_iterations
         self.max_query_length = max_query_length
@@ -61,35 +50,19 @@ class QueryProcessor:
         self.function_call_parser = FunctionCallParser(self.response_parser)
 
     def _sanitize_query(self, query: str, max_length: int | None = None) -> str:
-        """Sanitize a user query by removing invisible characters.
-
-        Args:
-            query: The raw user query.
-            max_length: Optional maximum length override. If not provided,
-                uses self.max_query_length.
-
-        Returns:
-            The sanitized query string.
-        """
-        # Remove invisible characters
+        """Sanitize a user query by removing invisible characters."""
         sanitized = query
         for char in INVISIBLE_CHARS:
             sanitized = sanitized.replace(char, "")
-
-        # Strip leading/trailing whitespace
         sanitized = sanitized.strip()
-
-        # Truncate to max length
         effective_max = max_length if max_length is not None else self.max_query_length
         if len(sanitized) > effective_max:
             sanitized = sanitized[:effective_max]
-
         return sanitized
 
     @staticmethod
     def _normalize_query_with_attachments(
-        sanitized_query: str,
-        attachments: list[Any] | None,
+        sanitized_query: str, attachments: list[Any] | None
     ) -> str:
         """Apply image-only fallback prompt when text is empty but attachments exist."""
         if not sanitized_query and attachments:
@@ -119,7 +92,6 @@ class QueryProcessor:
         """Filter denied tools from the list passed to the LLM."""
         if not denied_tools or not tools:
             return tools
-
         effective_tools = [
             t for t in tools if t.get("function", {}).get("name") not in denied_tools
         ]
@@ -127,16 +99,13 @@ class QueryProcessor:
         if filtered_count:
             suffix = " (non-stream)" if non_stream else ""
             _LOGGER.debug(
-                "Filtered %d denied tools from LLM tool list%s",
-                filtered_count,
-                suffix,
+                "Filtered %d denied tools from LLM tool list%s", filtered_count, suffix
             )
         return effective_tools
 
     @staticmethod
     def _build_provider_kwargs(
-        kwargs: dict[str, Any],
-        effective_tools: list[dict[str, Any]] | None,
+        kwargs: dict[str, Any], effective_tools: list[dict[str, Any]] | None
     ) -> dict[str, Any]:
         """Build provider kwargs and attach effective tools when present."""
         provider_kwargs: dict[str, Any] = {**kwargs}
@@ -158,9 +127,18 @@ class QueryProcessor:
             and updated_messages[0].get("role") == "system"
         ):
             updated_messages = updated_messages[1:]
-
         updated_messages.append({"role": "assistant", "content": response_text})
         return updated_messages
+
+    def _detect_function_call(
+        self, response_text: str, allowed_tool_names: set[str] | None = None
+    ) -> list[FunctionCall] | None:
+        """Detect and parse function calls from response text."""
+        return self.function_call_parser.detect(
+            response_text, allowed_tool_names=allowed_tool_names
+        )
+
+    # --- Delegated methods (backward compatibility) ---
 
     async def _build_messages(
         self,
@@ -170,235 +148,24 @@ class QueryProcessor:
         rag_context: str | None = None,
         **kwargs: Any,
     ) -> tuple[list[dict[str, Any]], bool]:
-        """Build the message list for the AI provider.
-
-        Assembles system prompt, conversation history, and the current query
-        into a flat list.  When the result exceeds the model's context budget,
-        automatically triggers compaction (AI summarization of old messages).
-
-        Returns:
-            Tuple of (messages, was_compacted_boolean).
-        """
-        messages: list[dict[str, Any]] = []
-
-        # Build system prompt with RAG context if available
-        final_system_prompt = system_prompt or ""
-
-        if rag_context:
-            rag_section = (
-                "\n\n--- RELEVANT CONTEXT ---\n"
-                f"{rag_context}\n"
-                "--- END CONTEXT ---\n\n"
-                "The above context may include relevant_entities, previous_conversations, "
-                "and long_term_memories. Use available tools "
-                "(get_entities_by_domain, get_state, etc.) to find other entities if needed."
-            )
-            final_system_prompt = (
-                final_system_prompt + rag_section
-                if final_system_prompt
-                else rag_section
-            )
-            _LOGGER.info(
-                "RAG context added to system prompt (%d chars)", len(rag_context)
-            )
-            _LOGGER.debug("RAG context FULL: %s", rag_context)
-            _LOGGER.debug(
-                "Final system prompt length: %d chars", len(final_system_prompt)
-            )
-
-        # Add system prompt first if we have one
-        if final_system_prompt:
-            messages.append({"role": "system", "content": final_system_prompt})
-
-        # Add conversation history
-        messages.extend(history)
-
-        # --- Process attachments into the user message ---
-        attachments = kwargs.pop("attachments", None)
-        enriched_query = query
-        image_attachments = []
-
-        if attachments:
-            from ..file_processor import get_image_base64
-
-            text_parts: list[str] = []
-            for att in attachments:
-                if att.is_image:
-                    b64 = get_image_base64(att)
-                    if b64:
-                        image_attachments.append(
-                            {
-                                "mime_type": att.mime_type,
-                                "data": b64,
-                                "filename": att.filename,
-                            }
-                        )
-                elif att.content_text:
-                    text_parts.append(
-                        f"--- Attached file: {att.filename} ---\n"
-                        f"{att.content_text}\n"
-                        f"--- End of {att.filename} ---"
-                    )
-
-            # Append extracted text to the query
-            if text_parts:
-                enriched_query = query + "\n\n" + "\n\n".join(text_parts)
-                _LOGGER.info(
-                    "Enriched query with %d text attachment(s), total %d chars",
-                    len(text_parts),
-                    len(enriched_query),
-                )
-
-        # Build the user message (multimodal or plain text)
-        if image_attachments:
-            # Multimodal message: uses provider-agnostic format with _images key.
-            # Provider converters (gemini_convert, openai, anthropic) will handle
-            # the conversion to their specific format.
-            messages.append(
-                {
-                    "role": "user",
-                    "content": enriched_query,
-                    "_images": image_attachments,
-                }
-            )
-            _LOGGER.info(
-                "Built multimodal user message with %d image(s)",
-                len(image_attachments),
-            )
-        else:
-            messages.append({"role": "user", "content": enriched_query})
-
-        # --- Context window compaction ---
-        context_window = kwargs.get("context_window", DEFAULT_CONTEXT_WINDOW)
-        memory_flush_fn = kwargs.get("memory_flush_fn")
-        user_id = kwargs.get("user_id")
-        session_id = kwargs.get("session_id", "")
-
-        # Filter provider_kwargs for the compaction summarization call
-        provider_kwargs = {}
-        if kwargs.get("model"):
-            provider_kwargs["model"] = kwargs["model"]
-
-        # Capture reference before compaction to detect changes
-        pre_compaction_messages = messages
-
-        compacted_messages = await compact_messages(
-            messages,
-            context_window=context_window,
-            provider=self.provider,
-            memory_flush_fn=memory_flush_fn,
-            user_id=user_id,
-            session_id=session_id,
-            **provider_kwargs,
+        """Build the message list. Delegates to ``context_builder.build_messages``."""
+        return await build_messages(
+            query,
+            history,
+            self.provider,
+            self._detect_function_call,
+            system_prompt=system_prompt,
+            rag_context=rag_context,
+            **kwargs,
         )
-
-        was_compacted = compacted_messages is not pre_compaction_messages
-
-        from ..tools.base import ToolRegistry
-
-        known_tools = {
-            t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)
-        }
-        final_messages = self._repair_tool_history(
-            compacted_messages, allowed_tool_names=known_tools
-        )
-
-        return final_messages, was_compacted
 
     def _repair_tool_history(
-        self,
-        messages: list[dict[str, Any]],
-        allowed_tool_names: set[str] | None = None,
+        self, messages: list[dict[str, Any]], allowed_tool_names: set[str] | None = None
     ) -> list[dict[str, Any]]:
-        """Repair tool/function call history to ensure perfect pairs.
-
-        Fixes missing tool_use_ids, drops orphan results, and injects
-        synthetic results for unfinished tool calls.
-        """
-        sanitized: list[dict[str, Any]] = []
-        pending_tool_calls: dict[str, str] = {}  # id -> name
-
-        for msg in messages:
-            role = msg.get("role")
-            if role in ("system", "user"):
-                sanitized.append(msg)
-                continue
-
-            if role == "assistant":
-                content = msg.get("content", "")
-
-                # Check text-encoded first
-                try:
-                    fcs = self._detect_function_call(content)
-                    if fcs:
-                        for fc in fcs:
-                            if (
-                                allowed_tool_names is None
-                                or fc.name in allowed_tool_names
-                            ):
-                                pending_tool_calls[fc.id] = fc.name
-                            else:
-                                _LOGGER.warning(
-                                    "Dropped unknown tool call: %s", fc.name
-                                )
-                except Exception:
-                    pass
-
-                # Check standard JSON formats
-                if "tool_calls" in msg:
-                    for tc in msg["tool_calls"]:
-                        tc_id = tc.get("id") or tc.get("function", {}).get(
-                            "name", "unknown"
-                        )
-                        tc_name = tc.get("function", {}).get("name", "unknown")
-                        if allowed_tool_names is None or tc_name in allowed_tool_names:
-                            pending_tool_calls[tc_id] = tc_name
-                        else:
-                            _LOGGER.warning("Dropped unknown tool call: %s", tc_name)
-                elif "function_call" in msg:
-                    fc = msg["function_call"]
-                    tc_id = msg.get("tool_use_id") or fc.get("name", "unknown")
-                    tc_name = fc.get("name", "unknown")
-                    if allowed_tool_names is None or tc_name in allowed_tool_names:
-                        pending_tool_calls[tc_id] = tc_name
-                    else:
-                        _LOGGER.warning("Dropped unknown tool call: %s", tc_name)
-
-                sanitized.append(msg)
-
-            elif role in ("function", "tool"):
-                tc_id = msg.get("tool_use_id") or msg.get("id") or msg.get("name")
-                if tc_id in pending_tool_calls:
-                    # Valid tool result, make sure tool_use_id is present
-                    msg_copy = dict(msg)
-                    msg_copy["tool_use_id"] = tc_id
-                    sanitized.append(msg_copy)
-                    del pending_tool_calls[tc_id]  # deduplication / mark as resolved
-                else:
-                    _LOGGER.warning(
-                        "Removed orphan or duplicate tool result from history (id: %s)",
-                        tc_id,
-                    )
-
-        # Close any pending tool calls that never got a result
-        for tc_id, tc_name in pending_tool_calls.items():
-            _LOGGER.warning(
-                "Injected synthetic result for unmatched tool call %s (%s)",
-                tc_name,
-                tc_id,
-            )
-            sanitized.append(
-                {
-                    "role": "function",
-                    "name": tc_name,
-                    "tool_use_id": tc_id,
-                    "content": json.dumps(
-                        {"error": "tool result missing from conversation history"}
-                    ),
-                }
-            )
-
-        return sanitized
+        """Repair tool/function call history. Delegates to ``context_builder``."""
+        return repair_tool_history(
+            messages, self._detect_function_call, allowed_tool_names=allowed_tool_names
+        )
 
     async def _recompact_if_needed(
         self,
@@ -406,74 +173,8 @@ class QueryProcessor:
         *,
         context_window: int = DEFAULT_CONTEXT_WINDOW,
     ) -> list[dict[str, Any]]:
-        """Trim messages if tool results pushed us over the context budget.
-
-        Called inside the tool call loop after tool results are appended.
-        Unlike full compaction (which summarises old messages via AI), this
-        method only **truncates long tool result contents** to avoid
-        discarding tool call/result pairs that the model needs to remember
-        what it has already done.  This prevents the "Gemini loop" bug
-        where summarisation removes earlier tool results, causing the model
-        to re-issue the same tool calls.
-
-        Args:
-            messages: Current message list (may include tool results).
-            context_window: Model's context window in tokens.
-
-        Returns:
-            Possibly trimmed message list.
-        """
-        budget = compute_context_budget(context_window)
-        available = budget["available_for_input"]
-        estimated = estimate_messages_tokens(messages)
-
-        if estimated <= available:
-            return messages
-
-        _LOGGER.warning(
-            "Tool loop re-compaction: %d tokens > %d budget, truncating tool results",
-            estimated,
-            available,
-        )
-
-        # Strategy: truncate the longest tool/function result messages first.
-        # We never remove messages — only shorten their content.
-        MAX_TOOL_RESULT_CHARS = 2000
-        MIN_TOOL_RESULT_CHARS = 200
-
-        result = list(messages)
-        limit = MAX_TOOL_RESULT_CHARS
-
-        while limit >= MIN_TOOL_RESULT_CHARS:
-            for msg in result:
-                role = msg.get("role", "")
-                if role in ("tool", "function"):
-                    content = msg.get("content", "")
-                    if len(content) > limit:
-                        half = limit // 2
-                        msg["content"] = (
-                            content[:half]
-                            + "\n\n... [truncated — showing first and last portion] ...\n\n"
-                            + content[-half:]
-                        )
-            estimated = estimate_messages_tokens(result)
-            if estimated <= available:
-                _LOGGER.info(
-                    "Tool result truncation brought tokens to %d (budget %d, limit %d chars)",
-                    estimated,
-                    available,
-                    limit,
-                )
-                return result
-            limit //= 2
-
-        # Last resort: drop oldest non-system, non-user messages from the beginning
-        _LOGGER.warning(
-            "Tool result truncation insufficient (%d > %d), falling back to message trimming",
-            estimated,
-            available,
-        )
-        return truncation_fallback(result, available)
+        """Trim messages if over budget. Delegates to ``context_builder``."""
+        return await recompact_if_needed(messages, context_window=context_window)
 
     @staticmethod
     def _expand_loaded_tools(
@@ -483,117 +184,89 @@ class QueryProcessor:
         denied_tools: frozenset[str] | None = None,
         config: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]] | None:
-        """Expand effective_tools when load_tool was called.
-
-        Scans executed function calls for ``load_tool`` invocations and
-        dynamically adds the requested tool schemas to ``effective_tools``
-        so they are available in the next LLM iteration.
-
-        Security: validates that the tool is ON_DEMAND, enabled, and not
-        in the ``denied_tools`` set before adding its schema.
-
-        Args:
-            function_calls: List of FunctionCall objects just executed.
-            effective_tools: Current tool schemas (OpenAI format) or None.
-            hass: Home Assistant instance for tool instantiation.
-            denied_tools: Optional frozenset of tool names blocked from use.
-            config: Optional tool configuration (for API keys, etc.).
-
-        Returns:
-            Updated effective_tools list (may be the same reference if
-            no load_tool calls were found).
-        """
-        if effective_tools is None:
-            return None
-
-        # If load_tool itself is denied, skip all expansion to prevent bypass
-        if denied_tools and "load_tool" in denied_tools:
-            _LOGGER.debug("load_tool is in denied_tools, skipping all expansion")
-            return effective_tools
-
-        from ..function_calling import ToolSchemaConverter
-        from ..tools.base import ToolRegistry, ToolTier
-
-        for fc in function_calls:
-            if fc.name != "load_tool":
-                continue
-
-            tool_name = fc.arguments.get("tool_name", "")
-            if not tool_name:
-                continue
-
-            # Check if already loaded
-            already_loaded = any(
-                t.get("function", {}).get("name") == tool_name for t in effective_tools
-            )
-            if already_loaded:
-                _LOGGER.debug("Tool %s already in effective_tools, skipping", tool_name)
-                continue
-
-            # Respect denied_tools policy
-            if denied_tools and tool_name in denied_tools:
-                _LOGGER.warning(
-                    "load_tool: tool '%s' is in denied_tools, refusing to load",
-                    tool_name,
-                )
-                continue
-
-            # Validate tool class before instantiation
-            tool_class = ToolRegistry.get_tool_class(tool_name)
-            if tool_class is None:
-                _LOGGER.warning("load_tool: tool %s not found in registry", tool_name)
-                continue
-
-            if not tool_class.enabled:
-                _LOGGER.warning("load_tool: tool '%s' is disabled, skipping", tool_name)
-                continue
-
-            if tool_class.tier != ToolTier.ON_DEMAND:
-                _LOGGER.debug(
-                    "load_tool: tool '%s' is tier %s (not ON_DEMAND), skipping",
-                    tool_name,
-                    tool_class.tier.value,
-                )
-                continue
-
-            # Get the tool instance and convert to schema
-            tool_instance = ToolRegistry.get_tool(tool_name, hass=hass, config=config)
-            if tool_instance is None:
-                _LOGGER.warning(
-                    "load_tool: tool %s could not be instantiated", tool_name
-                )
-                continue
-
-            new_schemas = ToolSchemaConverter.to_openai_format([tool_instance])
-            effective_tools.extend(new_schemas)
-            _LOGGER.info(
-                "load_tool: dynamically added '%s' to effective_tools (%d total)",
-                tool_name,
-                len(effective_tools),
-            )
-
-        return effective_tools
-
-    def _detect_function_call(
-        self,
-        response_text: str,
-        allowed_tool_names: set[str] | None = None,
-    ) -> list[FunctionCall] | None:
-        """Detect and parse function calls from response text.
-
-        Delegates to FunctionCallParser which handles all provider-specific
-        formats (OpenAI, Gemini, Anthropic, simple/custom).
-
-        Args:
-            response_text: The text response from the AI provider.
-            allowed_tool_names: Optional set of valid tool names for filtering.
-
-        Returns:
-            List of FunctionCall objects if found, None otherwise.
-        """
-        return self.function_call_parser.detect(
-            response_text, allowed_tool_names=allowed_tool_names
+        """Expand effective_tools when load_tool was called. Delegates to ``tool_loop``."""
+        return expand_loaded_tools(
+            function_calls,
+            effective_tools,
+            hass,
+            denied_tools=denied_tools,
+            config=config,
         )
+
+    # --- Main orchestration ---
+
+    def _build_loop_kwargs(
+        self,
+        runtime: dict[str, Any],
+        built_messages: list[dict[str, Any]],
+        effective_tools: list[dict[str, Any]] | None,
+        effective_max_iterations: int,
+        hass: Any,
+        system_prompt: str | None,
+        kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build the common kwargs dict for tool loop functions."""
+        from ..tools.base import ToolRegistry
+
+        return {
+            "provider": self.provider,
+            "built_messages": built_messages,
+            "effective_tools": effective_tools,
+            "effective_max_iterations": effective_max_iterations,
+            "detect_function_call_fn": self._detect_function_call,
+            "allowed_names": {
+                t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)
+            },
+            "hass": hass,
+            "denied_tools": runtime["denied_tools"],
+            "config": runtime["config"],
+            "context_window": runtime["context_window"],
+            "user_id": runtime["user_id"],
+            "system_prompt": system_prompt,
+            "build_provider_kwargs_fn": self._build_provider_kwargs,
+            "build_updated_messages_fn": self._build_updated_messages,
+            "kwargs": kwargs,
+        }
+
+    async def _prepare_query(
+        self,
+        query: str,
+        messages: list[dict[str, Any]],
+        system_prompt: str | None,
+        tools: list[dict[str, Any]] | None,
+        kwargs: dict[str, Any],
+        *,
+        non_stream: bool = False,
+    ) -> (
+        tuple[
+            str, dict[str, Any], list[dict[str, Any]], list[dict[str, Any]] | None, bool
+        ]
+        | None
+    ):
+        """Common preparation: sanitize, extract runtime, build messages. Returns None if invalid."""
+        attachments = kwargs.pop("attachments", None)
+        sanitized_query = self._normalize_query_with_attachments(
+            self._sanitize_query(query), attachments
+        )
+        if not sanitized_query and not attachments:
+            return None
+        runtime = self._extract_runtime_context(kwargs)
+        effective_tools = self._filter_denied_tools(
+            tools, runtime["denied_tools"], non_stream=non_stream
+        )
+        built_messages, was_compacted = await self._build_messages(
+            sanitized_query,
+            messages,
+            system_prompt=system_prompt,
+            rag_context=runtime["rag_context"],
+            context_window=runtime["context_window"],
+            memory_flush_fn=runtime["memory_flush_fn"],
+            user_id=runtime["user_id"],
+            session_id=runtime["session_id"],
+            model=kwargs.get("model"),
+            attachments=attachments,
+        )
+        return sanitized_query, runtime, built_messages, effective_tools, was_compacted
 
     async def process_stream(
         self,
@@ -602,361 +275,36 @@ class QueryProcessor:
         system_prompt: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         **kwargs: Any,
-    ) -> AsyncGenerator[Any, None]:  # Typed as Any to support AgentEvent
-        """Process a user query and stream the AI response.
+    ) -> AsyncGenerator[Any, None]:
+        """Process a user query and stream the AI response. Yields AgentEvent objects."""
+        from .events import CompactionEvent, ErrorEvent
 
-        Args:
-            query: The user's query text.
-            messages: Conversation history (previous messages).
-            system_prompt: Optional system message for context.
-            tools: Optional list of tools available to the AI.
-            **kwargs: Additional arguments passed to the provider.
-                max_iterations (int): Override the instance default for this call.
-
-        Yields:
-            AgentEvent objects (TextEvent, ToolCallEvent, etc.)
-        """
-        # Per-call iteration limit (avoids mutating shared state)
         effective_max_iterations: int = kwargs.pop(
             "max_iterations", self.max_iterations
         )
-        from .events import (
-            CompactionEvent,
-            CompletionEvent,
-            ErrorEvent,
-            StatusEvent,
-            TextEvent,
-            ToolCallEvent,
-            ToolResultEvent,
+        prepared = await self._prepare_query(
+            query, messages, system_prompt, tools, kwargs
         )
-
-        attachments = kwargs.pop("attachments", None)
-        sanitized_query = self._normalize_query_with_attachments(
-            self._sanitize_query(query), attachments
-        )
-        if not sanitized_query and not attachments:
+        if prepared is None:
             yield ErrorEvent(message=EMPTY_QUERY_ERROR)
             return
 
-        runtime = self._extract_runtime_context(kwargs)
-        denied_tools: frozenset[str] | None = runtime["denied_tools"]
-        config: dict[str, Any] | None = runtime["config"]
-        context_window: int = runtime["context_window"]
-        user_id = runtime["user_id"]
-        session_id = runtime["session_id"]
-
-        # Filter denied tools from the tools list sent to the LLM (two-layer defense)
-        effective_tools = self._filter_denied_tools(tools, denied_tools)
-
-        # Build the message list with RAG context and compaction
-        built_messages, was_compacted = await self._build_messages(
-            sanitized_query,
-            messages,
-            system_prompt=system_prompt,
-            rag_context=runtime["rag_context"],
-            context_window=context_window,
-            memory_flush_fn=runtime["memory_flush_fn"],
-            user_id=user_id,
-            session_id=session_id,
-            model=kwargs.get("model"),
-            attachments=attachments,
-        )
-
+        _, runtime, built_messages, effective_tools, was_compacted = prepared
         if was_compacted:
             yield CompactionEvent(messages=built_messages)
 
-        hass = kwargs.get("hass")
-        current_iteration = 0
-        call_history_hashes: dict[str, int] = {}
-
-        from ..tools.base import ToolRegistry
-
-        allowed_names = {
-            t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)
-        }
-
+        loop_kwargs = self._build_loop_kwargs(
+            runtime,
+            built_messages,
+            effective_tools,
+            effective_max_iterations,
+            kwargs.get("hass"),
+            system_prompt,
+            kwargs,
+        )
         try:
-            while current_iteration < effective_max_iterations:
-                # Check if provider supports streaming
-                if not hasattr(self.provider, "get_response_stream"):
-                    # Fall back to non-streaming
-                    _LOGGER.debug("Provider doesn't support streaming, using fallback")
-                    provider_kwargs = self._build_provider_kwargs(
-                        kwargs, effective_tools
-                    )
-
-                    response_text = await self.provider.get_response(
-                        built_messages, **provider_kwargs
-                    )
-
-                    # Detect function call BEFORE yielding text
-                    function_calls = self._detect_function_call(
-                        response_text, allowed_tool_names=allowed_names
-                    )
-
-                    if function_calls:
-                        # Extract any text the model produced before the tool call
-                        # (Anthropic embeds it as "text" key alongside "tool_use")
-                        try:
-                            parsed = json.loads(response_text)
-                            prefixed_text = (
-                                parsed.get("text", "")
-                                if isinstance(parsed, dict)
-                                else ""
-                            )
-                        except (json.JSONDecodeError, ValueError):
-                            prefixed_text = ""
-                        if prefixed_text:
-                            yield TextEvent(content=prefixed_text)
-                    else:
-                        # No tool call — yield the full response as text
-                        yield TextEvent(content=response_text)
-
-                    if not function_calls:
-                        # No function call, return the response
-                        updated_messages = self._build_updated_messages(
-                            built_messages,
-                            response_text,
-                            system_prompt=system_prompt,
-                        )
-
-                        yield CompletionEvent(messages=updated_messages)
-                        return
-
-                    # Handle function calls (same as non-streaming)
-                    built_messages.append(
-                        {"role": "assistant", "content": response_text}
-                    )
-
-                    # Use ToolExecutor to execute tools and yield results
-                    # Note: We use "result" mode which yields dicts, so we must map them.
-                    async for tool_event in ToolExecutor.execute_tool_calls(
-                        function_calls,
-                        hass,
-                        built_messages,
-                        yield_mode="result",
-                        denied_tools=denied_tools,
-                        user_id=user_id,
-                        call_history_hashes=call_history_hashes,
-                    ):
-                        if tool_event.get("type") == "tool_call":
-                            yield ToolCallEvent(
-                                tool_name=tool_event["name"],
-                                tool_args=tool_event.get("args", {}),
-                                tool_call_id=tool_event.get("id", "unknown"),
-                            )
-                        elif tool_event.get("type") == "tool_result":
-                            yield ToolResultEvent(
-                                tool_name=tool_event["name"],
-                                tool_result=tool_event["result"],
-                                tool_call_id=tool_event.get("id", "unknown"),
-                            )
-
-                    # Expand effective_tools if load_tool was called
-                    effective_tools = self._expand_loaded_tools(
-                        function_calls, effective_tools, hass, denied_tools=denied_tools
-                    )
-
-                    # Re-check context budget after tool results were appended
-                    built_messages = await self._recompact_if_needed(
-                        built_messages, context_window=context_window
-                    )
-
-                    current_iteration += 1
-                    continue
-
-                # Provider supports streaming
-                provider_kwargs = self._build_provider_kwargs(kwargs, effective_tools)
-
-                accumulated_text = ""
-                accumulated_tool_calls = []
-
-                _LOGGER.debug(
-                    "Streaming iteration %d: sending %d messages to provider",
-                    current_iteration,
-                    len(built_messages),
-                )
-
-                # Stream the response
-                async for chunk in self.provider.get_response_stream(
-                    built_messages, **provider_kwargs
-                ):
-                    if chunk.get("type") == "text":
-                        # Emit incremental text immediately for Assist Voice
-                        # and chat delta streaming.
-                        content = chunk.get("content", "")
-                        if not content:
-                            continue
-                        accumulated_text += content
-                        yield TextEvent(content=content)
-                    elif chunk.get("type") == "tool_call":
-                        # Accumulate tool calls but DON'T send to client yet
-                        accumulated_tool_calls.append(chunk)
-                        _LOGGER.debug(
-                            "Tool call detected in stream: %s", chunk.get("name")
-                        )
-                    elif chunk.get("type") == "error":
-                        yield ErrorEvent(message=chunk.get("message", "Unknown error"))
-                        return
-
-                # After streaming completes, check for tool calls
-                if accumulated_tool_calls:
-                    _LOGGER.info(
-                        "Processing %d tool call(s) from stream",
-                        len(accumulated_tool_calls),
-                    )
-
-                    # Send status update to client
-                    tool_names = ", ".join(
-                        tc.get("name", "unknown") for tc in accumulated_tool_calls
-                    )
-                    yield StatusEvent(message=f"Calling tools: {tool_names}...")
-
-                    normalized_tool_calls = normalize_tool_calls(accumulated_tool_calls)
-
-                    # Convert to FunctionCall objects
-                    function_calls = [
-                        FunctionCall(
-                            id=tc.get("id") or tc.get("name", "unknown"),
-                            name=tc["name"],
-                            arguments=tc.get("args", {}),
-                        )
-                        for tc in normalized_tool_calls
-                    ]
-
-                    # Emit ToolCallEvents for each tool
-                    # Pair each function_call with its raw chunk for Gemini thoughtSignature preservation
-                    for i, fc in enumerate(function_calls):
-                        raw_fc = None
-                        if i < len(accumulated_tool_calls):
-                            raw_fc = accumulated_tool_calls[i].get("_raw_function_call")
-                        yield ToolCallEvent(
-                            tool_name=fc.name,
-                            tool_args=fc.arguments,
-                            tool_call_id=fc.id,
-                            raw_function_call=raw_fc,
-                        )
-
-                    # Append assistant's message (the tool call) to conversation
-                    # CRITICAL: Must preserve the EXACT format returned by Gemini, including thought_signature
-                    # Per Gemini 3 docs: "include all Parts from all previous messages in the conversation
-                    # history when sending a new request, exactly as they were returned by the model"
-
-                    # Store the ORIGINAL tool call dict from Gemini stream
-                    # This should contain the complete functionCall object with thought_signature
-                    tool_call_obj = accumulated_tool_calls[0].get("_raw_function_call")
-
-                    if not tool_call_obj:
-                        assistant_tool_json = build_assistant_tool_message(
-                            normalized_tool_calls
-                        )
-                        built_messages.append(
-                            {
-                                "role": "assistant",
-                                "content": assistant_tool_json,
-                            }
-                        )
-                    else:
-                        built_messages.append(
-                            {
-                                "role": "assistant",
-                                "content": json.dumps(tool_call_obj),
-                            }
-                        )
-
-                    # Execute tools INTERNALLY using ToolExecutor
-                    # Use "result" mode to get results, but map to Events.
-                    # Note: We rely on "result" mode because "status" mode only yields text statuses.
-                    # We want structured results.
-                    async for tool_event in ToolExecutor.execute_tool_calls(
-                        function_calls,
-                        hass,
-                        built_messages,
-                        yield_mode="result",
-                        denied_tools=denied_tools,
-                        user_id=user_id,
-                        call_history_hashes=call_history_hashes,
-                    ):
-                        if tool_event.get("type") == "tool_result":
-                            yield ToolResultEvent(
-                                tool_name=tool_event["name"],
-                                tool_result=tool_event["result"],
-                                tool_call_id=tool_event.get("id", "unknown"),
-                            )
-                        # We might want to yield status events here too, but "result" mode doesn't give them.
-                        # For now, we just yield the result.
-
-                    # Expand effective_tools if load_tool was called
-                    effective_tools = self._expand_loaded_tools(
-                        function_calls,
-                        effective_tools,
-                        hass,
-                        denied_tools=denied_tools,
-                        config=config,
-                    )
-
-                    # Re-check context budget after tool results were appended
-                    built_messages = await self._recompact_if_needed(
-                        built_messages, context_window=context_window
-                    )
-
-                    # This will trigger a NEW stream with tool results
-                    current_iteration += 1
-                    _LOGGER.info(
-                        "Tool execution complete, starting iteration %d/%d. "
-                        "Text accumulated so far: %d chars",
-                        current_iteration,
-                        effective_max_iterations,
-                        len(accumulated_text),
-                    )
-                    continue
-
-                # No function calls, complete
-                _LOGGER.info(
-                    "Stream complete (iteration %d). Total accumulated text: %d chars",
-                    current_iteration,
-                    len(accumulated_text),
-                )
-
-                updated_messages = self._build_updated_messages(
-                    built_messages,
-                    accumulated_text,
-                    system_prompt=system_prompt,
-                )
-
-                yield CompletionEvent(messages=updated_messages)
-                return
-
-            # Max iterations reached — force a final response without tools
-            _LOGGER.warning(
-                "Max iterations (%d) reached. Forcing final text response (no tools).",
-                effective_max_iterations,
-            )
-            try:
-                # One last call WITHOUT tools so the model MUST produce text
-                provider_kwargs_final = {**kwargs}
-                provider_kwargs_final.pop("tools", None)
-
-                if hasattr(self.provider, "get_response_stream"):
-                    async for chunk in self.provider.get_response_stream(
-                        built_messages, **provider_kwargs_final
-                    ):
-                        if chunk.get("type") == "text":
-                            yield TextEvent(content=chunk.get("content", ""))
-                else:
-                    final_text = await self.provider.get_response(
-                        built_messages, **provider_kwargs_final
-                    )
-                    if final_text:
-                        yield TextEvent(content=final_text)
-
-                yield CompletionEvent(messages=list(built_messages))
-            except Exception as final_err:
-                _LOGGER.error("Final forced response also failed: %s", final_err)
-                yield ErrorEvent(
-                    message="Maximum iterations reached without final response"
-                )
-
+            async for event in run_tool_loop_stream(**loop_kwargs):
+                yield event
         except Exception as e:
             _LOGGER.error("Error processing streaming query: %s", str(e))
             yield ErrorEvent(message=str(e))
@@ -969,175 +317,28 @@ class QueryProcessor:
         tools: list[dict[str, Any]] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """Process a user query and return the AI response.
-
-        Args:
-            query: The user's query text.
-            messages: Conversation history (previous messages).
-            system_prompt: Optional system message for context.
-            tools: Optional list of tools available to the AI.
-            **kwargs: Additional arguments passed to the provider.
-                max_iterations (int): Override the instance default for this call.
-
-        Returns:
-            Dict with:
-                - success: True if successful, False otherwise.
-                - response: The AI response text (on success).
-                - messages: Updated message list including response (on success).
-                - error: Error message (on failure).
-        """
-        # Per-call iteration limit (avoids mutating shared state)
+        """Process a user query and return the AI response."""
         effective_max_iterations: int = kwargs.pop(
             "max_iterations", self.max_iterations
         )
-        attachments = kwargs.pop("attachments", None)
-        sanitized_query = self._normalize_query_with_attachments(
-            self._sanitize_query(query), attachments
+        prepared = await self._prepare_query(
+            query, messages, system_prompt, tools, kwargs, non_stream=True
         )
-        if not sanitized_query and not attachments:
-            return {
-                "success": False,
-                "error": EMPTY_QUERY_ERROR,
-            }
+        if prepared is None:
+            return {"success": False, "error": EMPTY_QUERY_ERROR}
 
-        runtime = self._extract_runtime_context(kwargs)
-        denied_tools: frozenset[str] | None = runtime["denied_tools"]
-        config: dict[str, Any] | None = runtime["config"]
-        context_window: int = runtime["context_window"]
-        user_id = runtime["user_id"]
-        session_id = runtime["session_id"]
-
-        # Filter denied tools from the tools list sent to the LLM (two-layer defense)
-        effective_tools = self._filter_denied_tools(
-            tools,
-            denied_tools,
-            non_stream=True,
+        _, runtime, built_messages, effective_tools, _ = prepared
+        loop_kwargs = self._build_loop_kwargs(
+            runtime,
+            built_messages,
+            effective_tools,
+            effective_max_iterations,
+            kwargs.get("hass"),
+            system_prompt,
+            kwargs,
         )
-
-        # Build the message list with RAG context and compaction
-        built_messages, _ = await self._build_messages(
-            sanitized_query,
-            messages,
-            system_prompt=system_prompt,
-            rag_context=runtime["rag_context"],
-            attachments=attachments,
-            context_window=context_window,
-            memory_flush_fn=runtime["memory_flush_fn"],
-            user_id=user_id,
-            session_id=session_id,
-            model=kwargs.get("model"),
-        )
-
-        hass = kwargs.get("hass")
-        current_iteration = 0
-        call_history_hashes: dict[str, int] = {}
-
-        from ..tools.base import ToolRegistry
-
-        allowed_names_p = {
-            t.id for t in ToolRegistry.get_all_tools(hass=None, enabled_only=True)
-        }
-
         try:
-            while current_iteration < effective_max_iterations:
-                # Call the provider
-                provider_kwargs = self._build_provider_kwargs(kwargs, effective_tools)
-
-                response_text = await self.provider.get_response(
-                    built_messages, **provider_kwargs
-                )
-
-                # Detect function call
-                function_calls = self._detect_function_call(
-                    response_text, allowed_tool_names=allowed_names_p
-                )
-
-                if not function_calls:
-                    # No function call, return the response
-                    updated_messages = self._build_updated_messages(
-                        built_messages,
-                        response_text,
-                        system_prompt=system_prompt,
-                    )
-
-                    return {
-                        "success": True,
-                        "response": response_text,
-                        "messages": updated_messages,
-                    }
-
-                # Handle function calls
-                _LOGGER.info("Detected function calls: %s", function_calls)
-
-                # Append assistant's message (the tool call)
-                built_messages.append({"role": "assistant", "content": response_text})
-
-                # Execute tools using ToolExecutor (no yields in non-streaming mode)
-                async for _ in ToolExecutor.execute_tool_calls(
-                    function_calls,
-                    hass,
-                    built_messages,
-                    yield_mode="none",
-                    denied_tools=denied_tools,
-                    user_id=user_id,
-                    call_history_hashes=call_history_hashes,
-                ):
-                    pass  # ToolExecutor with yield_mode="none" shouldn't yield anything
-
-                # Expand effective_tools if load_tool was called
-                effective_tools = self._expand_loaded_tools(
-                    function_calls,
-                    effective_tools,
-                    hass,
-                    denied_tools=denied_tools,
-                    config=config,
-                )
-
-                # Re-check context budget after tool results were appended
-                built_messages = await self._recompact_if_needed(
-                    built_messages, context_window=context_window
-                )
-
-                current_iteration += 1
-
-            # Max iterations reached — force a final response without tools
-            _LOGGER.warning(
-                "Max iterations (%d) reached. Forcing final text response (no tools).",
-                effective_max_iterations,
-            )
-            try:
-                provider_kwargs_final: dict[str, Any] = {**kwargs}
-                provider_kwargs_final.pop("tools", None)
-
-                final_text = await self.provider.get_response(
-                    built_messages, **provider_kwargs_final
-                )
-                updated_messages = list(built_messages)
-                if (
-                    system_prompt
-                    and updated_messages
-                    and updated_messages[0].get("role") == "system"
-                ):
-                    updated_messages = updated_messages[1:]
-                if final_text:
-                    updated_messages.append(
-                        {"role": "assistant", "content": final_text}
-                    )
-                return {
-                    "success": True,
-                    "response": final_text or "",
-                    "messages": updated_messages,
-                }
-            except Exception as final_err:
-                _LOGGER.error("Final forced response also failed: %s", final_err)
-                return {
-                    "success": False,
-                    "error": "Maximum iterations reached without final response",
-                }
-
+            return await run_tool_loop_nonstream(**loop_kwargs)
         except Exception as e:
             _LOGGER.error("Error processing query: %s", str(e))
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}

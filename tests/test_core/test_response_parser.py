@@ -1,4 +1,5 @@
 """Tests for ResponseParser."""
+
 from __future__ import annotations
 
 import pytest
@@ -92,11 +93,11 @@ class TestParseJsonWithMarkdownCodeBlock:
         """Test that JSON in ```json ... ``` blocks is extracted."""
         parser = ResponseParser()
 
-        text = '''Here is the data:
+        text = """Here is the data:
 ```json
 {"request_type": "final_response", "message": "Done"}
 ```
-'''
+"""
         result = parser.parse(text)
 
         assert result["type"] == "json"
@@ -107,9 +108,9 @@ class TestParseJsonWithMarkdownCodeBlock:
         """Test that JSON in ``` ... ``` blocks (no language) is extracted."""
         parser = ResponseParser()
 
-        text = '''```
+        text = """```
 {"key": "value"}
-```'''
+```"""
         result = parser.parse(text)
 
         assert result["type"] == "json"
@@ -119,10 +120,10 @@ class TestParseJsonWithMarkdownCodeBlock:
         """Test that code block JSON takes precedence over raw JSON in text."""
         parser = ResponseParser()
 
-        text = '''{"wrong": "json"} text here
+        text = """{"wrong": "json"} text here
 ```json
 {"correct": "json"}
-```'''
+```"""
         result = parser.parse(text)
 
         assert result["type"] == "json"
@@ -132,11 +133,11 @@ class TestParseJsonWithMarkdownCodeBlock:
         """Test that code blocks with extra whitespace are handled."""
         parser = ResponseParser()
 
-        text = '''```json
+        text = """```json
 
     {"spaced": true}
 
-```'''
+```"""
         result = parser.parse(text)
 
         assert result["type"] == "json"
@@ -150,7 +151,7 @@ class TestParseToolCalls:
         """Test that responses with tool_calls are identified."""
         parser = ResponseParser()
 
-        json_str = '''{"tool_calls": [{"name": "get_weather", "arguments": {"city": "NYC"}}]}'''
+        json_str = """{"tool_calls": [{"name": "get_weather", "arguments": {"city": "NYC"}}]}"""
         result = parser.parse(json_str)
 
         assert result["type"] == "tool_calls"
@@ -161,7 +162,7 @@ class TestParseToolCalls:
         """Test that responses with function_call are identified."""
         parser = ResponseParser()
 
-        json_str = '''{"function_call": {"name": "search", "arguments": "{\\\"query\\\": \\\"test\\\"}"}}'''
+        json_str = """{"function_call": {"name": "search", "arguments": "{\\\"query\\\": \\\"test\\\"}"}}"""
         result = parser.parse(json_str)
 
         assert result["type"] == "tool_calls"
@@ -171,10 +172,10 @@ class TestParseToolCalls:
         """Test parsing multiple tool calls."""
         parser = ResponseParser()
 
-        json_str = '''{"tool_calls": [
+        json_str = """{"tool_calls": [
             {"name": "tool1", "arguments": {}},
             {"name": "tool2", "arguments": {"x": 1}}
-        ]}'''
+        ]}"""
         result = parser.parse(json_str)
 
         assert result["type"] == "tool_calls"
@@ -188,7 +189,9 @@ class TestExtractFinalResponse:
         """Test that final_response field is extracted when present."""
         parser = ResponseParser()
 
-        json_str = '{"request_type": "final_response", "final_response": "The answer is 42."}'
+        json_str = (
+            '{"request_type": "final_response", "final_response": "The answer is 42."}'
+        )
         result = parser.parse(json_str)
 
         assert result["type"] == "json"
@@ -253,9 +256,9 @@ class TestHandleMalformedJson:
         """Test that malformed JSON in code block falls back to text."""
         parser = ResponseParser()
 
-        text = '''```json
+        text = """```json
 {"invalid": json}
-```'''
+```"""
         result = parser.parse(text)
 
         # Should fall back to text since JSON is invalid
@@ -392,18 +395,21 @@ class TestIsToolCall:
     """Tests for the _is_tool_call method."""
 
     def test_is_tool_call_with_tool_calls(self) -> None:
-        """Test detecting tool_calls key."""
+        """Test detecting tool_calls key — empty list is NOT a tool call."""
         parser = ResponseParser()
 
-        assert parser._is_tool_call({"tool_calls": []}) is True
+        assert parser._is_tool_call({"tool_calls": []}) is False
         assert parser._is_tool_call({"tool_calls": [{"name": "test"}]}) is True
 
     def test_is_tool_call_with_function_call(self) -> None:
-        """Test detecting function_call key."""
+        """Test detecting function_call key — must have name+arguments."""
         parser = ResponseParser()
 
-        assert parser._is_tool_call({"function_call": {}}) is True
-        assert parser._is_tool_call({"function_call": {"name": "test"}}) is True
+        assert parser._is_tool_call({"function_call": {}}) is False
+        assert (
+            parser._is_tool_call({"function_call": {"name": "test", "arguments": "{}"}})
+            is True
+        )
 
     def test_is_tool_call_returns_false_for_regular_json(self) -> None:
         """Test that regular JSON is not detected as tool call."""

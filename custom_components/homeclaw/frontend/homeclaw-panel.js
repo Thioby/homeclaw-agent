@@ -8065,19 +8065,6 @@ derived(
   providerState,
   ($state) => $state.selectedProvider === $state.defaultProvider && $state.selectedModel === $state.defaultModel && $state.defaultProvider !== null
 );
-const PROVIDERS = {
-  openai: "OpenAI",
-  llama: "Llama",
-  gemini: "Google Gemini",
-  gemini_oauth: "Gemini (OAuth)",
-  openrouter: "OpenRouter",
-  anthropic: "Anthropic",
-  anthropic_oauth: "Claude Pro/Max",
-  groq: "Groq",
-  alter: "Alter",
-  zai: "z.ai",
-  local: "Local Model"
-};
 let _providersConfig = null;
 async function fetchProvidersConfig(hass) {
   if (_providersConfig) return _providersConfig;
@@ -8093,10 +8080,10 @@ async function fetchProvidersConfig(hass) {
   }
 }
 function getProviderLabel(provider, config) {
-  return config[provider]?.display_name || PROVIDERS[provider] || provider;
+  return config[provider]?.display_name || provider;
 }
 function isValidProvider(provider, config) {
-  return !!(config[provider] || PROVIDERS[provider]);
+  return !!config[provider];
 }
 async function fetchPreferences(hass) {
   try {
@@ -8224,30 +8211,11 @@ function resolveProviderFromEntry(entry, config = {}) {
       return fromUniqueId;
     }
   }
-  const titleMap = {
-    "homeclaw (openrouter)": "openrouter",
-    "homeclaw (google gemini)": "gemini",
-    "homeclaw (openai)": "openai",
-    "homeclaw (llama)": "llama",
-    "homeclaw (anthropic (claude))": "anthropic",
-    "homeclaw (alter)": "alter",
-    "homeclaw (z.ai)": "zai",
-    "homeclaw (local model)": "local",
-    "homeclaw (groq)": "groq"
-  };
   if (entry.title) {
-    const lowerTitle = entry.title.toLowerCase();
-    if (titleMap[lowerTitle]) {
-      return titleMap[lowerTitle];
-    }
-    const allProviderKeys = /* @__PURE__ */ new Set([
-      ...Object.keys(PROVIDERS),
-      ...Object.keys(config)
-    ]);
     const match = entry.title.match(/\(([^)]+)\)/);
     if (match && match[1]) {
       const normalized = match[1].toLowerCase().replace(/[^a-z0-9]/g, "");
-      const providerKey = [...allProviderKeys].find(
+      const providerKey = Object.keys(config).find(
         (key) => key.replace(/[^a-z0-9]/g, "") === normalized
       );
       if (providerKey) {

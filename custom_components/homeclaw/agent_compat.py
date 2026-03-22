@@ -109,10 +109,12 @@ class HomeclawAgent:
             "anthropic": "anthropic_token",
             "groq": "groq_token",
             "openrouter": "openrouter_token",
+            "zai": "zai_token",
+            "xiaomi": "xiaomi_token",
             "local": None,  # No token needed
         }
 
-        token_key = token_keys.get(base_provider, f"{base_provider}_token")
+        token_key = token_keys.get(provider, token_keys.get(base_provider, f"{base_provider}_token"))
         token = self.config.get(token_key, "") if token_key else ""
 
         # Get model for this provider
@@ -137,6 +139,10 @@ class HomeclawAgent:
         if is_oauth_provider and self.config_entry:
             config["config_entry"] = self.config_entry
 
+        # z.ai needs endpoint type (general/coding)
+        if provider == "zai":
+            config["endpoint_type"] = self.config.get("zai_endpoint", "general")
+
         return config
 
     def _get_default_model(self, provider: str) -> str:
@@ -149,6 +155,8 @@ class HomeclawAgent:
             "anthropic_oauth": "claude-sonnet-4-5-20250929",
             "groq": "llama-3.3-70b-versatile",
             "openrouter": "openai/gpt-4",
+            "zai": "glm-4-flash",
+            "xiaomi": "mimo-v2-flash",
             "local": "llama2",
         }
         return defaults.get(provider, "gpt-4")

@@ -1496,30 +1496,24 @@ class TestToolsModuleConvenienceFunctions:
         ToolRegistry.register(WebFetchTool)
         ToolRegistry.register(WebSearchTool)
 
-    def test_get_tools_system_prompt(self):
-        """Test get_tools_system_prompt convenience function."""
-        from custom_components.homeclaw.tools import get_tools_system_prompt
-
-        prompt = get_tools_system_prompt()
+    def test_get_system_prompt(self):
+        """Test ToolRegistry.get_system_prompt returns tool descriptions."""
+        prompt = ToolRegistry.get_system_prompt()
         assert isinstance(prompt, str)
         assert "web_fetch" in prompt or "fetch" in prompt.lower()
 
-    def test_get_tools_system_prompt_with_hass(self):
-        """Test get_tools_system_prompt with hass and config."""
-        from custom_components.homeclaw.tools import get_tools_system_prompt
-
+    def test_get_system_prompt_with_hass(self):
+        """Test ToolRegistry.get_system_prompt with hass and config."""
         mock_hass = MagicMock()
         mock_config = {"some_key": "some_value"}
 
-        prompt = get_tools_system_prompt(hass=mock_hass, config=mock_config)
+        prompt = ToolRegistry.get_system_prompt(hass=mock_hass, config=mock_config)
         assert isinstance(prompt, str)
 
     @pytest.mark.asyncio
-    async def test_execute_tool_function(self):
-        """Test execute_tool convenience function."""
-        from custom_components.homeclaw.tools import execute_tool
+    async def test_execute_tool_via_registry(self):
+        """Test ToolRegistry.execute_tool directly."""
 
-        # Register a simple test tool
         @ToolRegistry.register
         class SimpleTool(Tool):
             id = "simple_test"
@@ -1533,13 +1527,12 @@ class TestToolsModuleConvenienceFunctions:
             async def execute(self, value: str, **params):
                 return ToolResult(output=f"Got: {value}", metadata={})
 
-        result = await execute_tool("simple_test", {"value": "hello"})
+        result = await ToolRegistry.execute_tool("simple_test", {"value": "hello"})
         assert result.output == "Got: hello"
 
     @pytest.mark.asyncio
     async def test_execute_tool_with_hass_config(self):
-        """Test execute_tool with hass and config."""
-        from custom_components.homeclaw.tools import execute_tool
+        """Test ToolRegistry.execute_tool with hass and config."""
 
         @ToolRegistry.register
         class ConfigTool(Tool):
@@ -1550,16 +1543,14 @@ class TestToolsModuleConvenienceFunctions:
                 return ToolResult(output="executed", metadata={})
 
         mock_hass = MagicMock()
-        result = await execute_tool(
+        result = await ToolRegistry.execute_tool(
             "config_test", {}, hass=mock_hass, config={"key": "val"}
         )
         assert result.success is True
 
-    def test_list_tools_function(self):
-        """Test list_tools convenience function."""
-        from custom_components.homeclaw.tools import list_tools
-
-        tools = list_tools()
+    def test_list_tools_via_registry(self):
+        """Test ToolRegistry.list_tools directly."""
+        tools = ToolRegistry.list_tools()
         assert isinstance(tools, list)
         assert len(tools) >= 2  # At least web_fetch and web_search
 
@@ -1568,11 +1559,9 @@ class TestToolsModuleConvenienceFunctions:
         assert "web_search" in ids
 
     def test_list_tools_enabled_only(self):
-        """Test list_tools with enabled_only parameter."""
-        from custom_components.homeclaw.tools import list_tools
-
-        tools_enabled = list_tools(enabled_only=True)
-        tools_all = list_tools(enabled_only=False)
+        """Test ToolRegistry.list_tools with enabled_only parameter."""
+        tools_enabled = ToolRegistry.list_tools(enabled_only=True)
+        tools_all = ToolRegistry.list_tools(enabled_only=False)
 
         # Both should return lists
         assert isinstance(tools_enabled, list)
