@@ -36,6 +36,8 @@ class SchedulerTool(Tool):
         "Do NOT use wildcard day/month for one-shot tasks or they will fire on the wrong day. "
         "Recurring patterns: '0 20 * * *' = daily 20:00, '*/30 * * * *' = every 30 min, "
         "'0 8 * * 1' = Mondays 08:00. "
+        "Modes: 'agent' (default) runs an AI prompt, 'tool' executes a tool directly "
+        "(faster, no LLM needed). For 'tool' mode, specify tool_id and tool_params instead of prompt. "
         "Actions: list (show all jobs), add (create new), remove (delete by ID), status (summary)."
     )
     category: ClassVar[ToolCategory] = ToolCategory.HOME_ASSISTANT
@@ -57,7 +59,7 @@ class SchedulerTool(Tool):
         ToolParameter(
             name="prompt",
             type="string",
-            description="What the agent should do when the job runs (required for 'add')",
+            description="What the agent should do when the job runs (required for 'add' with mode='agent')",
             required=False,
         ),
         ToolParameter(
@@ -68,6 +70,32 @@ class SchedulerTool(Tool):
                 "Examples: '0 20 * * *' (daily 20:00), '*/30 * * * *' (every 30 min), "
                 "'0 8 * * 1' (Mondays 08:00). Required for 'add'."
             ),
+            required=False,
+        ),
+        ToolParameter(
+            name="mode",
+            type="string",
+            description=(
+                "Execution mode: 'agent' (default) runs a prompt through the AI agent, "
+                "'tool' calls a specific tool directly without LLM inference."
+            ),
+            required=False,
+            default="agent",
+            enum=["agent", "tool"],
+        ),
+        ToolParameter(
+            name="tool_id",
+            type="string",
+            description=(
+                "Tool ID to execute when mode='tool' (e.g. 'call_service', 'get_entity_state'). "
+                "Required when mode='tool'."
+            ),
+            required=False,
+        ),
+        ToolParameter(
+            name="tool_params",
+            type="object",
+            description="Parameters dict to pass to the tool when mode='tool'.",
             required=False,
         ),
         ToolParameter(
@@ -130,8 +158,11 @@ class SchedulerTool(Tool):
                     status = "enabled" if j["enabled"] else "disabled"
                     cron_expr = j.get("cron", "?")
                     one_shot = " (one-shot)" if j.get("one_shot") else ""
+                    mode_info = ""
+                    if j.get("mode") == "tool":
+                        mode_info = f" [tool:{j.get('tool_id', '?')}]"
                     lines.append(
-                        f"- [{j['job_id']}] {j['name']} "
+                        f"- [{j['job_id']}] {j['name']}{mode_info} "
                         f"(cron: {cron_expr}{one_shot}, {status}) "
                         f"next: {j.get('next_run', '?')}, "
                         f"last: {j.get('last_status', 'never')}"
@@ -143,14 +174,17 @@ class SchedulerTool(Tool):
 
             if action == "add":
                 name = params.get("name")
-                prompt = params.get("prompt")
+                prompt = params.get("prompt", "")
                 cron_expr = params.get("cron")
+                mode = params.get("mode", "agent")
+                tool_id_param = params.get("tool_id", "")
+                tool_params_val = params.get("tool_params") or {}
 
-                if not name or not prompt:
+                if not name:
                     return ToolResult(
-                        output="Both 'name' and 'prompt' are required for 'add'.",
+                        output="'name' is required for 'add'.",
                         success=False,
-                        error="Missing required parameters",
+                        error="Missing name",
                     )
 
                 if not cron_expr:
@@ -165,18 +199,32 @@ class SchedulerTool(Tool):
                         error="Missing cron expression",
                     )
 
+                if mode == "tool" and not tool_id_param:
+                    return ToolResult(
+                        output="'tool_id' is required when mode='tool'.",
+                        success=False,
+                        error="Missing tool_id",
+                    )
+
+                if mode == "agent" and not prompt:
+                    return ToolResult(
+                        output="'prompt' is required when mode='agent'.",
+                        success=False,
+                        error="Missing prompt",
+                    )
+
                 notify = params.get("notify", True)
                 one_shot = params.get("one_shot", False)
-
-                # Get user_id from tool execution context
                 user_id = params.get("_user_id", "")
-
                 provider = params.get("provider")
 
                 job = await scheduler.add_job(
                     name=name,
                     prompt=prompt,
                     cron=cron_expr,
+                    mode=mode,
+                    tool_id=tool_id_param,
+                    tool_params=tool_params_val,
                     provider=provider,
                     notify=notify,
                     one_shot=one_shot,
@@ -184,12 +232,21 @@ class SchedulerTool(Tool):
                     user_id=user_id,
                 )
 
-                return ToolResult(
-                    output=(
+                if mode == "tool":
+                    output = (
+                        f"Scheduled tool job created: '{name}' (ID: {job.job_id}), "
+                        f"tool: {tool_id_param}, cron: {cron_expr}, "
+                        f"next run: {job.next_run}."
+                    )
+                else:
+                    output = (
                         f"Scheduled job created: '{name}' (ID: {job.job_id}), "
                         f"cron: {cron_expr}, "
                         f"next run: {job.next_run}."
-                    ),
+                    )
+
+                return ToolResult(
+                    output=output,
                     metadata={"job_id": job.job_id, "next_run": job.next_run},
                 )
 

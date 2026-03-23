@@ -221,8 +221,11 @@ async def ws_scheduler_list(
     {
         vol.Required("type"): "homeclaw/scheduler/add",
         vol.Required("name"): vol.All(str, vol.Length(min=1, max=100)),
-        vol.Required("prompt"): vol.All(str, vol.Length(min=1, max=2000)),
+        vol.Optional("prompt"): vol.All(str, vol.Length(min=1, max=2000)),
         vol.Required("cron"): vol.All(str, vol.Length(min=5, max=100)),
+        vol.Optional("mode"): vol.In(["agent", "tool"]),
+        vol.Optional("tool_id"): vol.All(str, vol.Length(min=1, max=100)),
+        vol.Optional("tool_params"): dict,
         vol.Optional("one_shot"): bool,
         vol.Optional("notify"): bool,
         vol.Optional("provider"): str,
@@ -247,8 +250,11 @@ async def ws_scheduler_add(
 
         job = await scheduler.add_job(
             name=msg["name"],
-            prompt=msg["prompt"],
+            prompt=msg.get("prompt", ""),
             cron=msg["cron"],
+            mode=msg.get("mode", "agent"),
+            tool_id=msg.get("tool_id", ""),
+            tool_params=msg.get("tool_params"),
             provider=msg.get("provider"),
             notify=msg.get("notify", True),
             one_shot=msg.get("one_shot", False),

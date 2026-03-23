@@ -126,6 +126,9 @@ class ScheduledJob:
     enabled: bool
     cron: str  # 5-field cron expression
     prompt: str = ""
+    mode: str = "agent"  # "agent" (full LLM loop) | "tool" (direct tool call)
+    tool_id: str = ""  # Tool ID for mode="tool"
+    tool_params: dict[str, Any] = field(default_factory=dict)  # Params for mode="tool"
     provider: str | None = None  # None = use default
     notify: bool = True
     one_shot: bool = False  # If True, disable after first run
@@ -235,9 +238,12 @@ class SchedulerService:
     async def add_job(
         self,
         name: str,
-        prompt: str,
+        prompt: str = "",
         *,
         cron: str,
+        mode: str = "agent",
+        tool_id: str = "",
+        tool_params: dict[str, Any] | None = None,
         provider: str | None = None,
         notify: bool = True,
         one_shot: bool = False,
@@ -248,8 +254,11 @@ class SchedulerService:
 
         Args:
             name: Human-readable job name.
-            prompt: The AI prompt to execute when the job runs.
+            prompt: The AI prompt to execute (required for mode='agent').
             cron: 5-field cron expression (minute hour dom month dow).
+            mode: 'agent' (full LLM loop) or 'tool' (direct tool call).
+            tool_id: Tool ID to call (required for mode='tool').
+            tool_params: Parameters dict for tool execution.
             provider: AI provider to use (None for default).
             notify: Whether to notify the user.
             one_shot: If True, disable after first execution.
@@ -260,10 +269,23 @@ class SchedulerService:
             The created ScheduledJob.
 
         Raises:
-            ValueError: If max jobs reached or invalid cron expression.
+            ValueError: If max jobs reached, invalid cron, or invalid mode config.
         """
         if len(self._jobs) >= MAX_JOBS:
             raise ValueError(f"Maximum number of scheduled jobs reached ({MAX_JOBS})")
+
+        if mode not in ("agent", "tool"):
+            raise ValueError(f"Invalid mode: {mode!r}. Must be 'agent' or 'tool'.")
+
+        if mode == "tool":
+            if not tool_id:
+                raise ValueError("tool_id is required for mode='tool'")
+            from ..tools.base import ToolRegistry
+
+            if ToolRegistry.get_tool_class(tool_id) is None:
+                raise ValueError(f"Unknown tool: {tool_id!r}")
+        elif not prompt:
+            raise ValueError("prompt is required for mode='agent'")
 
         cron = _validate_cron(cron)
 
@@ -273,6 +295,9 @@ class SchedulerService:
             enabled=True,
             cron=cron,
             prompt=prompt,
+            mode=mode,
+            tool_id=tool_id,
+            tool_params=tool_params or {},
             provider=provider,
             notify=notify,
             one_shot=one_shot,
@@ -288,8 +313,9 @@ class SchedulerService:
         await self._async_save()
 
         _LOGGER.info(
-            "Scheduled job added: '%s' (cron=%s, id=%s, by=%s, next=%s)",
+            "Scheduled job added: '%s' (mode=%s, cron=%s, id=%s, by=%s, next=%s)",
             name,
+            mode,
             cron,
             job.job_id,
             created_by,
@@ -468,6 +494,56 @@ class SchedulerService:
             _LOGGER.error("Scheduled prompt execution failed: %s", e)
             return {"success": False, "error": str(e)}
 
+    async def _run_tool(self, job: ScheduledJob) -> dict[str, Any]:
+        """Execute a tool directly without LLM inference (mode='tool')."""
+        from ..tools.base import ToolExecutionError, ToolRegistry
+
+        start_time = time.monotonic()
+        try:
+            params: dict[str, Any] = dict(job.tool_params)
+            if job.user_id:
+                params["_user_id"] = job.user_id
+
+            result = await ToolRegistry.execute_tool(
+                tool_id=job.tool_id,
+                params=params,
+                hass=self._hass,
+            )
+
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            response = f"[Tool: {job.tool_id}] {result.output or ''}"
+
+            if job.notify:
+                self._hass.bus.async_fire(
+                    f"{DOMAIN}_scheduled_result",
+                    {
+                        "tool_id": job.tool_id,
+                        "response": response[:500],
+                        "success": result.success,
+                        "duration_ms": duration_ms,
+                        "mode": "tool",
+                    },
+                )
+
+            return {
+                "success": result.success,
+                "response": response,
+                "error": result.error or "",
+                "duration_ms": duration_ms,
+            }
+
+        except Exception as exc:
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            _LOGGER.error(
+                "Scheduled tool '%s' execution failed: %s", job.tool_id, exc
+            )
+            return {
+                "success": False,
+                "response": "",
+                "error": str(exc),
+                "duration_ms": duration_ms,
+            }
+
     # === Internal Helpers ===
 
     def _register_job_timer(self, job: ScheduledJob) -> None:
@@ -532,12 +608,19 @@ class SchedulerService:
         )
 
         try:
-            result = await self.run_prompt(
-                prompt=job.prompt,
-                provider=job.provider,
-                notify=job.notify,
-                user_id=job.user_id,
-            )
+            if job.mode == "tool":
+                if not job.tool_id:
+                    raise ValueError(
+                        f"Job '{job.name}' has mode='tool' but no tool_id"
+                    )
+                result = await self._run_tool(job)
+            else:
+                result = await self.run_prompt(
+                    prompt=job.prompt,
+                    provider=job.provider,
+                    notify=job.notify,
+                    user_id=job.user_id,
+                )
 
             run.status = "ok" if result.get("success") else "error"
             run.response = result.get("response", "")[:1000]

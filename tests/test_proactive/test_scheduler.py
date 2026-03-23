@@ -843,3 +843,273 @@ class TestProactiveInitLock:
 
         # Entry should be tracked but no new subsystems created
         assert "second_entry" in lifecycle._entry_ids
+
+
+# --- Tool Mode ---
+
+
+class TestToolMode:
+    """Tests for mode='tool' scheduler jobs."""
+
+    def test_tool_mode_dataclass_defaults(self):
+        """New fields default to agent mode."""
+        job = ScheduledJob(
+            job_id="t1", name="Test", enabled=True, cron="0 * * * *", prompt="p"
+        )
+        assert job.mode == "agent"
+        assert job.tool_id == ""
+        assert job.tool_params == {}
+
+    def test_tool_mode_dataclass_serialization(self):
+        """Tool-mode fields serialize correctly."""
+        job = ScheduledJob(
+            job_id="t2",
+            name="Tool Job",
+            enabled=True,
+            cron="0 * * * *",
+            mode="tool",
+            tool_id="get_entity_state",
+            tool_params={"entity_id": "sensor.temp"},
+        )
+        d = asdict(job)
+        assert d["mode"] == "tool"
+        assert d["tool_id"] == "get_entity_state"
+        assert d["tool_params"] == {"entity_id": "sensor.temp"}
+
+    @pytest.mark.asyncio
+    async def test_add_tool_mode_job(self, mock_hass, mock_store):
+        svc = _make_scheduler(mock_hass, mock_store)
+        await svc.async_initialize()
+
+        with (
+            patch.object(svc, "_register_job_timer"),
+            patch(
+                "custom_components.homeclaw.tools.base.ToolRegistry"
+            ) as mock_reg,
+        ):
+            mock_reg.get_tool_class.return_value = MagicMock()
+            job = await svc.add_job(
+                name="Tool Job",
+                cron="*/5 * * * *",
+                mode="tool",
+                tool_id="get_entity_state",
+                tool_params={"entity_id": "sensor.temp"},
+            )
+
+        assert job.mode == "tool"
+        assert job.tool_id == "get_entity_state"
+        assert job.tool_params == {"entity_id": "sensor.temp"}
+        assert job.prompt == ""
+
+    @pytest.mark.asyncio
+    async def test_add_tool_mode_missing_tool_id(self, mock_hass, mock_store):
+        svc = _make_scheduler(mock_hass, mock_store)
+        await svc.async_initialize()
+
+        with pytest.raises(ValueError, match="tool_id is required"):
+            await svc.add_job(
+                name="No Tool ID", cron="*/5 * * * *", mode="tool"
+            )
+
+    @pytest.mark.asyncio
+    async def test_add_tool_mode_unknown_tool(self, mock_hass, mock_store):
+        svc = _make_scheduler(mock_hass, mock_store)
+        await svc.async_initialize()
+
+        with (
+            patch(
+                "custom_components.homeclaw.tools.base.ToolRegistry"
+            ) as mock_reg,
+            pytest.raises(ValueError, match="Unknown tool"),
+        ):
+            mock_reg.get_tool_class.return_value = None
+            await svc.add_job(
+                name="Bad Tool",
+                cron="*/5 * * * *",
+                mode="tool",
+                tool_id="nonexistent_tool",
+            )
+
+    @pytest.mark.asyncio
+    async def test_add_agent_mode_missing_prompt(self, mock_hass, mock_store):
+        svc = _make_scheduler(mock_hass, mock_store)
+        await svc.async_initialize()
+
+        with pytest.raises(ValueError, match="prompt is required"):
+            await svc.add_job(
+                name="No Prompt", cron="*/5 * * * *", mode="agent"
+            )
+
+    @pytest.mark.asyncio
+    async def test_add_invalid_mode(self, mock_hass, mock_store):
+        svc = _make_scheduler(mock_hass, mock_store)
+        await svc.async_initialize()
+
+        with pytest.raises(ValueError, match="Invalid mode"):
+            await svc.add_job(
+                name="Bad Mode",
+                prompt="test",
+                cron="*/5 * * * *",
+                mode="invalid",
+            )
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_mode_job(self, mock_hass, mock_store):
+        """Tool-mode job calls ToolRegistry.execute_tool, not run_prompt."""
+        from custom_components.homeclaw.tools.base import ToolResult
+
+        svc = _make_scheduler(mock_hass, mock_store)
+        await svc.async_initialize()
+
+        job = ScheduledJob(
+            job_id="tool1",
+            name="Tool Exec",
+            enabled=True,
+            cron="*/5 * * * *",
+            mode="tool",
+            tool_id="get_entity_state",
+            tool_params={"entity_id": "sensor.temp"},
+            user_id="user1",
+        )
+        svc._jobs[job.job_id] = job
+
+        mock_result = ToolResult(output="25.3°C", success=True)
+
+        with (
+            patch(
+                "custom_components.homeclaw.tools.base.ToolRegistry"
+            ) as mock_reg,
+            patch.object(svc, "run_prompt", new_callable=AsyncMock) as mock_run,
+            patch.object(svc, "_save_to_session", new_callable=AsyncMock),
+        ):
+            mock_reg.execute_tool = AsyncMock(return_value=mock_result)
+            run = await svc._execute_job(job)
+
+        # Must NOT call run_prompt
+        mock_run.assert_not_called()
+        # Must call ToolRegistry.execute_tool
+        mock_reg.execute_tool.assert_called_once_with(
+            tool_id="get_entity_state",
+            params={"entity_id": "sensor.temp", "_user_id": "user1"},
+            hass=mock_hass,
+        )
+        assert run.status == "ok"
+        assert "[Tool: get_entity_state]" in run.response
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_mode_error(self, mock_hass, mock_store):
+        """Tool-mode job handles ToolExecutionError."""
+        from custom_components.homeclaw.tools.base import ToolExecutionError
+
+        svc = _make_scheduler(mock_hass, mock_store)
+        await svc.async_initialize()
+
+        job = ScheduledJob(
+            job_id="toolerr",
+            name="Tool Error",
+            enabled=True,
+            cron="*/5 * * * *",
+            mode="tool",
+            tool_id="bad_tool",
+            tool_params={},
+        )
+        svc._jobs[job.job_id] = job
+
+        with (
+            patch(
+                "custom_components.homeclaw.tools.base.ToolRegistry"
+            ) as mock_reg,
+            patch.object(svc, "_save_to_session", new_callable=AsyncMock),
+        ):
+            mock_reg.execute_tool = AsyncMock(
+                side_effect=ToolExecutionError("tool failed", tool_id="bad_tool")
+            )
+            run = await svc._execute_job(job)
+
+        assert run.status == "error"
+        assert "tool failed" in run.error
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_mode_corrupt_no_tool_id(self, mock_hass, mock_store):
+        """Job with mode='tool' but empty tool_id raises ValueError."""
+        svc = _make_scheduler(mock_hass, mock_store)
+        await svc.async_initialize()
+
+        job = ScheduledJob(
+            job_id="corrupt",
+            name="Corrupt Job",
+            enabled=True,
+            cron="*/5 * * * *",
+            mode="tool",
+            tool_id="",  # corrupt: missing tool_id
+        )
+        svc._jobs[job.job_id] = job
+
+        with patch.object(svc, "_save_to_session", new_callable=AsyncMock):
+            run = await svc._execute_job(job)
+
+        assert run.status == "error"
+        assert "no tool_id" in run.error
+
+    @pytest.mark.asyncio
+    async def test_tool_mode_fires_event(self, mock_hass, mock_store):
+        """Tool-mode job fires event with mode='tool' in payload."""
+        from custom_components.homeclaw.tools.base import ToolResult
+
+        svc = _make_scheduler(mock_hass, mock_store)
+        await svc.async_initialize()
+
+        job = ScheduledJob(
+            job_id="evt",
+            name="Event Test",
+            enabled=True,
+            cron="*/5 * * * *",
+            mode="tool",
+            tool_id="get_entity_state",
+            tool_params={"entity_id": "sensor.temp"},
+            notify=True,
+        )
+        svc._jobs[job.job_id] = job
+
+        mock_result = ToolResult(output="OK", success=True)
+
+        with (
+            patch(
+                "custom_components.homeclaw.tools.base.ToolRegistry"
+            ) as mock_reg,
+            patch.object(svc, "_save_to_session", new_callable=AsyncMock),
+        ):
+            mock_reg.execute_tool = AsyncMock(return_value=mock_result)
+            await svc._execute_job(job)
+
+        mock_hass.bus.async_fire.assert_called()
+        event_data = mock_hass.bus.async_fire.call_args[0][1]
+        assert event_data["mode"] == "tool"
+        assert event_data["tool_id"] == "get_entity_state"
+
+    @pytest.mark.asyncio
+    async def test_storage_backward_compat(self, mock_hass, mock_store):
+        """Jobs stored without mode/tool_id/tool_params load with defaults."""
+        mock_store.async_load.return_value = {
+            "jobs": [
+                {
+                    "job_id": "old1",
+                    "name": "Old Agent Job",
+                    "enabled": True,
+                    "cron": "0 20 * * *",
+                    "prompt": "Do something",
+                    "created_by": "user",
+                    "last_status": "ok",
+                    "created_at": time.time(),
+                }
+            ],
+            "run_history": [],
+        }
+
+        svc = _make_scheduler(mock_hass, mock_store)
+        await svc.async_initialize()
+
+        job = svc._jobs["old1"]
+        assert job.mode == "agent"
+        assert job.tool_id == ""
+        assert job.tool_params == {}
