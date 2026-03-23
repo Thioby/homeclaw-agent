@@ -4,10 +4,13 @@
   import { appState } from "$lib/stores/appState"
   import { fetchModels } from '$lib/services/provider.service';
 
+  let { disabled = false }: { disabled?: boolean } = $props();
+
   async function handleChange(e: Event) {
+    if (disabled) return;
     const target = e.target as HTMLSelectElement;
     providerState.update(s => ({ ...s, selectedProvider: target.value }));
-    
+
     // Fetch models for new provider
     const currentAppState = get(appState);
     if (currentAppState.hass && target.value) {
@@ -21,8 +24,10 @@
     <span class="provider-label">Provider:</span>
     <select
       class="provider-button"
+      class:provider-locked={disabled}
       value={$providerState.selectedProvider || ''}
       onchange={handleChange}
+      {disabled}
     >
       {#each $providerState.availableProviders as provider}
         <option value={provider.value}>
@@ -70,15 +75,21 @@
     padding-right: 30px;
   }
 
-  .provider-button:hover {
+  .provider-button:hover:not(:disabled) {
     background-color: var(--primary-background-color);
     border-color: var(--primary-color);
   }
 
-  .provider-button:focus {
+  .provider-button:focus:not(:disabled) {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.2);
+  }
+
+  .provider-locked {
+    opacity: 0.6;
+    cursor: default;
+    pointer-events: none;
   }
 
   .no-providers {

@@ -383,7 +383,8 @@ async def _prepare_chat_request(
     all_messages = await storage.get_session_messages(session_id)
     conversation_history = await _build_conversation_history(hass, all_messages[:-1])
 
-    provider = msg.get("provider") or session.provider or "anthropic"
+    # Provider is locked to the session — ignore any override from the message
+    provider = session.provider or "anthropic"
 
     return _PreparedChatRequest(
         storage=storage,

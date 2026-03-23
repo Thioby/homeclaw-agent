@@ -342,7 +342,7 @@
 
   <div class="input-footer">
     <AttachButton onFilesSelected={handleFilesSelected} />
-    <ProviderSelector />
+    <ProviderSelector disabled={!!$sessionState.activeSessionId} />
     <ModelSelector />
     <ThinkingToggle />
     <SendButton onclick={handleSend} />

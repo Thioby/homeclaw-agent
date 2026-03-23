@@ -1193,15 +1193,21 @@
     padding-right: 30px;
   }
 
-  .provider-button.svelte-6zrmqv:hover {
+  .provider-button.svelte-6zrmqv:hover:not(:disabled) {
     background-color: var(--primary-background-color);
     border-color: var(--primary-color);
   }
 
-  .provider-button.svelte-6zrmqv:focus {
+  .provider-button.svelte-6zrmqv:focus:not(:disabled) {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.2);
+  }
+
+  .provider-locked.svelte-6zrmqv {
+    opacity: 0.6;
+    cursor: default;
+    pointer-events: none;
   }
 
   .no-providers.svelte-6zrmqv {

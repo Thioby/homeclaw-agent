@@ -2,6 +2,8 @@ import { get } from 'svelte/store';
 import type { HomeAssistant } from '$lib/types';
 import { sessionState } from '$lib/stores/sessions';
 import { appState } from '$lib/stores/appState';
+import { providerState } from '$lib/stores/providers';
+import { fetchModels } from './provider.service';
 import { clearSessionCache } from './markdown.service';
 
 /**
@@ -66,6 +68,16 @@ export async function selectSession(hass: HomeAssistant, sessionId: string): Pro
       .sort((a: any, b: any) => (a.timestamp || '').localeCompare(b.timestamp || ''));
 
     appState.update((s) => ({ ...s, messages }));
+
+    // Sync provider selector to the session's locked provider
+    const sessionProvider = result.session?.provider;
+    if (sessionProvider) {
+      const currentProvider = get(providerState).selectedProvider;
+      if (currentProvider !== sessionProvider) {
+        providerState.update((s) => ({ ...s, selectedProvider: sessionProvider }));
+        await fetchModels(hass, sessionProvider);
+      }
+    }
 
     // Close sidebar on mobile
     if (typeof window !== 'undefined' && window.innerWidth <= 768) {

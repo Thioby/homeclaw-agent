@@ -14138,6 +14138,14 @@ async function selectSession(hass, sessionId) {
       attachments: m2.attachments
     })).sort((a2, b2) => (a2.timestamp || "").localeCompare(b2.timestamp || ""));
     appState.update((s2) => ({ ...s2, messages }));
+    const sessionProvider = result.session?.provider;
+    if (sessionProvider) {
+      const currentProvider = get(providerState).selectedProvider;
+      if (currentProvider !== sessionProvider) {
+        providerState.update((s2) => ({ ...s2, selectedProvider: sessionProvider }));
+        await fetchModels(hass, sessionProvider);
+      }
+    }
     if (typeof window !== "undefined" && window.innerWidth <= 768) {
       const { closeSidebar: closeSidebar2 } = await Promise.resolve().then(() => ui);
       closeSidebar2();
@@ -15196,14 +15204,16 @@ function MessageInput($$anchor, $$props) {
 }
 delegate(["input", "keydown"]);
 var root_2$8 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_1$d = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-6zrmqv"><span class="provider-label svelte-6zrmqv">Provider:</span> <select class="provider-button svelte-6zrmqv"></select></div>`);
+var root_1$d = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-6zrmqv"><span class="provider-label svelte-6zrmqv">Provider:</span> <select></select></div>`);
 var root_3$9 = /* @__PURE__ */ from_html(`<div class="no-providers svelte-6zrmqv">No providers configured</div>`);
 function ProviderSelector($$anchor, $$props) {
-  push($$props, false);
+  push($$props, true);
   const $hasProviders = () => store_get(hasProviders, "$hasProviders", $$stores);
   const $providerState = () => store_get(providerState, "$providerState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
+  let disabled = prop($$props, "disabled", 3, false);
   async function handleChange(e2) {
+    if (disabled()) return;
     const target = e2.target;
     providerState.update((s2) => ({ ...s2, selectedProvider: target.value }));
     const currentAppState = get(appState);
@@ -15211,13 +15221,13 @@ function ProviderSelector($$anchor, $$props) {
       await fetchModels(currentAppState.hass, target.value);
     }
   }
-  init();
   var fragment = comment();
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
       var div = root_1$d();
       var select = sibling(child(div), 2);
+      let classes;
       select.__change = handleChange;
       each(select, 5, () => $providerState().availableProviders, index, ($$anchor3, provider) => {
         var option = root_2$8();
@@ -15234,6 +15244,8 @@ function ProviderSelector($$anchor, $$props) {
       var select_value;
       init_select(select);
       template_effect(() => {
+        classes = set_class(select, 1, "provider-button svelte-6zrmqv", null, classes, { "provider-locked": disabled() });
+        select.disabled = disabled();
         if (select_value !== (select_value = $providerState().selectedProvider || "")) {
           select.value = (select.__value = $providerState().selectedProvider || "") ?? "", select_option(select, $providerState().selectedProvider || "");
         }
@@ -15518,6 +15530,8 @@ delegate(["click"]);
 var root$a = /* @__PURE__ */ from_html(`<div class="input-container svelte-f7ebxa"><!> <div class="input-main svelte-f7ebxa"><!></div> <div class="input-footer svelte-f7ebxa"><!> <!> <!> <!> <!></div></div>`);
 function InputArea($$anchor, $$props) {
   push($$props, true);
+  const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
+  const [$$stores, $$cleanup] = setup_stores();
   let messageInput;
   const USE_STREAMING = true;
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -15744,7 +15758,14 @@ _${status}_` } : msg)
   var node_2 = child(div_2);
   AttachButton(node_2, { onFilesSelected: handleFilesSelected });
   var node_3 = sibling(node_2, 2);
-  ProviderSelector(node_3, {});
+  {
+    let $0 = /* @__PURE__ */ user_derived(() => !!$sessionState().activeSessionId);
+    ProviderSelector(node_3, {
+      get disabled() {
+        return get$1($0);
+      }
+    });
+  }
   var node_4 = sibling(node_3, 2);
   ModelSelector(node_4, {});
   var node_5 = sibling(node_4, 2);
@@ -15753,6 +15774,7 @@ _${status}_` } : msg)
   SendButton(node_6, { onclick: handleSend });
   append($$anchor, div);
   pop();
+  $$cleanup();
 }
 var root_2$5 = /* @__PURE__ */ from_html(`<span class="thinking-subtitle svelte-wqn4rm"> </span>`);
 var root_3$6 = /* @__PURE__ */ from_svg(`<path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"></path>`);
