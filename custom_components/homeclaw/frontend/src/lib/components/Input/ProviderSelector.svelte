@@ -7,7 +7,6 @@
   let { disabled = false }: { disabled?: boolean } = $props();
 
   async function handleChange(e: Event) {
-    if (disabled) return;
     const target = e.target as HTMLSelectElement;
     providerState.update(s => ({ ...s, selectedProvider: target.value }));
 
@@ -24,7 +23,6 @@
     <span class="provider-label">Provider:</span>
     <select
       class="provider-button"
-      class:provider-locked={disabled}
       value={$providerState.selectedProvider || ''}
       onchange={handleChange}
       {disabled}
@@ -86,10 +84,9 @@
     box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.2);
   }
 
-  .provider-locked {
-    opacity: 0.6;
-    cursor: default;
-    pointer-events: none;
+  .provider-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .no-providers {

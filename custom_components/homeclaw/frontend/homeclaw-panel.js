@@ -1689,15 +1689,20 @@ const componentCss = `
     padding-right: 30px;
   }
 
-  .provider-button.svelte-6zrmqv:hover {
+  .provider-button.svelte-6zrmqv:hover:not(:disabled) {
     background-color: var(--primary-background-color);
     border-color: var(--primary-color);
   }
 
-  .provider-button.svelte-6zrmqv:focus {
+  .provider-button.svelte-6zrmqv:focus:not(:disabled) {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.2);
+  }
+
+  .provider-button.svelte-6zrmqv:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .no-providers.svelte-6zrmqv {
@@ -14143,7 +14148,7 @@ async function selectSession(hass, sessionId) {
       const currentProvider = get(providerState).selectedProvider;
       if (currentProvider !== sessionProvider) {
         providerState.update((s2) => ({ ...s2, selectedProvider: sessionProvider }));
-        await fetchModels(hass, sessionProvider);
+        fetchModels(hass, sessionProvider);
       }
     }
     if (typeof window !== "undefined" && window.innerWidth <= 768) {
@@ -15204,7 +15209,7 @@ function MessageInput($$anchor, $$props) {
 }
 delegate(["input", "keydown"]);
 var root_2$8 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_1$d = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-6zrmqv"><span class="provider-label svelte-6zrmqv">Provider:</span> <select></select></div>`);
+var root_1$d = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-6zrmqv"><span class="provider-label svelte-6zrmqv">Provider:</span> <select class="provider-button svelte-6zrmqv"></select></div>`);
 var root_3$9 = /* @__PURE__ */ from_html(`<div class="no-providers svelte-6zrmqv">No providers configured</div>`);
 function ProviderSelector($$anchor, $$props) {
   push($$props, true);
@@ -15213,7 +15218,6 @@ function ProviderSelector($$anchor, $$props) {
   const [$$stores, $$cleanup] = setup_stores();
   let disabled = prop($$props, "disabled", 3, false);
   async function handleChange(e2) {
-    if (disabled()) return;
     const target = e2.target;
     providerState.update((s2) => ({ ...s2, selectedProvider: target.value }));
     const currentAppState = get(appState);
@@ -15227,7 +15231,6 @@ function ProviderSelector($$anchor, $$props) {
     var consequent = ($$anchor2) => {
       var div = root_1$d();
       var select = sibling(child(div), 2);
-      let classes;
       select.__change = handleChange;
       each(select, 5, () => $providerState().availableProviders, index, ($$anchor3, provider) => {
         var option = root_2$8();
@@ -15244,7 +15247,6 @@ function ProviderSelector($$anchor, $$props) {
       var select_value;
       init_select(select);
       template_effect(() => {
-        classes = set_class(select, 1, "provider-button svelte-6zrmqv", null, classes, { "provider-locked": disabled() });
         select.disabled = disabled();
         if (select_value !== (select_value = $providerState().selectedProvider || "")) {
           select.value = (select.__value = $providerState().selectedProvider || "") ?? "", select_option(select, $providerState().selectedProvider || "");
