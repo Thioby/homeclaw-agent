@@ -15,11 +15,58 @@ Cron quick-reference (5 fields: minute hour day-of-month month day-of-week):
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any, ClassVar, List
+
+from homeassistant.util import dt as dt_util
 
 from .base import Tool, ToolCategory, ToolParameter, ToolRegistry, ToolResult, ToolTier
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _check_one_shot_not_in_past(cron_expr: str) -> str | None:
+    """Check if a one-shot cron expression targets a time in the past.
+
+    Builds the intended datetime from cron fields + current year.
+    If that datetime is more than 7 days in the past, the LLM likely
+    used a stale date.  The 7-day grace window handles cross-year
+    scheduling (e.g. Dec 30 → Jan 2).
+
+    Returns an error message string if blocked, None if OK.
+    """
+    parts = cron_expr.split()
+    if len(parts) != 5:
+        return None  # Let normal validation handle bad cron
+
+    minute_s, hour_s, day_s, month_s, _ = parts
+
+    # Only check crons with specific day AND month (one-shot pattern)
+    if day_s == "*" or month_s == "*":
+        return None
+
+    try:
+        now = dt_util.now()
+        target = now.replace(
+            month=int(month_s),
+            day=int(day_s),
+            hour=int(hour_s),
+            minute=int(minute_s),
+            second=0,
+            microsecond=0,
+        )
+        # If intended date is more than 7 days in the past → stale date error
+        if now - target > timedelta(days=7):
+            now_str = now.strftime("%Y-%m-%d %H:%M %Z")
+            return (
+                f"The cron '{cron_expr}' targets a time that already passed. "
+                f"Current time is {now_str}. "
+                f"Please recalculate using the correct date and time."
+            )
+    except (ValueError, OverflowError):
+        return None  # Bad date fields — let croniter validation handle it
+
+    return None
 
 
 @ToolRegistry.register
@@ -213,8 +260,19 @@ class SchedulerTool(Tool):
                         error="Missing prompt",
                     )
 
-                notify = params.get("notify", True)
                 one_shot = params.get("one_shot", False)
+
+                # Guard: prevent one-shot tasks targeting a time in the past
+                if one_shot:
+                    past_error = _check_one_shot_not_in_past(cron_expr)
+                    if past_error:
+                        return ToolResult(
+                            output=past_error,
+                            success=False,
+                            error="One-shot task targets past time",
+                        )
+
+                notify = params.get("notify", True)
                 user_id = params.get("_user_id", "")
                 provider = params.get("provider")
 
