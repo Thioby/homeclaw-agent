@@ -202,7 +202,7 @@ class TestHomeclawAgentCompat:
         result = await agent.create_dashboard({"title": "Test"})
 
         assert result["success"] is True
-        agent._agent.create_dashboard.assert_called_once_with({"title": "Test"})
+        agent._agent.create_dashboard.assert_called_once_with({"title": "Test"}, dry_run=True)
 
     @pytest.mark.asyncio
     @patch("custom_components.homeclaw.agent_compat.ProviderRegistry")

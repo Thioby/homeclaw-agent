@@ -164,7 +164,7 @@ async def _handle_create_dashboard(
         dashboard_config = _parse_dashboard_config(
             call.data.get("dashboard_config", {})
         )
-        return await agent.create_dashboard(dashboard_config)
+        return await agent.create_dashboard(dashboard_config, dry_run=False)
     except (RuntimeError, ValueError) as exc:
         _LOGGER.error("Create dashboard error: %s", exc)
         return {"error": str(exc)}
@@ -185,7 +185,9 @@ async def _handle_update_dashboard(
         dashboard_url = call.data.get("dashboard_url", "")
         if not dashboard_url:
             return {"error": "Dashboard URL is required"}
-        return await agent.update_dashboard(dashboard_url, dashboard_config)
+        return await agent.update_dashboard(
+            dashboard_url, dashboard_config, dry_run=False
+        )
     except (RuntimeError, ValueError) as exc:
         _LOGGER.error("Update dashboard error: %s", exc)
         return {"error": str(exc)}

@@ -51,6 +51,7 @@ DENIED_TOOLS = frozenset(
         "create_automation",
         "create_dashboard",
         "update_dashboard",
+        "delete_dashboard",
         "call_service",
         "set_entity_state",
         "safe_shell_execute",

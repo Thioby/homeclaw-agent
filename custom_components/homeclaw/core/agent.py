@@ -290,7 +290,11 @@ class Agent:
         return await self._get_dashboard_manager().get_dashboards()
 
     async def create_dashboard(
-        self, config: dict[str, Any], dashboard_id: str | None = None
+        self,
+        config: dict[str, Any],
+        dashboard_id: str | None = None,
+        *,
+        dry_run: bool = True,
     ) -> dict[str, Any]:
         """Create a new dashboard.
 
@@ -302,7 +306,7 @@ class Agent:
             Result dictionary with success status or error.
         """
         return await self._get_dashboard_manager().create_dashboard(
-            config, dashboard_id
+            config, dashboard_id, dry_run=dry_run
         )
 
     # === Registry Operations ===

@@ -451,7 +451,7 @@ class TestGetDashboardDelegatesToManager:
         config = {"title": "New Dashboard", "views": []}
         result = await agent.create_dashboard(config, dashboard_id="new-dash")
 
-        dashboard_manager.create_dashboard.assert_called_once_with(config, "new-dash")
+        dashboard_manager.create_dashboard.assert_called_once_with(config, "new-dash", dry_run=True)
         assert result["success"] is True
 
     @pytest.mark.asyncio

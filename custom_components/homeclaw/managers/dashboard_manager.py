@@ -202,13 +202,18 @@ class DashboardManager:
             return {"error": f"Error getting dashboard config: {str(e)}"}
 
     async def create_dashboard(
-        self, config: dict[str, Any], dashboard_id: str | None = None
+        self,
+        config: dict[str, Any],
+        dashboard_id: str | None = None,
+        *,
+        dry_run: bool = True,
     ) -> dict[str, Any]:
         """Create a new dashboard.
 
         Args:
             config: Dashboard configuration with title, url_path, views, etc.
             dashboard_id: Optional explicit dashboard ID (uses url_path from config if not provided).
+            dry_run: If True, validate and return a preview without writing any files.
 
         Returns:
             Result dictionary with success status or error.
@@ -236,8 +241,37 @@ class DashboardManager:
                 "views": config.get("views", []),
             }
 
-            # Create the dashboard YAML file
+            # Check for duplicate — file on disk or registered in HA
             lovelace_config_file = self.hass.config.path(f"ui-lovelace-{url_path}.yaml")
+            file_exists = await self.hass.async_add_executor_job(
+                lambda: os.path.exists(lovelace_config_file)
+            )
+            if file_exists:
+                return {"error": f"Dashboard '{url_path}' already exists"}
+
+            # Also check HA's in-memory dashboard registry
+            try:
+                from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+
+                lovelace_data = self.hass.data.get(LOVELACE_DOMAIN)
+                if lovelace_data and hasattr(lovelace_data, "dashboards"):
+                    if url_path in lovelace_data.dashboards:
+                        return {"error": f"Dashboard '{url_path}' already exists"}
+            except Exception:
+                pass  # If lovelace not available, skip this check
+
+            if dry_run:
+                validation = self.validate_dashboard_config(dashboard_data)
+                preview_yaml = yaml.dump(
+                    dashboard_data, default_flow_style=False, allow_unicode=True
+                )
+                return {
+                    "dry_run": True,
+                    "title": config["title"],
+                    "url_path": url_path,
+                    "preview": preview_yaml,
+                    "validation": validation,
+                }
 
             def write_dashboard_file():
                 with open(lovelace_config_file, "w") as f:
@@ -411,19 +445,118 @@ class DashboardManager:
             _LOGGER.error("Failed to write configuration.yaml: %s", exc)
             return False
 
+    async def _remove_from_configuration_yaml(self, url_path: str) -> bool:
+        """Remove a dashboard entry from configuration.yaml.
+
+        Args:
+            url_path: The dashboard URL path to remove.
+
+        Returns:
+            True if the entry was found and removed, False otherwise.
+        """
+        config_file = self.hass.config.path("configuration.yaml")
+        async with CONFIG_WRITE_LOCK:
+            return await self.hass.async_add_executor_job(
+                self._do_remove_from_configuration_yaml, config_file, url_path
+            )
+
+    @staticmethod
+    def _do_remove_from_configuration_yaml(config_file: str, url_path: str) -> bool:
+        """Synchronous configuration.yaml entry removal (runs in executor).
+
+        Line-based scan: find the url_path: line under dashboards:,
+        delete it and all following lines at deeper indentation.
+
+        Args:
+            config_file: Path to configuration.yaml.
+            url_path: Dashboard URL path to remove.
+
+        Returns:
+            True if removed, False if not found.
+        """
+        try:
+            backup_file(config_file)
+        except Exception:
+            _LOGGER.warning(
+                "Failed to backup configuration.yaml before dashboard removal"
+            )
+
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                content = f.read()
+        except FileNotFoundError:
+            return False
+
+        lines = content.split("\n")
+        in_lovelace = False
+        in_dashboards = False
+        entry_start = -1
+        entry_indent = -1
+
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("#") or not stripped:
+                continue
+            if re.match(r"^lovelace:", line):
+                in_lovelace = True
+                continue
+            if in_lovelace and re.match(r"^\s+dashboards:", line):
+                in_dashboards = True
+                continue
+            if in_lovelace and not line.startswith(" "):
+                in_lovelace = False
+                in_dashboards = False
+                continue
+            if in_dashboards:
+                match = re.match(rf"^(\s+){re.escape(url_path)}:", line)
+                if match:
+                    entry_start = idx
+                    entry_indent = len(match.group(1))
+                    break
+
+        if entry_start == -1:
+            return False
+
+        entry_end = entry_start + 1
+        while entry_end < len(lines):
+            line = lines[entry_end]
+            if not line.strip():
+                entry_end += 1
+                continue
+            line_indent = len(line) - len(line.lstrip())
+            if line_indent <= entry_indent:
+                break
+            entry_end += 1
+
+        new_lines = lines[:entry_start] + lines[entry_end:]
+        new_content = "\n".join(new_lines)
+
+        try:
+            atomic_write_file(config_file, new_content)
+            return True
+        except Exception as exc:
+            _LOGGER.error("Failed to write configuration.yaml: %s", exc)
+            return False
+
     async def update_dashboard(
-        self, dashboard_id: str, config: dict[str, Any]
+        self, dashboard_id: str, config: dict[str, Any], *, dry_run: bool = True
     ) -> dict[str, Any]:
         """Update an existing dashboard.
 
         Args:
             dashboard_id: The dashboard URL path to update.
             config: New dashboard configuration.
+            dry_run: If True, return a preview of the changes without writing.
 
         Returns:
             Result dictionary with success status or error.
         """
         try:
+            if not dashboard_id:
+                return {
+                    "error": "Cannot modify the default dashboard through this tool"
+                }
+
             _LOGGER.debug("Updating dashboard %s with config: %s", dashboard_id, config)
 
             # Prepare updated dashboard configuration
@@ -457,6 +590,26 @@ class DashboardManager:
             if not file_exists:
                 return {"error": f"Dashboard file for '{dashboard_id}' not found"}
 
+            if dry_run:
+
+                def read_current():
+                    with open(dashboard_file, "r") as f:
+                        return yaml.safe_load(f) or {}
+
+                current_config = await self.hass.async_add_executor_job(read_current)
+                validation = self.validate_dashboard_config(dashboard_data)
+                return {
+                    "dry_run": True,
+                    "dashboard_url": dashboard_id,
+                    "current_config": yaml.dump(
+                        current_config, default_flow_style=False, allow_unicode=True
+                    ),
+                    "new_config": yaml.dump(
+                        dashboard_data, default_flow_style=False, allow_unicode=True
+                    ),
+                    "validation": validation,
+                }
+
             def update_dashboard_file():
                 with open(dashboard_file, "w") as f:
                     yaml.dump(
@@ -477,6 +630,79 @@ class DashboardManager:
         except Exception as e:
             _LOGGER.exception("Error updating dashboard: %s", str(e))
             return {"error": f"Error updating dashboard: {str(e)}"}
+
+    async def delete_dashboard(
+        self, dashboard_id: str, *, dry_run: bool = True
+    ) -> dict[str, Any]:
+        """Delete an existing dashboard.
+
+        Args:
+            dashboard_id: The dashboard URL path to delete.
+            dry_run: If True, return info about what would be deleted without making changes.
+
+        Returns:
+            Result dictionary with success status or error.
+        """
+        try:
+            if not dashboard_id:
+                return {"error": "Cannot delete the default dashboard"}
+
+            _LOGGER.debug("Deleting dashboard %s (dry_run=%s)", dashboard_id, dry_run)
+
+            dashboard_file = self.hass.config.path(f"ui-lovelace-{dashboard_id}.yaml")
+            file_exists = await self.hass.async_add_executor_job(
+                lambda: os.path.exists(dashboard_file)
+            )
+
+            if not file_exists:
+                alt_dashboard_file = self.hass.config.path(
+                    f"dashboards/{dashboard_id}.yaml"
+                )
+                alt_exists = await self.hass.async_add_executor_job(
+                    lambda: os.path.exists(alt_dashboard_file)
+                )
+                if alt_exists:
+                    dashboard_file = alt_dashboard_file
+                    file_exists = True
+
+            if not file_exists:
+                return {"error": f"Dashboard '{dashboard_id}' not found"}
+
+            def read_current():
+                with open(dashboard_file, "r") as f:
+                    return yaml.safe_load(f) or {}
+
+            current_config = await self.hass.async_add_executor_job(read_current)
+
+            if dry_run:
+                return {
+                    "dry_run": True,
+                    "exists": True,
+                    "dashboard_url": dashboard_id,
+                    "file": dashboard_file,
+                    "title": current_config.get("title", dashboard_id),
+                    "preview": yaml.dump(
+                        current_config, default_flow_style=False, allow_unicode=True
+                    ),
+                }
+
+            await self.hass.async_add_executor_job(os.remove, dashboard_file)
+            _LOGGER.info("Deleted dashboard file: %s", dashboard_file)
+
+            config_removed = await self._remove_from_configuration_yaml(dashboard_id)
+            if not config_removed:
+                _LOGGER.warning(
+                    "Dashboard file deleted but entry not found in configuration.yaml"
+                )
+
+            return {
+                "success": True,
+                "message": f"Dashboard '{dashboard_id}' deleted. Restart required.",
+                "restart_required": True,
+            }
+        except Exception as e:
+            _LOGGER.exception("Error deleting dashboard: %s", str(e))
+            return {"error": f"Error deleting dashboard: {str(e)}"}
 
     def validate_dashboard_config(self, config: dict[str, Any]) -> dict[str, Any]:
         """Validate Lovelace dashboard configuration structure.

@@ -62,6 +62,7 @@ HEARTBEAT_DENIED_TOOLS = frozenset(
         "create_automation",
         "create_dashboard",
         "update_dashboard",
+        "delete_dashboard",
         "scheduler",
         "subagent_spawn",
         "subagent_status",

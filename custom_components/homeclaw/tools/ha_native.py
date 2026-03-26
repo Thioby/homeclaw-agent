@@ -1355,3 +1355,192 @@ class GetDashboardConfig(Tool):
                 error=str(e),
                 success=False,
             )
+
+
+@ToolRegistry.register
+class CreateDashboard(Tool):
+    id = "create_dashboard"
+    description = (
+        "Create a new Lovelace dashboard. Use dry_run=true first to preview, "
+        "then dry_run=false after user confirms."
+    )
+    category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
+    parameters = [
+        ToolParameter(
+            name="title", type="string", description="Dashboard title", required=True
+        ),
+        ToolParameter(
+            name="url_path",
+            type="string",
+            description="URL path (e.g. 'security')",
+            required=True,
+        ),
+        ToolParameter(
+            name="icon",
+            type="string",
+            description="MDI icon (default: mdi:view-dashboard)",
+            required=False,
+        ),
+        ToolParameter(
+            name="show_in_sidebar",
+            type="boolean",
+            description="Show in HA sidebar (default: true)",
+            required=False,
+        ),
+        ToolParameter(
+            name="views",
+            type="list",
+            description="List of views with cards",
+            required=True,
+        ),
+        ToolParameter(
+            name="dry_run",
+            type="boolean",
+            description="Preview without saving (default: true). Set false to create.",
+            required=False,
+        ),
+    ]
+
+    async def execute(self, **kwargs) -> ToolResult:
+        try:
+            from ..managers.dashboard_manager import DashboardManager
+
+            manager = DashboardManager(self.hass)
+            config = {
+                "title": kwargs["title"],
+                "url_path": kwargs["url_path"],
+                "icon": kwargs.get("icon", "mdi:view-dashboard"),
+                "show_in_sidebar": kwargs.get("show_in_sidebar", True),
+                "views": kwargs.get("views", []),
+            }
+            dry_run = kwargs.get("dry_run", True)
+
+            result = await manager.create_dashboard(config, dry_run=dry_run)
+
+            if "error" in result:
+                return ToolResult(
+                    output=json.dumps(result), error=result["error"], success=False
+                )
+
+            return ToolResult(output=json.dumps(result, default=str), metadata=result)
+        except Exception as e:
+            _LOGGER.error("Error in create_dashboard tool: %s", e)
+            return ToolResult(output=f"Error: {e}", error=str(e), success=False)
+
+
+@ToolRegistry.register
+class UpdateDashboard(Tool):
+    id = "update_dashboard"
+    description = (
+        "Update an existing Lovelace dashboard. Use dry_run=true first to preview changes, "
+        "then dry_run=false after user confirms."
+    )
+    category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
+    parameters = [
+        ToolParameter(
+            name="dashboard_url",
+            type="string",
+            description="URL path of existing dashboard",
+            required=True,
+        ),
+        ToolParameter(
+            name="title",
+            type="string",
+            description="New dashboard title",
+            required=False,
+        ),
+        ToolParameter(
+            name="icon", type="string", description="New MDI icon", required=False
+        ),
+        ToolParameter(
+            name="show_in_sidebar",
+            type="boolean",
+            description="Show in HA sidebar",
+            required=False,
+        ),
+        ToolParameter(
+            name="views",
+            type="list",
+            description="New list of views with cards",
+            required=False,
+        ),
+        ToolParameter(
+            name="dry_run",
+            type="boolean",
+            description="Preview without saving (default: true). Set false to apply.",
+            required=False,
+        ),
+    ]
+
+    async def execute(self, **kwargs) -> ToolResult:
+        try:
+            from ..managers.dashboard_manager import DashboardManager
+
+            manager = DashboardManager(self.hass)
+            dashboard_url = kwargs["dashboard_url"]
+            config = {}
+            for key in ("title", "icon", "show_in_sidebar", "views"):
+                if key in kwargs:
+                    config[key] = kwargs[key]
+            dry_run = kwargs.get("dry_run", True)
+
+            result = await manager.update_dashboard(
+                dashboard_url, config, dry_run=dry_run
+            )
+
+            if "error" in result:
+                return ToolResult(
+                    output=json.dumps(result), error=result["error"], success=False
+                )
+
+            return ToolResult(output=json.dumps(result, default=str), metadata=result)
+        except Exception as e:
+            _LOGGER.error("Error in update_dashboard tool: %s", e)
+            return ToolResult(output=f"Error: {e}", error=str(e), success=False)
+
+
+@ToolRegistry.register
+class DeleteDashboard(Tool):
+    id = "delete_dashboard"
+    description = (
+        "Delete a Lovelace dashboard. Use dry_run=true first to see what will be deleted, "
+        "then dry_run=false after user confirms."
+    )
+    category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
+    parameters = [
+        ToolParameter(
+            name="dashboard_url",
+            type="string",
+            description="URL path of dashboard to delete",
+            required=True,
+        ),
+        ToolParameter(
+            name="dry_run",
+            type="boolean",
+            description="Preview without deleting (default: true). Set false to delete.",
+            required=False,
+        ),
+    ]
+
+    async def execute(self, **kwargs) -> ToolResult:
+        try:
+            from ..managers.dashboard_manager import DashboardManager
+
+            manager = DashboardManager(self.hass)
+            dashboard_url = kwargs["dashboard_url"]
+            dry_run = kwargs.get("dry_run", True)
+
+            result = await manager.delete_dashboard(dashboard_url, dry_run=dry_run)
+
+            if "error" in result:
+                return ToolResult(
+                    output=json.dumps(result), error=result["error"], success=False
+                )
+
+            return ToolResult(output=json.dumps(result, default=str), metadata=result)
+        except Exception as e:
+            _LOGGER.error("Error in delete_dashboard tool: %s", e)
+            return ToolResult(output=f"Error: {e}", error=str(e), success=False)

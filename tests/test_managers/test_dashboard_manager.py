@@ -241,7 +241,7 @@ class TestCreateDashboard:
         }
 
         with patch("builtins.open", mock_open()) as mock_file:
-            result = await dashboard_manager.create_dashboard(config)
+            result = await dashboard_manager.create_dashboard(config, dry_run=False)
 
         assert result.get("success") is True
         assert "url_path" in result
@@ -279,7 +279,7 @@ class TestCreateDashboard:
         }
 
         with patch("builtins.open", mock_open()) as mock_file:
-            result = await dashboard_manager.create_dashboard(config)
+            result = await dashboard_manager.create_dashboard(config, dry_run=False)
 
         # URL path should be sanitized to lowercase with hyphens
         if result.get("success"):
@@ -303,10 +303,75 @@ class TestCreateDashboard:
         mock_file.return_value.write = capture_write
 
         with patch("builtins.open", mock_file):
-            result = await dashboard_manager.create_dashboard(config)
+            result = await dashboard_manager.create_dashboard(config, dry_run=False)
 
         # Verify file was opened for writing
         mock_file.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_create_dashboard_dry_run_returns_preview(self, dashboard_manager, hass):
+        """Test that dry_run=True returns preview without writing."""
+        config = {
+            "title": "New Dashboard",
+            "url_path": "new-dash",
+            "views": [{"title": "Home", "cards": []}],
+        }
+        result = await dashboard_manager.create_dashboard(config, dry_run=True)
+        assert result.get("dry_run") is True
+        assert result.get("preview") is not None
+        assert result.get("title") == "New Dashboard"
+        assert "url_path" in result
+
+    @pytest.mark.asyncio
+    async def test_create_dashboard_dry_run_does_not_write_file(self, dashboard_manager, hass):
+        """Test that dry_run=True does not create any files."""
+        config = {
+            "title": "New Dashboard",
+            "url_path": "new-dash",
+            "views": [{"title": "Home", "cards": []}],
+        }
+        with patch("builtins.open", mock_open()) as mock_file:
+            await dashboard_manager.create_dashboard(config, dry_run=True)
+        mock_file.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_dashboard_dry_run_validates_config(self, dashboard_manager, hass):
+        """Test that dry_run=True validates and returns warnings."""
+        config = {
+            "title": "New Dashboard",
+            "url_path": "new-dash",
+            "views": [{"title": "V", "cards": [{"type": "unknown-xyz"}]}],
+        }
+        result = await dashboard_manager.create_dashboard(config, dry_run=True)
+        assert result.get("dry_run") is True
+        assert "validation" in result
+        assert len(result["validation"].get("warnings", [])) > 0
+
+    @pytest.mark.asyncio
+    async def test_create_dashboard_dry_run_false_writes(self, dashboard_manager, hass):
+        """Test that dry_run=False preserves existing write behavior."""
+        config = {
+            "title": "New Dashboard",
+            "url_path": "new-dash",
+            "views": [{"title": "Home", "cards": []}],
+        }
+        with patch("builtins.open", mock_open()) as mock_file:
+            result = await dashboard_manager.create_dashboard(config, dry_run=False)
+        assert result.get("success") is True
+        mock_file.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_create_dashboard_duplicate_url_path(self, dashboard_manager, hass):
+        """Test that creating with existing url_path returns error."""
+        config = {
+            "title": "Duplicate",
+            "url_path": "existing-dash",
+            "views": [],
+        }
+        with patch("os.path.exists", return_value=True):
+            result = await dashboard_manager.create_dashboard(config, dry_run=True)
+        assert "error" in result
+        assert "already exists" in result["error"].lower()
 
 
 class TestUpdateDashboard:
@@ -323,7 +388,7 @@ class TestUpdateDashboard:
         with patch("os.path.exists", return_value=True):
             with patch("builtins.open", mock_open()) as mock_file:
                 result = await dashboard_manager.update_dashboard(
-                    "test-dashboard", config
+                    "test-dashboard", config, dry_run=False
                 )
 
         assert result.get("success") is True
@@ -353,8 +418,72 @@ class TestUpdateDashboard:
 
         with patch("os.path.exists", return_value=True):
             with patch("builtins.open", mock_open()) as mock_file:
-                result = await dashboard_manager.update_dashboard("test", config)
+                result = await dashboard_manager.update_dashboard("test", config, dry_run=False)
 
+        assert result.get("success") is True
+
+    @pytest.mark.asyncio
+    async def test_update_dashboard_dry_run_returns_preview(self, dashboard_manager, hass):
+        """Test that dry_run=True returns old and new config preview."""
+        config = {
+            "title": "Updated Dashboard",
+            "views": [{"title": "Updated View", "cards": []}],
+        }
+        existing_yaml = yaml.dump({
+            "title": "Old Dashboard",
+            "icon": "mdi:view-dashboard",
+            "show_in_sidebar": True,
+            "require_admin": False,
+            "views": [{"title": "Old View", "cards": []}],
+        })
+        with patch("os.path.exists", return_value=True):
+            with patch("builtins.open", mock_open(read_data=existing_yaml)):
+                result = await dashboard_manager.update_dashboard(
+                    "test-dash", config, dry_run=True
+                )
+        assert result.get("dry_run") is True
+        assert "current_config" in result
+        assert "new_config" in result
+
+    @pytest.mark.asyncio
+    async def test_update_dashboard_dry_run_does_not_write(self, dashboard_manager, hass):
+        """Test that dry_run=True does not overwrite the file."""
+        config = {"title": "Updated", "views": []}
+        existing_yaml = yaml.dump({"title": "Old", "views": [], "icon": "mdi:test",
+                                    "show_in_sidebar": True, "require_admin": False})
+        mock_file = mock_open(read_data=existing_yaml)
+        with patch("os.path.exists", return_value=True):
+            with patch("builtins.open", mock_file):
+                await dashboard_manager.update_dashboard("test-dash", config, dry_run=True)
+        for call in mock_file.call_args_list:
+            if len(call[0]) > 1:
+                assert call[0][1] != "w", "File should not be opened for writing in dry_run"
+
+    @pytest.mark.asyncio
+    async def test_update_dashboard_dry_run_not_found(self, dashboard_manager, hass):
+        """Test dry_run on non-existent dashboard returns error."""
+        config = {"title": "Updated", "views": []}
+        with patch("os.path.exists", return_value=False):
+            result = await dashboard_manager.update_dashboard(
+                "nonexistent", config, dry_run=True
+            )
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_update_dashboard_rejects_empty_url(self, dashboard_manager, hass):
+        """Test that empty dashboard_id is rejected."""
+        result = await dashboard_manager.update_dashboard("", {"title": "X"})
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_update_dashboard_dry_run_false_writes(self, dashboard_manager, hass):
+        """Test that dry_run=False preserves existing write behavior."""
+        config = {"title": "Updated", "views": [{"title": "V", "cards": []}]}
+        with patch("os.path.exists", return_value=True):
+            with patch("builtins.open", mock_open()) as mock_file:
+                result = await dashboard_manager.update_dashboard(
+                    "test-dash", config, dry_run=False
+                )
         assert result.get("success") is True
 
 
@@ -585,3 +714,139 @@ class TestUpdateConfigurationYaml:
                     )
 
         mock_backup.assert_called_once()
+
+
+class TestRemoveFromConfigurationYaml:
+    """Tests for _remove_from_configuration_yaml."""
+
+    @pytest.mark.asyncio
+    async def test_removes_dashboard_entry(self, dashboard_manager, hass):
+        """Test removing a dashboard entry from configuration.yaml."""
+        content = (
+            "homeassistant:\n"
+            "  name: My Home\n"
+            "\n"
+            "lovelace:\n"
+            "  dashboards:\n"
+            "    energy:\n"
+            "      mode: yaml\n"
+            "      title: Energy\n"
+            "      icon: mdi:flash\n"
+            "      filename: ui-lovelace-energy.yaml\n"
+            "    climate:\n"
+            "      mode: yaml\n"
+            "      title: Climate\n"
+            "      filename: ui-lovelace-climate.yaml\n"
+        )
+        with patch("builtins.open", mock_open(read_data=content)):
+            with patch(
+                "custom_components.homeclaw.managers.dashboard_manager.atomic_write_file"
+            ) as mock_write:
+                with patch(
+                    "custom_components.homeclaw.managers.dashboard_manager.backup_file"
+                ):
+                    result = await dashboard_manager._remove_from_configuration_yaml("energy")
+        assert result is True
+        written = mock_write.call_args[0][1]
+        assert "energy:" not in written
+        assert "climate:" in written
+
+    @pytest.mark.asyncio
+    async def test_removes_only_dashboard_entry(self, dashboard_manager, hass):
+        """Test removing the only dashboard leaves dashboards: key."""
+        content = (
+            "lovelace:\n"
+            "  dashboards:\n"
+            "    energy:\n"
+            "      mode: yaml\n"
+            "      title: Energy\n"
+            "      filename: ui-lovelace-energy.yaml\n"
+        )
+        with patch("builtins.open", mock_open(read_data=content)):
+            with patch(
+                "custom_components.homeclaw.managers.dashboard_manager.atomic_write_file"
+            ) as mock_write:
+                with patch(
+                    "custom_components.homeclaw.managers.dashboard_manager.backup_file"
+                ):
+                    result = await dashboard_manager._remove_from_configuration_yaml("energy")
+        assert result is True
+        written = mock_write.call_args[0][1]
+        assert "energy:" not in written
+        assert "lovelace:" in written
+
+    @pytest.mark.asyncio
+    async def test_returns_false_when_not_found(self, dashboard_manager, hass):
+        """Test returns False when dashboard entry not found."""
+        content = (
+            "lovelace:\n"
+            "  dashboards:\n"
+            "    climate:\n"
+            "      mode: yaml\n"
+            "      title: Climate\n"
+        )
+        with patch("builtins.open", mock_open(read_data=content)):
+            with patch(
+                "custom_components.homeclaw.managers.dashboard_manager.backup_file"
+            ):
+                result = await dashboard_manager._remove_from_configuration_yaml("nonexistent")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_returns_false_when_no_lovelace(self, dashboard_manager, hass):
+        """Test returns False when no lovelace section exists."""
+        content = "homeassistant:\n  name: My Home\n"
+        with patch("builtins.open", mock_open(read_data=content)):
+            with patch(
+                "custom_components.homeclaw.managers.dashboard_manager.backup_file"
+            ):
+                result = await dashboard_manager._remove_from_configuration_yaml("energy")
+        assert result is False
+
+
+class TestDeleteDashboard:
+    """Tests for delete_dashboard method."""
+
+    @pytest.mark.asyncio
+    async def test_delete_dry_run_returns_info(self, dashboard_manager, hass):
+        """Test dry_run=True returns info about what will be deleted."""
+        existing_yaml = yaml.dump({"title": "Energy", "views": []})
+        with patch("os.path.exists", return_value=True):
+            with patch("builtins.open", mock_open(read_data=existing_yaml)):
+                result = await dashboard_manager.delete_dashboard("energy", dry_run=True)
+        assert result.get("dry_run") is True
+        assert result.get("exists") is True
+        assert "file" in result
+        assert "title" in result
+
+    @pytest.mark.asyncio
+    async def test_delete_dry_run_not_found(self, dashboard_manager, hass):
+        """Test dry_run on non-existent dashboard."""
+        with patch("os.path.exists", return_value=False):
+            result = await dashboard_manager.delete_dashboard("nonexistent", dry_run=True)
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_delete_dry_run_false_removes_file(self, dashboard_manager, hass):
+        """Test dry_run=False actually deletes the file."""
+        existing_yaml = yaml.dump({"title": "Energy", "views": []})
+        with patch("os.path.exists", return_value=True):
+            with patch("builtins.open", mock_open(read_data=existing_yaml)):
+                with patch("os.remove") as mock_remove:
+                    with patch.object(
+                        dashboard_manager, "_remove_from_configuration_yaml",
+                        new_callable=AsyncMock, return_value=True
+                    ):
+                        result = await dashboard_manager.delete_dashboard(
+                            "energy", dry_run=False
+                        )
+        assert result.get("success") is True
+        assert result.get("restart_required") is True
+        mock_remove.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_delete_rejects_empty_url(self, dashboard_manager, hass):
+        """Test that empty dashboard_id is rejected."""
+        result = await dashboard_manager.delete_dashboard("")
+        assert "error" in result

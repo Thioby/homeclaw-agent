@@ -114,7 +114,9 @@ class HomeclawAgent:
             "local": None,  # No token needed
         }
 
-        token_key = token_keys.get(provider, token_keys.get(base_provider, f"{base_provider}_token"))
+        token_key = token_keys.get(
+            provider, token_keys.get(base_provider, f"{base_provider}_token")
+        )
         token = self.config.get(token_key, "") if token_key else ""
 
         # Get model for this provider
@@ -521,18 +523,22 @@ class HomeclawAgent:
         """Create a new automation."""
         return await self._agent.create_automation(automation_config)
 
-    async def create_dashboard(self, dashboard_config: dict) -> dict[str, Any]:
+    async def create_dashboard(
+        self, dashboard_config: dict, *, dry_run: bool = True
+    ) -> dict[str, Any]:
         """Create a new dashboard."""
-        return await self._agent.create_dashboard(dashboard_config)
+        return await self._agent.create_dashboard(dashboard_config, dry_run=dry_run)
 
     async def update_dashboard(
         self,
         dashboard_url: str,
         dashboard_config: dict,
+        *,
+        dry_run: bool = True,
     ) -> dict[str, Any]:
         """Update an existing dashboard."""
         return await self._agent._get_dashboard_manager().update_dashboard(
-            dashboard_url, dashboard_config
+            dashboard_url, dashboard_config, dry_run=dry_run
         )
 
     async def save_user_prompt_history(
