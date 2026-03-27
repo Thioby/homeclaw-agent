@@ -45,6 +45,11 @@ def remove_yaml_section(content: str, key: str) -> str:
         stripped = line.lstrip()
 
         if stripped and not line.startswith((" ", "\t")):
+            # List items at column 0 (e.g. "- sensor:") are children of
+            # the preceding key when that key's value is a YAML list
+            # (like HA's "template:" section).  Keep skipping.
+            if skip and stripped.startswith("- "):
+                continue
             if stripped.startswith("#"):
                 if skip:
                     if _next_content_is_indented(lines, i + 1):
@@ -160,12 +165,14 @@ def _collect_section_lines(
         stripped = line.lstrip()
 
         if stripped and not line.startswith((" ", "\t")):
+            if inside and stripped.startswith("- "):
+                section.append(line)
+                continue
             if stripped.startswith("#"):
                 if inside:
                     if _next_content_is_indented(lines, i + 1):
                         section.append(line)
                         continue
-                    # Comment belongs to next section -- stop
                     break
                 continue
             if key_pattern.match(stripped):
@@ -173,7 +180,7 @@ def _collect_section_lines(
                 section.append(line)
                 continue
             if inside:
-                break  # Next top-level key -- end of section
+                break
             continue
 
         if inside:
@@ -202,6 +209,8 @@ def _collect_outside_lines(
         stripped = line.lstrip()
 
         if stripped and not line.startswith((" ", "\t")):
+            if skip and stripped.startswith("- "):
+                continue
             if stripped.startswith("#"):
                 if skip and _next_content_is_indented(lines, i + 1):
                     continue

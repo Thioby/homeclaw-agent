@@ -716,7 +716,14 @@ async def ws_send_message_stream(
                         result_data = parsed
                 except (json.JSONDecodeError, TypeError):
                     pass
+            _LOGGER.debug(
+                "Tool result forwarding: name=%s, has_ui_type=%s, type=%s",
+                tool_name,
+                result_data.get("ui_type") if isinstance(result_data, dict) else "not_dict",
+                type(result_data).__name__,
+            )
             if isinstance(result_data, dict) and result_data.get("ui_type"):
+                _LOGGER.info("Forwarding tool_result with ui_type=%s to frontend", result_data["ui_type"])
                 connection.send_message(
                     {
                         "id": request_id,
