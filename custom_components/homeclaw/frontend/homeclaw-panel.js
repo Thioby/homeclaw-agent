@@ -15875,6 +15875,7 @@ var root$a = /* @__PURE__ */ from_html(`<div class="input-container svelte-f7ebx
 function InputArea($$anchor, $$props) {
   push($$props, true);
   const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
+  const $activeSession = () => store_get(activeSession, "$activeSession", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   let messageInput;
   const USE_STREAMING = true;
@@ -16115,7 +16116,7 @@ _${status}_` } : msg)
   AttachButton(node_2, { onFilesSelected: handleFilesSelected });
   var node_3 = sibling(node_2, 2);
   {
-    let $0 = /* @__PURE__ */ user_derived(() => !!$sessionState().activeSessionId);
+    let $0 = /* @__PURE__ */ user_derived(() => !!$sessionState().activeSessionId && ($activeSession()?.message_count ?? 0) > 0);
     ProviderSelector(node_3, {
       get disabled() {
         return get$1($0);

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { get } from 'svelte/store';
   import { appState } from '$lib/stores/appState';
-  import { sessionState } from '$lib/stores/sessions';
+  import { sessionState, activeSession } from '$lib/stores/sessions';
   import { providerState } from '$lib/stores/providers';
   import { sendMessage, sendMessageStream, parseAIResponse } from '$lib/services/websocket.service';
   import { createSession, updateSessionInList } from '$lib/services/session.service';
@@ -364,7 +364,7 @@
 
   <div class="input-footer">
     <AttachButton onFilesSelected={handleFilesSelected} />
-    <ProviderSelector disabled={!!$sessionState.activeSessionId} />
+    <ProviderSelector disabled={!!$sessionState.activeSessionId && ($activeSession?.message_count ?? 0) > 0} />
     <ModelSelector />
     <ThinkingToggle />
     <SendButton onclick={handleSend} />
