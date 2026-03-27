@@ -1296,6 +1296,15 @@ class GetPersonData(Tool):
         )
 
 
+def _dashboard_tool_result(result: dict, action: str) -> ToolResult:
+    """Build ToolResult for dashboard tools with ui_type metadata."""
+    if "error" in result:
+        return ToolResult(output=json.dumps(result), error=result["error"], success=False)
+    result["ui_type"] = "dashboard_action"
+    result["action"] = action
+    return ToolResult(output=json.dumps(result, default=str), metadata=result)
+
+
 @ToolRegistry.register
 class GetDashboards(Tool):
     id = "get_dashboards"
@@ -1417,15 +1426,7 @@ class CreateDashboard(Tool):
             dry_run = kwargs.get("dry_run", True)
 
             result = await manager.create_dashboard(config, dry_run=dry_run)
-
-            if "error" in result:
-                return ToolResult(
-                    output=json.dumps(result), error=result["error"], success=False
-                )
-
-            result["ui_type"] = "dashboard_action"
-            result["action"] = "create"
-            return ToolResult(output=json.dumps(result, default=str), metadata=result)
+            return _dashboard_tool_result(result, "create")
         except Exception as e:
             _LOGGER.error("Error in create_dashboard tool: %s", e)
             return ToolResult(output=f"Error: {e}", error=str(e), success=False)
@@ -1491,15 +1492,7 @@ class UpdateDashboard(Tool):
             result = await manager.update_dashboard(
                 dashboard_url, config, dry_run=dry_run
             )
-
-            if "error" in result:
-                return ToolResult(
-                    output=json.dumps(result), error=result["error"], success=False
-                )
-
-            result["ui_type"] = "dashboard_action"
-            result["action"] = "update"
-            return ToolResult(output=json.dumps(result, default=str), metadata=result)
+            return _dashboard_tool_result(result, "update")
         except Exception as e:
             _LOGGER.error("Error in update_dashboard tool: %s", e)
             return ToolResult(output=f"Error: {e}", error=str(e), success=False)
@@ -1538,15 +1531,7 @@ class DeleteDashboard(Tool):
             dry_run = kwargs.get("dry_run", True)
 
             result = await manager.delete_dashboard(dashboard_url, dry_run=dry_run)
-
-            if "error" in result:
-                return ToolResult(
-                    output=json.dumps(result), error=result["error"], success=False
-                )
-
-            result["ui_type"] = "dashboard_action"
-            result["action"] = "delete"
-            return ToolResult(output=json.dumps(result, default=str), metadata=result)
+            return _dashboard_tool_result(result, "delete")
         except Exception as e:
             _LOGGER.error("Error in delete_dashboard tool: %s", e)
             return ToolResult(output=f"Error: {e}", error=str(e), success=False)

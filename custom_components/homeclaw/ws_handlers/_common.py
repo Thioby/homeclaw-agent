@@ -24,6 +24,9 @@ ERR_STORAGE_ERROR = "storage_error"
 ERR_AI_ERROR = "ai_error"
 ERR_RATE_LIMITED = "rate_limited"
 
+# Tools that support dry_run confirmation flow
+CONFIRMABLE_TOOLS = frozenset({"create_dashboard", "update_dashboard", "delete_dashboard"})
+
 # Validation constants
 MAX_TITLE_LENGTH = 200
 UUID_PATTERN = re.compile(
@@ -69,6 +72,13 @@ def _get_user_id(connection: websocket_api.ActiveConnection) -> str:
     if connection.user and connection.user.id:
         return connection.user.id
     return "default"
+
+
+def _now_iso() -> str:
+    """Return current UTC time as ISO string."""
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _get_storage(hass: HomeAssistant, user_id: str) -> SessionStorage:

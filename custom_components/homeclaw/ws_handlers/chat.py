@@ -6,7 +6,6 @@ import json
 import logging
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable
 
 import voluptuous as vol
@@ -20,10 +19,12 @@ from ..file_processor import (
 )
 from ..storage import Message, SessionStorage
 from ._common import (
+    CONFIRMABLE_TOOLS,
     ERR_SESSION_NOT_FOUND,
     ERR_STORAGE_ERROR,
     _get_storage,
     _get_user_id,
+    _now_iso,
     _validate_message,
     _validate_session_id,
 )
@@ -32,8 +33,6 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
-
-_CONFIRMABLE_TOOLS = frozenset({"create_dashboard", "update_dashboard", "delete_dashboard"})
 
 
 @dataclass(slots=True)
@@ -331,11 +330,6 @@ async def _persist_tool_messages(
         await storage.add_message(session_id, tool_msg)
 
 
-def _now_iso() -> str:
-    """Return current UTC timestamp in ISO format."""
-    return datetime.now(timezone.utc).isoformat()
-
-
 async def _prepare_chat_request(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
@@ -451,7 +445,7 @@ async def _run_agent_stream(
                     event,
                     timestamp_factory(),
                 )
-                if event_type == "tool_call" and event.tool_name in _CONFIRMABLE_TOOLS:
+                if event_type == "tool_call" and event.tool_name in CONFIRMABLE_TOOLS:
                     from ..core.pending_actions import store_pending
 
                     store_pending(event.tool_call_id, event.tool_name, event.tool_args)

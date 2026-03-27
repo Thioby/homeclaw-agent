@@ -12,20 +12,11 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
 from ..core.pending_actions import pop_pending
-from ..tools.base import ToolRegistry
-from ._common import _get_storage, ERR_STORAGE_ERROR
 from ..storage import Message
+from ..tools.base import ToolRegistry
+from ._common import CONFIRMABLE_TOOLS, ERR_STORAGE_ERROR, _get_storage, _now_iso
 
 _LOGGER = logging.getLogger(__name__)
-
-_ALLOWED_CONFIRM_TOOLS = frozenset({"create_dashboard", "update_dashboard", "delete_dashboard"})
-
-
-def _now_iso() -> str:
-    """Return current UTC time as ISO string."""
-    from datetime import datetime, timezone
-
-    return datetime.now(timezone.utc).isoformat()
 
 
 @websocket_api.websocket_command(
@@ -60,7 +51,7 @@ async def ws_confirm_dashboard(
 
     try:
         tool_name = pending["tool_name"]
-        if tool_name not in _ALLOWED_CONFIRM_TOOLS:
+        if tool_name not in CONFIRMABLE_TOOLS:
             connection.send_error(
                 request_id, "invalid_tool", f"Tool '{tool_name}' cannot be confirmed"
             )
@@ -78,7 +69,6 @@ async def ws_confirm_dashboard(
             except (json.JSONDecodeError, TypeError):
                 result_output = {"message": result.output}
 
-        # Persist result to conversation history
         user_id = connection.user.id if connection.user else "unknown"
         storage = _get_storage(hass, user_id)
         session_id = msg["session_id"]
