@@ -209,7 +209,29 @@
             },
 
             onToolCall: (_name: string, _args: any) => {},
-            onToolResult: (_name: string, _result: any) => {},
+            onToolResult: (name: string, result: any, toolCallId: string) => {
+              if (result?.ui_type) {
+                appState.update((s) => ({
+                  ...s,
+                  messages: s.messages.map((msg) =>
+                    msg.id === assistantMessageId
+                      ? {
+                          ...msg,
+                          toolResults: [
+                            ...(msg.toolResults || []),
+                            {
+                              toolName: name,
+                              toolCallId,
+                              result,
+                              status: 'preview' as const,
+                            },
+                          ],
+                        }
+                      : msg
+                  ),
+                }));
+              }
+            },
 
             onComplete: (result: any) => {
               const { text, automation, dashboard } = parseAIResponse(

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from homeassistant.components import websocket_api
 
+from .actions import ws_confirm_dashboard
 from .chat import ws_send_message, ws_send_message_stream
 from .models import (
     ws_config_models_add_provider,
@@ -117,3 +118,5 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_subagent_list)
     websocket_api.async_register_command(hass, ws_subagent_get)
     websocket_api.async_register_command(hass, ws_subagent_cancel)
+    # Dashboard actions
+    websocket_api.async_register_command(hass, ws_confirm_dashboard)

@@ -10,6 +10,7 @@ export type {
   AttachmentStatus,
   AutomationSuggestion,
   DashboardSuggestion,
+  ToolResultData,
   DebugInfo,
   ConversationEntry,
 } from './message';

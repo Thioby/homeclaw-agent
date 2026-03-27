@@ -92,7 +92,7 @@
     
     <div class="content-area">
       <div class="chat-container">
-        <ChatArea />
+        <ChatArea {hass} />
         
         {#if showThinkingPanel}
           <ThinkingPanel />

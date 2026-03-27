@@ -3,9 +3,11 @@
   import { get } from 'svelte/store';
   import { renderMarkdown } from '$lib/services/markdown.service';
   import { sessionState } from '$lib/stores/sessions';
+  import { appState } from '$lib/stores/appState';
+  import DashboardAction from './DashboardAction.svelte';
 
   // Props
-  let { message }: { message: Message } = $props();
+  let { message, hass }: { message: Message; hass: any } = $props();
 
   // Render markdown for assistant messages
   const renderedContent = $derived(
@@ -51,6 +53,22 @@
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  function updateToolResultStatus(toolCallId: string, newStatus: string) {
+    appState.update((s) => ({
+      ...s,
+      messages: s.messages.map((msg) =>
+        msg.id === message.id
+          ? {
+              ...msg,
+              toolResults: (msg.toolResults || []).map((tr) =>
+                tr.toolCallId === toolCallId ? { ...tr, status: newStatus as any } : tr
+              ),
+            }
+          : msg
+      ),
+    }));
   }
 </script>
 
@@ -117,6 +135,21 @@
       {/if}
     {:else if message.text}
       {message.text}
+    {/if}
+    {#if message.toolResults?.length}
+      {#each message.toolResults as tr (tr.toolCallId)}
+        {#if tr.result?.ui_type === 'dashboard_action'}
+          <DashboardAction
+            action={tr.result.action}
+            status={tr.status}
+            toolResult={tr.result}
+            toolCallId={tr.toolCallId}
+            sessionId={get(sessionState).activeSessionId || ''}
+            {hass}
+            onStatusChange={(s) => updateToolResultStatus(tr.toolCallId, s)}
+          />
+        {/if}
+      {/each}
     {/if}
     {#if formattedTime}
       <span class="bubble-time">{formattedTime}</span>

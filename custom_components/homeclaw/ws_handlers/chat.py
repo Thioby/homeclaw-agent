@@ -33,6 +33,8 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+_CONFIRMABLE_TOOLS = frozenset({"create_dashboard", "update_dashboard", "delete_dashboard"})
+
 
 @dataclass(slots=True)
 class _PreparedChatRequest:
@@ -249,7 +251,7 @@ async def _persist_compaction_if_needed(
             continue
         content = msg.get("content", "")
         if content.startswith(_COMPACTION_SUMMARY_PREFIX):
-            summary = content[len(_COMPACTION_SUMMARY_PREFIX):]
+            summary = content[len(_COMPACTION_SUMMARY_PREFIX) :]
             if summary:
                 _LOGGER.debug(
                     "Persisting compaction summary for session %s (%d chars)",
@@ -410,6 +412,7 @@ async def _run_agent_stream(
     attachments: list[Any],
     on_text: Callable[[str], None] | None = None,
     on_status: Callable[[str], None] | None = None,
+    on_tool_result: Callable[[str, Any, str], None] | None = None,
     tool_timestamp_factory: Callable[[], str] | None = None,
     error_log_prefix: str = "AI streaming error",
 ) -> tuple[str, str | None, list[dict[str, Any]]]:
@@ -448,6 +451,16 @@ async def _run_agent_stream(
                     event,
                     timestamp_factory(),
                 )
+                if event_type == "tool_call" and event.tool_name in _CONFIRMABLE_TOOLS:
+                    from ..core.pending_actions import store_pending
+
+                    store_pending(event.tool_call_id, event.tool_name, event.tool_args)
+                if event_type == "tool_result" and on_tool_result:
+                    on_tool_result(
+                        event.tool_name,
+                        getattr(event, "tool_result", ""),
+                        event.tool_call_id,
+                    )
             elif event_type == "error":
                 stream_error = getattr(event, "message", "Unknown error")
                 break
@@ -692,6 +705,37 @@ async def ws_send_message_stream(
                 }
             )
 
+        def _send_tool_result(
+            tool_name: str, raw_result: Any, tool_call_id: str
+        ) -> None:
+            """Forward tool_result to frontend for rich rendering."""
+            result_data = raw_result
+            if isinstance(result_data, str):
+                try:
+                    parsed = json.loads(result_data)
+                    if isinstance(parsed, dict) and "output" in parsed:
+                        try:
+                            result_data = json.loads(parsed["output"])
+                        except (json.JSONDecodeError, TypeError):
+                            result_data = parsed
+                    else:
+                        result_data = parsed
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if isinstance(result_data, dict) and result_data.get("ui_type"):
+                connection.send_message(
+                    {
+                        "id": request_id,
+                        "type": "event",
+                        "event": {
+                            "type": "tool_result",
+                            "name": tool_name,
+                            "tool_call_id": tool_call_id,
+                            "result": result_data,
+                        },
+                    }
+                )
+
         accumulated_text, stream_error, completion_messages = await _run_agent_stream(
             hass,
             storage=prepared.storage,
@@ -704,6 +748,7 @@ async def ws_send_message_stream(
             attachments=prepared.processed_attachments,
             on_text=_send_stream_chunk,
             on_status=_send_status,
+            on_tool_result=_send_tool_result,
         )
 
         # Update assistant message with final content

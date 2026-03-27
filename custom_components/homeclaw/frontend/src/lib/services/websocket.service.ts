@@ -64,7 +64,7 @@ export async function sendMessageStream(
     onChunk?: (chunk: string) => void;
     onStatus?: (status: string) => void;
     onToolCall?: (name: string, args: any) => void;
-    onToolResult?: (name: string, result: any) => void;
+    onToolResult?: (name: string, result: any, toolCallId: string) => void;
     onComplete?: (result: any) => void;
     onError?: (error: string) => void;
   },
@@ -125,7 +125,7 @@ export async function sendMessageStream(
           break;
 
         case 'tool_result':
-          callbacks.onToolResult?.(event.name, event.result);
+          callbacks.onToolResult?.(event.name, event.result, event.tool_call_id);
           break;
 
         case 'stream_end':
@@ -162,6 +162,23 @@ export async function subscribeToEvents(
     console.error('Failed to subscribe to events:', error);
     return undefined;
   }
+}
+
+/**
+ * Confirm or reject a pending dashboard action.
+ */
+export async function confirmDashboardAction(
+  hass: HomeAssistant,
+  toolCallId: string,
+  sessionId: string,
+  confirmed: boolean
+): Promise<{ status: string; result?: any }> {
+  return hass.callWS({
+    type: 'homeclaw/dashboard/confirm',
+    tool_call_id: toolCallId,
+    session_id: sessionId,
+    confirmed,
+  });
 }
 
 /**

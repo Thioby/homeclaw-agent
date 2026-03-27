@@ -1423,6 +1423,8 @@ class CreateDashboard(Tool):
                     output=json.dumps(result), error=result["error"], success=False
                 )
 
+            result["ui_type"] = "dashboard_action"
+            result["action"] = "create"
             return ToolResult(output=json.dumps(result, default=str), metadata=result)
         except Exception as e:
             _LOGGER.error("Error in create_dashboard tool: %s", e)
@@ -1495,6 +1497,8 @@ class UpdateDashboard(Tool):
                     output=json.dumps(result), error=result["error"], success=False
                 )
 
+            result["ui_type"] = "dashboard_action"
+            result["action"] = "update"
             return ToolResult(output=json.dumps(result, default=str), metadata=result)
         except Exception as e:
             _LOGGER.error("Error in update_dashboard tool: %s", e)
@@ -1540,6 +1544,8 @@ class DeleteDashboard(Tool):
                     output=json.dumps(result), error=result["error"], success=False
                 )
 
+            result["ui_type"] = "dashboard_action"
+            result["action"] = "delete"
             return ToolResult(output=json.dumps(result, default=str), metadata=result)
         except Exception as e:
             _LOGGER.error("Error in delete_dashboard tool: %s", e)

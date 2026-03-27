@@ -43,6 +43,7 @@ export interface Message {
   metadata?: MessageMetadata;
   isStreaming?: boolean; // Flag for UI to show streaming cursor
   attachments?: FileAttachment[];
+  toolResults?: ToolResultData[];
 }
 
 /**
@@ -65,6 +66,16 @@ export interface DashboardSuggestion {
   title: string;
   views?: any[];
   [key: string]: any;
+}
+
+/**
+ * Rich tool result for UI rendering
+ */
+export interface ToolResultData {
+  toolName: string;
+  toolCallId: string;
+  result: any;
+  status: 'preview' | 'confirmed' | 'success' | 'error' | 'rejected';
 }
 
 /**

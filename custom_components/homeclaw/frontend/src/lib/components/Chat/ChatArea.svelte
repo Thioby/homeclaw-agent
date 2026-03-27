@@ -7,6 +7,8 @@
   import EmptyState from './EmptyState.svelte';
   import ErrorMessage from './ErrorMessage.svelte';
 
+  let { hass }: { hass: any } = $props();
+
   let messagesContainer: HTMLDivElement;
   let showScrollBtn = $state(false);
 
@@ -43,7 +45,7 @@
 
     <div class="messages-inner">
       {#each $appState.messages as message (message.id)}
-        <MessageBubble {message} />
+        <MessageBubble {message} {hass} />
       {/each}
 
       {#if $appState.isLoading}
