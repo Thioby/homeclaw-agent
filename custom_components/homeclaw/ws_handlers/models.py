@@ -83,10 +83,19 @@ async def ws_get_providers_config(
     """
     config = await hass.async_add_executor_job(load_models_config)
 
+    # Return which providers are actually configured as config entries
+    entries = hass.config_entries.async_entries("homeclaw")
+    configured = [
+        entry.data["ai_provider"]
+        for entry in entries
+        if entry.data.get("ai_provider") and not entry.data.get("rag_enabled", False)
+    ]
+
     connection.send_result(
         msg["id"],
         {
             "providers": config,
+            "configured": configured,
         },
     )
 

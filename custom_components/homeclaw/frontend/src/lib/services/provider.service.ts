@@ -17,23 +17,29 @@ export interface UserPreferences {
 
 /** Cached providers config from backend */
 let _providersConfig: ProvidersConfig | null = null;
+let _configuredProviders: string[] | null = null;
 
 /**
  * Fetch full providers config from backend (display names, models, etc.)
  * Result is cached for the session lifetime.
  */
-async function fetchProvidersConfig(hass: HomeAssistant): Promise<ProvidersConfig> {
-  if (_providersConfig) return _providersConfig;
+async function fetchProvidersConfig(
+  hass: HomeAssistant,
+): Promise<{ config: ProvidersConfig; configured: string[] }> {
+  if (_providersConfig && _configuredProviders) {
+    return { config: _providersConfig, configured: _configuredProviders };
+  }
 
   try {
     const result = await hass.callWS({
       type: 'homeclaw/providers/config',
     });
     _providersConfig = result.providers || {};
-    return _providersConfig!;
+    _configuredProviders = result.configured || [];
+    return { config: _providersConfig!, configured: _configuredProviders! };
   } catch (e) {
     console.warn('[Provider] Could not fetch providers config, using fallback:', e);
-    return {};
+    return { config: {}, configured: [] };
   }
 }
 
@@ -42,13 +48,6 @@ async function fetchProvidersConfig(hass: HomeAssistant): Promise<ProvidersConfi
  */
 function getProviderLabel(provider: string, config: ProvidersConfig): string {
   return config[provider]?.display_name || provider;
-}
-
-/**
- * Check if a provider key is valid (known by either backend or fallback map).
- */
-function isValidProvider(provider: string, config: ProvidersConfig): boolean {
-  return !!config[provider];
 }
 
 /**
@@ -90,6 +89,7 @@ export async function savePreferences(
  */
 export function invalidateProvidersCache(): void {
   _providersConfig = null;
+  _configuredProviders = null;
   providerState.update((s) => ({ ...s, providersLoaded: false }));
 }
 
@@ -106,12 +106,13 @@ export async function loadProviders(hass: HomeAssistant): Promise<void> {
 
   try {
     // Fetch providers config and user preferences in parallel
-    const [config, prefs] = await Promise.all([
+    const [{ config, configured }, prefs] = await Promise.all([
       fetchProvidersConfig(hass),
       fetchPreferences(hass),
     ]);
 
     console.log('[Provider] User preferences:', prefs);
+    console.log('[Provider] Configured providers:', configured);
 
     // Store preferences in state
     providerState.update((s) => ({
@@ -120,27 +121,13 @@ export async function loadProviders(hass: HomeAssistant): Promise<void> {
       defaultModel: prefs.default_model ?? null,
     }));
 
-    // Get all config entries
-    const allEntries = await hass.callWS({ type: 'config_entries/get' });
-    console.log('[Provider] All config entries:', allEntries.length);
-
-    // Filter for Homeclaw entries
-    const homeclawEntries = allEntries.filter((entry: any) => entry.domain === 'homeclaw');
-    console.log('[Provider] Homeclaw entries:', homeclawEntries.length, homeclawEntries);
-
-    if (homeclawEntries.length > 0) {
-      const providers = homeclawEntries
-        .map((entry: any) => {
-          const provider = resolveProviderFromEntry(entry, config);
-          console.log('[Provider] Resolved entry:', entry.title, '->', provider);
-          if (!provider) return null;
-
-          return {
-            value: provider,
-            label: getProviderLabel(provider, config),
-          };
-        })
-        .filter(Boolean) as Provider[];
+    if (configured.length > 0) {
+      const providers = configured
+        .filter((p) => !!config[p])
+        .map((p) => ({
+          value: p,
+          label: getProviderLabel(p, config),
+        }));
 
       console.log('[Provider] Final providers list:', providers);
       providerState.update((s) => ({ ...s, availableProviders: providers }));
@@ -225,41 +212,3 @@ export async function fetchModels(
   }
 }
 
-/**
- * Resolve provider from config entry
- */
-function resolveProviderFromEntry(
-  entry: any,
-  config: ProvidersConfig = {},
-): string | null {
-  if (!entry) return null;
-
-  const providerFromData = entry.data?.ai_provider || entry.options?.ai_provider;
-  if (providerFromData && isValidProvider(providerFromData, config)) {
-    return providerFromData;
-  }
-
-  const uniqueId = entry.unique_id || entry.uniqueId;
-  if (uniqueId && uniqueId.startsWith('homeclaw_')) {
-    const fromUniqueId = uniqueId.replace('homeclaw_', '');
-    if (isValidProvider(fromUniqueId, config)) {
-      return fromUniqueId;
-    }
-  }
-
-  if (entry.title) {
-    // Try to match provider from title pattern "Homeclaw (Provider Name)"
-    const match = entry.title.match(/\(([^)]+)\)/);
-    if (match && match[1]) {
-      const normalized = match[1].toLowerCase().replace(/[^a-z0-9]/g, '');
-      const providerKey = Object.keys(config).find(
-        (key) => key.replace(/[^a-z0-9]/g, '') === normalized,
-      );
-      if (providerKey) {
-        return providerKey;
-      }
-    }
-  }
-
-  return null;
-}

@@ -8194,24 +8194,25 @@ derived(
   ($state) => $state.selectedProvider === $state.defaultProvider && $state.selectedModel === $state.defaultModel && $state.defaultProvider !== null
 );
 let _providersConfig = null;
+let _configuredProviders = null;
 async function fetchProvidersConfig(hass) {
-  if (_providersConfig) return _providersConfig;
+  if (_providersConfig && _configuredProviders) {
+    return { config: _providersConfig, configured: _configuredProviders };
+  }
   try {
     const result = await hass.callWS({
       type: "homeclaw/providers/config"
     });
     _providersConfig = result.providers || {};
-    return _providersConfig;
+    _configuredProviders = result.configured || [];
+    return { config: _providersConfig, configured: _configuredProviders };
   } catch (e2) {
     console.warn("[Provider] Could not fetch providers config, using fallback:", e2);
-    return {};
+    return { config: {}, configured: [] };
   }
 }
 function getProviderLabel(provider, config) {
   return config[provider]?.display_name || provider;
-}
-function isValidProvider(provider, config) {
-  return !!config[provider];
 }
 async function fetchPreferences(hass) {
   try {
@@ -8237,6 +8238,7 @@ async function savePreferences(hass, prefs) {
 }
 function invalidateProvidersCache() {
   _providersConfig = null;
+  _configuredProviders = null;
   providerState.update((s2) => ({ ...s2, providersLoaded: false }));
 }
 async function loadProviders(hass) {
@@ -8247,30 +8249,22 @@ async function loadProviders(hass) {
     return;
   }
   try {
-    const [config, prefs] = await Promise.all([
+    const [{ config, configured }, prefs] = await Promise.all([
       fetchProvidersConfig(hass),
       fetchPreferences(hass)
     ]);
     console.log("[Provider] User preferences:", prefs);
+    console.log("[Provider] Configured providers:", configured);
     providerState.update((s2) => ({
       ...s2,
       defaultProvider: prefs.default_provider ?? null,
       defaultModel: prefs.default_model ?? null
     }));
-    const allEntries = await hass.callWS({ type: "config_entries/get" });
-    console.log("[Provider] All config entries:", allEntries.length);
-    const homeclawEntries = allEntries.filter((entry) => entry.domain === "homeclaw");
-    console.log("[Provider] Homeclaw entries:", homeclawEntries.length, homeclawEntries);
-    if (homeclawEntries.length > 0) {
-      const providers = homeclawEntries.map((entry) => {
-        const provider = resolveProviderFromEntry(entry, config);
-        console.log("[Provider] Resolved entry:", entry.title, "->", provider);
-        if (!provider) return null;
-        return {
-          value: provider,
-          label: getProviderLabel(provider, config)
-        };
-      }).filter(Boolean);
+    if (configured.length > 0) {
+      const providers = configured.filter((p2) => !!config[p2]).map((p2) => ({
+        value: p2,
+        label: getProviderLabel(p2, config)
+      }));
       console.log("[Provider] Final providers list:", providers);
       providerState.update((s2) => ({ ...s2, availableProviders: providers }));
       const currentState = get(providerState);
@@ -8325,33 +8319,6 @@ async function fetchModels(hass, provider, preferredModel = null) {
       selectedModel: null
     }));
   }
-}
-function resolveProviderFromEntry(entry, config = {}) {
-  if (!entry) return null;
-  const providerFromData = entry.data?.ai_provider || entry.options?.ai_provider;
-  if (providerFromData && isValidProvider(providerFromData, config)) {
-    return providerFromData;
-  }
-  const uniqueId = entry.unique_id || entry.uniqueId;
-  if (uniqueId && uniqueId.startsWith("homeclaw_")) {
-    const fromUniqueId = uniqueId.replace("homeclaw_", "");
-    if (isValidProvider(fromUniqueId, config)) {
-      return fromUniqueId;
-    }
-  }
-  if (entry.title) {
-    const match = entry.title.match(/\(([^)]+)\)/);
-    if (match && match[1]) {
-      const normalized = match[1].toLowerCase().replace(/[^a-z0-9]/g, "");
-      const providerKey = Object.keys(config).find(
-        (key) => key.replace(/[^a-z0-9]/g, "") === normalized
-      );
-      if (providerKey) {
-        return providerKey;
-      }
-    }
-  }
-  return null;
 }
 const initialState = {
   sessions: [],
