@@ -17,6 +17,7 @@ Example usage:
             return ToolResult(output="Success", metadata={})
 """
 
+import json
 import logging
 import re
 from abc import ABC, abstractmethod
@@ -68,6 +69,76 @@ class ToolParameter:
     required: bool = True
     default: Any = None
     enum: Optional[List[str]] = None
+
+    _COERCE_TYPE_MAP = {
+        "str": str,
+        "string": str,
+        "int": int,
+        "integer": int,
+        "float": float,
+        "number": (int, float),
+        "bool": bool,
+        "boolean": bool,
+        "list": list,
+        "array": list,
+        "dict": dict,
+        "object": dict,
+    }
+
+    def coerce(self, value: Any) -> Any:
+        """Coerce a value to the expected type.
+
+        LLMs (especially Gemini) sometimes return strings for bools/dicts.
+        This normalizes them before validation.
+        """
+        if value is None:
+            return value
+
+        param_type = self.type.lower()
+
+        # Already correct type — skip coercion
+        expected = self._COERCE_TYPE_MAP.get(param_type)
+        if expected and isinstance(value, expected):
+            return value
+
+        # Only coerce from strings
+        if not isinstance(value, str):
+            return value
+
+        # String → bool
+        if param_type in ("bool", "boolean"):
+            cleaned = value.strip().lower()
+            if cleaned in ("true", "1", "yes"):
+                return True
+            if cleaned in ("false", "0", "no"):
+                return False
+            return value
+
+        # JSON string → dict/list
+        if param_type in ("dict", "object", "list", "array"):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, (dict, list)):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
+            return value
+
+        # String → int
+        if param_type in ("int", "integer"):
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                pass
+
+        # String → float
+        if param_type in ("float", "number"):
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                pass
+
+        return value
 
     def validate(self, value: Any) -> bool:
         """Validate a value against this parameter definition."""
@@ -183,8 +254,12 @@ class Tool(ABC):
     def validate_parameters(self, params: Dict[str, Any]) -> List[str]:
         """Validate parameters against the tool's parameter definitions.
 
+        Coerces values to expected types before validation (handles LLMs
+        returning strings for bools/dicts). Mutates params dict in place
+        so coerced values are available to execute().
+
         Args:
-            params: Dictionary of parameters to validate
+            params: Dictionary of parameters to validate (mutated in place)
 
         Returns:
             List of validation error messages (empty if valid)
@@ -202,6 +277,12 @@ class Tool(ABC):
             # Use default if not provided
             if value is None:
                 continue
+
+            # Coerce type before validation
+            coerced = param_def.coerce(value)
+            if coerced != value:
+                params[param_def.name] = coerced
+                value = coerced
 
             # Validate type and enum
             if not param_def.validate(value):
