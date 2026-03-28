@@ -7,7 +7,8 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
-from ..core.tool_call_codec import extract_tool_calls_from_assistant_content
+from .adapters.openai_compat import OpenAICompatAdapter
+from .adapters.stream_utils import SSEParser, ToolAccumulator
 from .base_client import BaseHTTPClient
 from .registry import ProviderRegistry
 
@@ -40,6 +41,7 @@ class OpenAIProvider(BaseHTTPClient):
         super().__init__(hass, config)
         self._model = config.get("model", self.DEFAULT_MODEL)
         self._token = config.get("token", "")
+        self.adapter = OpenAICompatAdapter()
 
     @property
     def api_url(self) -> str:
@@ -70,71 +72,6 @@ class OpenAIProvider(BaseHTTPClient):
             "Content-Type": "application/json",
         }
 
-    @staticmethod
-    def _convert_multimodal_messages(
-        messages: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        """Convert messages with _images to OpenAI multimodal content blocks.
-
-        Transforms our internal format into OpenAI's vision API format:
-        content: [{"type":"text","text":"..."}, {"type":"image_url","image_url":{"url":"data:..."}}]
-        """
-        converted = []
-        for msg in messages:
-            images = msg.get("_images")
-            if images and msg.get("role") == "user":
-                content_blocks: list[dict[str, Any]] = [
-                    {"type": "text", "text": msg.get("content", "")},
-                ]
-                for img in images:
-                    data_url = f"data:{img['mime_type']};base64,{img['data']}"
-                    content_blocks.append(
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": data_url, "detail": "auto"},
-                        }
-                    )
-                converted.append({"role": "user", "content": content_blocks})
-            else:
-                # Strip _images key from non-image messages
-                clean = {k: v for k, v in msg.items() if k != "_images"}
-
-                # Convert canonical assistant tool-call JSON into OpenAI tool_calls.
-                if (
-                    clean.get("role") == "assistant"
-                    and isinstance(clean.get("content"), str)
-                    and clean.get("content")
-                ):
-                    try:
-                        parsed_content = json.loads(clean["content"])
-                        if isinstance(parsed_content, dict):
-                            calls = extract_tool_calls_from_assistant_content(
-                                parsed_content
-                            )
-                            if calls:
-                                clean = {
-                                    "role": "assistant",
-                                    "content": parsed_content.get("text", ""),
-                                    "tool_calls": [
-                                        {
-                                            "id": call.get("id", ""),
-                                            "type": "function",
-                                            "function": {
-                                                "name": call.get("name", ""),
-                                                "arguments": json.dumps(
-                                                    call.get("args", {})
-                                                ),
-                                            },
-                                        }
-                                        for call in calls
-                                    ],
-                                }
-                    except (TypeError, ValueError, json.JSONDecodeError):
-                        pass
-
-                converted.append(clean)
-        return converted
-
     def _build_payload(
         self, messages: list[dict[str, Any]], **kwargs: Any
     ) -> dict[str, Any]:
@@ -148,8 +85,7 @@ class OpenAIProvider(BaseHTTPClient):
         Returns:
             The request payload dictionary.
         """
-        # Convert multimodal messages to OpenAI format
-        converted_messages = self._convert_multimodal_messages(messages)
+        converted_messages, _ = self.adapter.transform_messages(messages)
 
         payload: dict[str, Any] = {
             "model": self._model,
@@ -175,92 +111,15 @@ class OpenAIProvider(BaseHTTPClient):
             The extracted response text, or a JSON string with tool calls
             if the response contains tool_calls.
         """
-        choices = response_data.get("choices", [])
-        if not choices:
-            return ""
+        result = self.adapter.extract_response(response_data)
 
-        message = choices[0].get("message", {})
+        if result["type"] == "tool_calls":
+            # Return raw OpenAI tool_calls for backward compat
+            return json.dumps(
+                {"tool_calls": response_data["choices"][0]["message"]["tool_calls"]}
+            )
 
-        # Check for tool calls
-        tool_calls = message.get("tool_calls")
-        if tool_calls:
-            return json.dumps({"tool_calls": tool_calls})
-
-        # Return regular content
-        content = message.get("content")
-        return content if content is not None else ""
-
-    @staticmethod
-    def _extract_openai_stream_chunks(
-        event_data: dict[str, Any],
-        pending_tools: dict[int, dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        """Convert one OpenAI SSE event into normalized chunks.
-
-        Args:
-            event_data: Parsed JSON from one SSE data line.
-            pending_tools: Mutable dict accumulating partial tool calls by index.
-
-        Returns:
-            List of normalized chunks (text/tool_call).
-        """
-        output: list[dict[str, Any]] = []
-        choices = event_data.get("choices", [])
-        if not choices:
-            return output
-
-        choice = choices[0]
-        delta = choice.get("delta", {})
-        finish_reason = choice.get("finish_reason")
-
-        # Text delta
-        content = delta.get("content")
-        if content:
-            output.append({"type": "text", "content": content})
-
-        # Tool call deltas – accumulate fragments
-        tool_calls = delta.get("tool_calls")
-        if tool_calls:
-            for tc in tool_calls:
-                index = tc.get("index", 0)
-                if index not in pending_tools:
-                    pending_tools[index] = {
-                        "id": tc.get("id", ""),
-                        "name": tc.get("function", {}).get("name", ""),
-                        "arguments": "",
-                    }
-                else:
-                    # Merge incremental data
-                    if tc.get("id"):
-                        pending_tools[index]["id"] = tc["id"]
-                    fn = tc.get("function", {})
-                    if fn.get("name"):
-                        pending_tools[index]["name"] = fn["name"]
-
-                args_fragment = tc.get("function", {}).get("arguments", "")
-                if args_fragment:
-                    pending_tools[index]["arguments"] += args_fragment
-
-        # Flush pending tools on any terminal finish_reason (tool_calls, stop, length, content_filter)
-        if finish_reason is not None and pending_tools:
-            for idx in sorted(pending_tools):
-                tool = pending_tools[idx]
-                try:
-                    args = json.loads(tool["arguments"]) if tool["arguments"] else {}
-                except (json.JSONDecodeError, TypeError, ValueError):
-                    _LOGGER.warning(
-                        "Failed to parse tool call arguments for %s", tool["name"]
-                    )
-                    args = {}
-                output.append({
-                    "type": "tool_call",
-                    "name": tool["name"],
-                    "args": args,
-                    "id": tool["id"],
-                })
-            pending_tools.clear()
-
-        return output
+        return result["content"] if result.get("content") else ""
 
     async def get_response_stream(
         self, messages: list[dict[str, Any]], **kwargs: Any
@@ -276,8 +135,8 @@ class OpenAIProvider(BaseHTTPClient):
         payload = self._build_payload(messages, **kwargs)
         payload["stream"] = True
 
-        pending_tools: dict[int, dict[str, Any]] = {}
-        buffer = ""
+        sse_parser = SSEParser()
+        tool_acc = ToolAccumulator()
 
         try:
             async with self.session.post(
@@ -305,81 +164,46 @@ class OpenAIProvider(BaseHTTPClient):
                     if not raw_chunk:
                         continue
 
-                    buffer += raw_chunk.decode("utf-8", errors="ignore")
-
-                    while "\n\n" in buffer:
-                        raw_event, buffer = buffer.split("\n\n", 1)
-                        if not raw_event.strip():
-                            continue
-
-                        data_lines: list[str] = []
-                        for line in raw_event.splitlines():
-                            if line.startswith("data:"):
-                                data_lines.append(line[5:].strip())
-
-                        if not data_lines:
-                            continue
-
-                        data_text = "\n".join(data_lines)
-                        if data_text == "[DONE]":
+                    text = raw_chunk.decode("utf-8", errors="ignore")
+                    for event_text in sse_parser.feed(text):
+                        if event_text == "[DONE]":
                             done = True
                             break
-
                         try:
-                            event_data = json.loads(data_text)
+                            event_data = json.loads(event_text)
                         except (TypeError, ValueError, json.JSONDecodeError):
                             _LOGGER.debug(
                                 "Skipping unparsable OpenAI stream event: %s",
-                                data_text[:200],
+                                event_text[:200],
                             )
                             continue
 
-                        for out_chunk in self._extract_openai_stream_chunks(
-                            event_data, pending_tools
+                        for chunk in self.adapter.extract_stream_events(
+                            event_data, tool_acc
                         ):
-                            yield out_chunk
+                            yield chunk
 
-                # Flush remaining buffer at stream end
-                if buffer.strip():
-                    for raw_event in buffer.strip().split("\n\n"):
-                        data_lines = [
-                            line[5:].strip()
-                            for line in raw_event.splitlines()
-                            if line.startswith("data:")
-                        ]
-                        if not data_lines:
-                            continue
-                        data_text = "\n".join(data_lines)
-                        if data_text == "[DONE]":
-                            break
-                        try:
-                            event_data = json.loads(data_text)
-                        except (TypeError, ValueError, json.JSONDecodeError):
-                            continue
-                        for out_chunk in self._extract_openai_stream_chunks(
-                            event_data, pending_tools
-                        ):
-                            yield out_chunk
+                # Flush remaining buffer
+                for event_text in sse_parser.flush():
+                    if event_text == "[DONE]":
+                        break
+                    try:
+                        event_data = json.loads(event_text)
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        continue
+                    for chunk in self.adapter.extract_stream_events(
+                        event_data, tool_acc
+                    ):
+                        yield chunk
 
                 # Safety flush: emit any remaining pending tool calls (no finish_reason received)
-                if pending_tools:
+                if tool_acc.has_pending:
                     _LOGGER.warning(
                         "Safety flush: emitting %d pending tool calls without finish_reason",
-                        len(pending_tools),
+                        len(tool_acc._calls),
                     )
-                    for idx in sorted(pending_tools):
-                        tool = pending_tools[idx]
-                        try:
-                            args = json.loads(tool["arguments"]) if tool["arguments"] else {}
-                        except (json.JSONDecodeError, TypeError, ValueError):
-                            args = {}
-                        yield {
-                            "type": "tool_call",
-                            "name": tool["name"],
-                            "args": args,
-                            "id": tool["id"],
-                        }
-                    pending_tools.clear()
+                    for tool in tool_acc.flush_all():
+                        yield {"type": "tool_call", **tool}
 
         except Exception:
             _LOGGER.exception("Error during OpenAI streaming")

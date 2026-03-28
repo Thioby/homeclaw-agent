@@ -12,8 +12,9 @@ from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
+from .adapters.anthropic_adapter import AnthropicAdapter
+from .adapters.stream_utils import SSEParser, ToolAccumulator
 from .registry import AIProvider, ProviderRegistry
-from ..core.tool_call_codec import extract_tool_calls_from_assistant_content
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -61,6 +62,7 @@ class AnthropicOAuthProvider(AIProvider):
         self._config_entry: ConfigEntry | None = config.get("config_entry")
         self._oauth_data: dict[str, Any] = {}
         self._refresh_lock = asyncio.Lock()
+        self.adapter = AnthropicAdapter()
 
         # Load OAuth data from config entry
         if self._config_entry:
@@ -84,7 +86,7 @@ class AnthropicOAuthProvider(AIProvider):
         Raises:
             OAuthRefreshError: If no token available or refresh fails.
         """
-        from ..oauth import refresh_token, OAuthRefreshError
+        from ..oauth import OAuthRefreshError, refresh_token
 
         async with self._refresh_lock:
             # Re-read persisted tokens — another task may have refreshed.
@@ -176,45 +178,6 @@ class AnthropicOAuthProvider(AIProvider):
 
         return payload
 
-    def _assistant_tool_use_blocks(
-        self, parsed_content: dict[str, Any]
-    ) -> list[dict[str, Any]]:
-        """Extract Anthropic tool_use blocks from stored assistant JSON."""
-        blocks: list[dict[str, Any]] = []
-
-        for call in extract_tool_calls_from_assistant_content(parsed_content):
-            blocks.append(
-                {
-                    "type": "tool_use",
-                    "id": call.get("id", ""),
-                    "name": call.get("name", ""),
-                    "input": call.get("args", {}),
-                }
-            )
-
-        return blocks
-
-    def _convert_tools(
-        self, openai_tools: list[dict[str, Any]] | None
-    ) -> list[dict[str, Any]]:
-        """Convert OpenAI tool format to Anthropic input_schema format."""
-        if not openai_tools:
-            return []
-
-        anthropic_tools: list[dict[str, Any]] = []
-
-        for tool in openai_tools:
-            if tool.get("type") == "function":
-                function_def = tool.get("function", {})
-                anthropic_tool = {
-                    "name": function_def.get("name", ""),
-                    "description": function_def.get("description", ""),
-                    "input_schema": function_def.get("parameters", {}),
-                }
-                anthropic_tools.append(anthropic_tool)
-
-        return anthropic_tools
-
     async def get_response(self, messages: list[dict[str, Any]], **kwargs: Any) -> str:
         """Get a response from Anthropic using OAuth token.
 
@@ -239,76 +202,8 @@ class AnthropicOAuthProvider(AIProvider):
             "user-agent": USER_AGENT,
         }
 
-        # Extract system message and convert messages
-        system_message = None
-        anthropic_messages = []
-
-        for message in messages:
-            role = message.get("role", "user")
-            content = message.get("content", "")
-
-            if role == "system":
-                system_message = content
-            elif role == "function":
-                # Tool result - Anthropic uses tool_result in user role
-                tool_use_id = message.get("tool_use_id")
-                if not tool_use_id:
-                    _LOGGER.warning(
-                        "Skipping tool_result without tool_use_id for tool '%s'",
-                        message.get("name", "unknown"),
-                    )
-                    continue
-                anthropic_messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_use_id,
-                                "content": content,
-                            }
-                        ],
-                    }
-                )
-            elif role == "assistant" and content:
-                # Check if this contains tool_use JSON
-                try:
-                    parsed = json.loads(content)
-                    tool_use_blocks = self._assistant_tool_use_blocks(parsed)
-                    if tool_use_blocks:
-                        anthropic_messages.append(
-                            {
-                                "role": "assistant",
-                                "content": tool_use_blocks,
-                            }
-                        )
-                        continue
-                except (ValueError, TypeError, json.JSONDecodeError):
-                    pass
-                anthropic_messages.append({"role": "assistant", "content": content})
-            elif role == "user" and content:
-                images = message.get("_images", [])
-                if images:
-                    # Build multimodal content blocks for Anthropic vision API
-                    content_blocks: list[dict[str, Any]] = [
-                        {"type": "text", "text": content},
-                    ]
-                    for img in images:
-                        content_blocks.append(
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": img["mime_type"],
-                                    "data": img["data"],
-                                },
-                            }
-                        )
-                    anthropic_messages.append(
-                        {"role": "user", "content": content_blocks}
-                    )
-                else:
-                    anthropic_messages.append({"role": "user", "content": content})
+        # Use adapter for message/tool conversion
+        anthropic_messages, system_message = self.adapter.transform_messages(messages)
 
         # Build system as array with Claude Code identifier first (required for OAuth)
         # MUST be sent as array of text blocks, not a single string
@@ -330,7 +225,7 @@ class AnthropicOAuthProvider(AIProvider):
         # Convert and add tools if provided
         tools = kwargs.get("tools")
         if tools:
-            anthropic_tools = self._convert_tools(tools)
+            anthropic_tools = self.adapter.transform_tools(tools)
             if anthropic_tools:
                 payload["tools"] = anthropic_tools
 
@@ -360,139 +255,9 @@ class AnthropicOAuthProvider(AIProvider):
 
                 data = json.loads(response_text)
 
-                # Extract text from content blocks
-                content_blocks = data.get("content", [])
-
-                if not content_blocks:
-                    return ""
-
-                # Separate text blocks from tool_use blocks
-                text_parts = []
-                tool_use_blocks = []
-                for block in content_blocks:
-                    if block.get("type") == "text":
-                        text_parts.append(block.get("text", ""))
-                    elif block.get("type") == "tool_use":
-                        tool_use_blocks.append(block)
-
-                if tool_use_blocks:
-                    # Return ONLY tool_use as structured JSON — text is stored
-                    # separately and will be yielded by query_processor before
-                    # the tool call. We embed the prefixed text so it can be
-                    # extracted downstream.
-                    result: dict[str, Any] = {
-                        "tool_use": {
-                            "id": tool_use_blocks[0].get("id"),
-                            "name": tool_use_blocks[0].get("name"),
-                            "input": tool_use_blocks[0].get("input"),
-                        }
-                    }
-                    # Attach any text the model produced before the tool call
-                    if text_parts:
-                        result["text"] = " ".join(text_parts)
-                    # If multiple tool calls, attach extras
-                    if len(tool_use_blocks) > 1:
-                        result["additional_tool_calls"] = [
-                            {
-                                "id": tb.get("id"),
-                                "name": tb.get("name"),
-                                "input": tb.get("input"),
-                            }
-                            for tb in tool_use_blocks[1:]
-                        ]
-                    return json.dumps(result)
-
-                return " ".join(text_parts) if text_parts else ""
-
-    @staticmethod
-    def _build_tool_call_chunk(
-        tool_state: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        """Build a normalized tool_call chunk from streaming tool state."""
-        name = tool_state.get("name", "")
-        if not name:
-            return None
-
-        args: dict[str, Any] = {}
-        start_input = tool_state.get("input")
-        if isinstance(start_input, dict):
-            args = dict(start_input)
-
-        # Anthropic may send `{}` in content_block_start and stream the actual
-        # arguments later in input_json_delta events, so always parse deltas too.
-        input_json = "".join(tool_state.get("input_json_parts", []))
-        if input_json:
-            try:
-                parsed = json.loads(input_json)
-                if isinstance(parsed, dict):
-                    args = {**args, **parsed}
-            except (TypeError, ValueError, json.JSONDecodeError):
-                _LOGGER.warning(
-                    "Failed to parse Anthropic OAuth tool input JSON for %s", name
-                )
-
-        return {
-            "type": "tool_call",
-            "name": name,
-            "args": args,
-            "id": tool_state.get("id", ""),
-        }
-
-    def _extract_stream_chunks(
-        self,
-        event_data: dict[str, Any],
-        pending_tools: dict[int, dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        """Convert one Anthropic OAuth stream event into normalized chunks."""
-        output: list[dict[str, Any]] = []
-        event_type = event_data.get("type", "")
-
-        if event_type == "content_block_start":
-            block = event_data.get("content_block", {})
-            if block.get("type") == "tool_use":
-                index = int(event_data.get("index", 0))
-                pending_tools[index] = {
-                    "id": block.get("id", ""),
-                    "name": block.get("name", ""),
-                    "input": block.get("input"),
-                    "input_json_parts": [],
-                }
-            return output
-
-        if event_type == "content_block_delta":
-            delta = event_data.get("delta", {})
-            delta_type = delta.get("type", "")
-
-            if delta_type == "text_delta":
-                text = delta.get("text", "")
-                if text:
-                    output.append({"type": "text", "content": text})
-                return output
-
-            if delta_type == "input_json_delta":
-                index = int(event_data.get("index", 0))
-                tool_state = pending_tools.setdefault(
-                    index,
-                    {
-                        "id": "",
-                        "name": "",
-                        "input": None,
-                        "input_json_parts": [],
-                    },
-                )
-                partial_json = delta.get("partial_json", "")
-                if partial_json:
-                    tool_state["input_json_parts"].append(partial_json)
-                return output
-
-        if event_type in {"message_delta", "message_stop"}:
-            for index in sorted(pending_tools):
-                chunk = self._build_tool_call_chunk(pending_tools[index])
-                if chunk:
-                    output.append(chunk)
-            pending_tools.clear()
-
-        return output
+                # Use adapter to parse response, then convert to expected string format
+                parsed = self.adapter.extract_response(data)
+                return self.adapter.format_response_as_legacy_string(parsed)
 
     async def get_response_stream(self, messages: list[dict[str, Any]], **kwargs: Any):
         """Stream response chunks from Anthropic OAuth Messages API."""
@@ -506,72 +271,8 @@ class AnthropicOAuthProvider(AIProvider):
             "user-agent": USER_AGENT,
         }
 
-        system_message = None
-        anthropic_messages = []
-
-        for message in messages:
-            role = message.get("role", "user")
-            content = message.get("content", "")
-
-            if role == "system":
-                system_message = content
-            elif role == "function":
-                tool_use_id = message.get("tool_use_id")
-                if not tool_use_id:
-                    _LOGGER.warning(
-                        "Skipping tool_result without tool_use_id for tool '%s'",
-                        message.get("name", "unknown"),
-                    )
-                    continue
-                anthropic_messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_use_id,
-                                "content": content,
-                            }
-                        ],
-                    }
-                )
-            elif role == "assistant" and content:
-                try:
-                    parsed = json.loads(content)
-                    tool_use_blocks = self._assistant_tool_use_blocks(parsed)
-                    if tool_use_blocks:
-                        anthropic_messages.append(
-                            {
-                                "role": "assistant",
-                                "content": tool_use_blocks,
-                            }
-                        )
-                        continue
-                except (ValueError, TypeError, json.JSONDecodeError):
-                    pass
-                anthropic_messages.append({"role": "assistant", "content": content})
-            elif role == "user" and content:
-                images = message.get("_images", [])
-                if images:
-                    content_blocks: list[dict[str, Any]] = [
-                        {"type": "text", "text": content},
-                    ]
-                    for img in images:
-                        content_blocks.append(
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": img["mime_type"],
-                                    "data": img["data"],
-                                },
-                            }
-                        )
-                    anthropic_messages.append(
-                        {"role": "user", "content": content_blocks}
-                    )
-                else:
-                    anthropic_messages.append({"role": "user", "content": content})
+        # Use adapter for message/tool conversion
+        anthropic_messages, system_message = self.adapter.transform_messages(messages)
 
         system_blocks = [{"type": "text", "text": CLAUDE_CODE_SYSTEM_PREFIX}]
         if system_message:
@@ -588,14 +289,14 @@ class AnthropicOAuthProvider(AIProvider):
 
         tools = kwargs.get("tools")
         if tools:
-            anthropic_tools = self._convert_tools(tools)
+            anthropic_tools = self.adapter.transform_tools(tools)
             if anthropic_tools:
                 payload["tools"] = anthropic_tools
 
         payload = self._transform_request(payload)
 
-        pending_tools: dict[int, dict[str, Any]] = {}
-        buffer = ""
+        sse_parser = SSEParser()
+        tool_acc = ToolAccumulator()
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -622,22 +323,9 @@ class AnthropicOAuthProvider(AIProvider):
                         if not raw_chunk:
                             continue
 
-                        buffer += raw_chunk.decode("utf-8", errors="ignore")
-
-                        while "\n\n" in buffer:
-                            raw_event, buffer = buffer.split("\n\n", 1)
-                            if not raw_event.strip():
-                                continue
-
-                            data_lines = [
-                                line[5:].strip()
-                                for line in raw_event.splitlines()
-                                if line.startswith("data:")
-                            ]
-                            if not data_lines:
-                                continue
-
-                            data_text = "\n".join(data_lines)
+                        for data_text in sse_parser.feed(
+                            raw_chunk.decode("utf-8", errors="ignore")
+                        ):
                             if data_text == "[DONE]":
                                 break
 
@@ -650,34 +338,31 @@ class AnthropicOAuthProvider(AIProvider):
                                 )
                                 continue
 
-                            for out_chunk in self._extract_stream_chunks(
-                                event_data, pending_tools
+                            for out_chunk in self.adapter.extract_stream_events(
+                                event_data, tool_acc
                             ):
                                 yield out_chunk
 
-                    if buffer.strip():
-                        for raw_event in buffer.strip().split("\n\n"):
-                            data_lines = [
-                                line[5:].strip()
-                                for line in raw_event.splitlines()
-                                if line.startswith("data:")
-                            ]
-                            if not data_lines:
-                                continue
-                            try:
-                                event_data = json.loads("\n".join(data_lines))
-                            except (TypeError, ValueError, json.JSONDecodeError):
-                                continue
-                            for out_chunk in self._extract_stream_chunks(
-                                event_data, pending_tools
-                            ):
-                                yield out_chunk
+                    # Flush remaining buffer at stream end.
+                    for data_text in sse_parser.flush():
+                        try:
+                            event_data = json.loads(data_text)
+                        except (TypeError, ValueError, json.JSONDecodeError):
+                            continue
+                        for out_chunk in self.adapter.extract_stream_events(
+                            event_data, tool_acc
+                        ):
+                            yield out_chunk
 
-                    if pending_tools:
-                        for index in sorted(pending_tools):
-                            chunk = self._build_tool_call_chunk(pending_tools[index])
-                            if chunk:
-                                yield chunk
+                    # Safety flush in case stream ended without message_stop.
+                    if tool_acc.has_pending:
+                        for tc in tool_acc.flush_all():
+                            yield {
+                                "type": "tool_call",
+                                "id": tc["id"],
+                                "name": tc["name"],
+                                "args": tc["args"],
+                            }
 
         except Exception as err:
             _LOGGER.error("Anthropic OAuth streaming exception: %s", err)

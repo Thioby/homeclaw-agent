@@ -10,8 +10,8 @@ from custom_components.homeclaw.core.tool_call_codec import (
 )
 
 
-def test_build_assistant_tool_message_contains_canonical_and_anthropic_shapes() -> None:
-    """Canonical payload should keep both generic and Anthropic-friendly keys."""
+def test_build_assistant_tool_message_contains_only_canonical_tool_calls() -> None:
+    """Canonical payload should only contain the tool_calls list."""
     content = build_assistant_tool_message(
         [
             {
@@ -29,8 +29,11 @@ def test_build_assistant_tool_message_contains_canonical_and_anthropic_shapes() 
     parsed = json.loads(content)
 
     assert len(parsed["tool_calls"]) == 2
-    assert parsed["tool_use"]["id"] == "toolu_1"
-    assert parsed["additional_tool_calls"][0]["id"] == "toolu_2"
+    assert parsed["tool_calls"][0]["id"] == "toolu_1"
+    assert parsed["tool_calls"][1]["id"] == "toolu_2"
+    # Legacy keys should no longer be present in new messages
+    assert "tool_use" not in parsed
+    assert "additional_tool_calls" not in parsed
 
 
 def test_extract_tool_calls_from_openai_style_tool_calls() -> None:

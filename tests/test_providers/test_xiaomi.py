@@ -361,7 +361,7 @@ class TestXiaomiMultimodal:
     """Tests for multimodal message conversion (CHAT-09)."""
 
     def test_multimodal_messages_converted(self, hass: HomeAssistant) -> None:
-        """Test that _convert_multimodal_messages handles images correctly."""
+        """Test that adapter.transform_messages handles images correctly."""
         provider = XiaomiProvider(hass, {"token": "test-key"})
         messages = [
             {
@@ -373,7 +373,7 @@ class TestXiaomiMultimodal:
             }
         ]
 
-        result = provider._convert_multimodal_messages(messages)
+        result, _ = provider.adapter.transform_messages(messages)
 
         assert len(result) == 1
         content = result[0]["content"]

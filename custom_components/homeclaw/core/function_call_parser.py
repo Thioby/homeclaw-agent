@@ -103,8 +103,7 @@ class FunctionCallParser:
         Only matches when tool_calls items have the OpenAI ``"function"``
         wrapper (``{"id": ..., "function": {"name": ..., "arguments": ...}}``).
         Our canonical format (``{"id": ..., "name": ..., "args": ...}``) must
-        NOT match here — it is handled by ``_try_anthropic`` via the
-        ``"tool_use"`` key that ``build_assistant_tool_message`` always adds.
+        NOT match here — it is handled by ``_try_tool_calls_list``.
 
         Args:
             content: Parsed JSON dict.
@@ -209,7 +208,10 @@ class FunctionCallParser:
 
     @staticmethod
     def _try_tool_calls_list(content: dict[str, Any]) -> list[FunctionCall] | None:
-        """Try raw tool_calls list format (OpenAI-style inside a list).
+        """Try raw tool_calls list format.
+
+        Handles both OpenAI-style items (``{"function": {"name": ...}}``)
+        and canonical items (``{"name": ..., "args": ...}``).
 
         Args:
             content: Parsed JSON dict.
@@ -223,6 +225,9 @@ class FunctionCallParser:
 
         result = []
         for tc in tool_calls_list:
+            if not isinstance(tc, dict):
+                continue
+            # OpenAI-style with "function" wrapper
             func = tc.get("function", {})
             if func:
                 arguments = func.get("arguments", {})
@@ -238,4 +243,16 @@ class FunctionCallParser:
                         arguments=arguments,
                     )
                 )
+            else:
+                # Canonical format: {"id": ..., "name": ..., "args": ...}
+                name = tc.get("name", "")
+                if isinstance(name, str) and name:
+                    args = tc.get("args", {})
+                    result.append(
+                        FunctionCall(
+                            id=tc.get("id", name),
+                            name=name,
+                            arguments=args if isinstance(args, dict) else {},
+                        )
+                    )
         return result if result else None

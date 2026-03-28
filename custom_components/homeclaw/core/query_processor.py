@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
-from ..function_calling import FunctionCall, FunctionCallHandler
+from ..function_calling import FunctionCall
 from .context_builder import build_messages, recompact_if_needed, repair_tool_history
 from .function_call_parser import FunctionCallParser
 from .response_parser import ResponseParser

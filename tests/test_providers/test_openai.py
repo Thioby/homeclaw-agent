@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from custom_components.homeclaw.providers import ProviderRegistry
+from custom_components.homeclaw.providers.adapters.openai_compat import OpenAICompatAdapter
+from custom_components.homeclaw.providers.adapters.stream_utils import ToolAccumulator
 
 # Import to trigger registration
 from custom_components.homeclaw.providers import openai as openai_module  # noqa: F401
@@ -240,24 +242,26 @@ class TestOpenAIProviderApiUrl:
 # ---------------------------------------------------------------------------
 
 
-class TestOpenAIProviderExtractStreamChunks:
-    """Unit tests for _extract_openai_stream_chunks static method."""
+class TestOpenAIAdapterExtractStreamEvents:
+    """Unit tests for adapter.extract_stream_events (replaces _extract_openai_stream_chunks)."""
 
     def test_text_delta(self) -> None:
         """Text delta yields a text chunk."""
+        adapter = OpenAICompatAdapter()
+        tool_acc = ToolAccumulator()
         event = {
             "choices": [{"delta": {"content": "Hello"}, "finish_reason": None}]
         }
-        pending: dict[int, dict[str, Any]] = {}
-        chunks = OpenAIProvider._extract_openai_stream_chunks(event, pending)
+        chunks = adapter.extract_stream_events(event, tool_acc)
 
         assert len(chunks) == 1
         assert chunks[0] == {"type": "text", "content": "Hello"}
-        assert pending == {}
+        assert not tool_acc.has_pending
 
     def test_tool_call_single(self) -> None:
         """Tool call start + args deltas + finish_reason yields tool_call chunk."""
-        pending: dict[int, dict[str, Any]] = {}
+        adapter = OpenAICompatAdapter()
+        tool_acc = ToolAccumulator()
 
         # First event: tool call start
         event1 = {
@@ -272,9 +276,9 @@ class TestOpenAIProviderExtractStreamChunks:
                 "finish_reason": None,
             }]
         }
-        chunks1 = OpenAIProvider._extract_openai_stream_chunks(event1, pending)
+        chunks1 = adapter.extract_stream_events(event1, tool_acc)
         assert chunks1 == []
-        assert 0 in pending
+        assert tool_acc.has_pending
 
         # Second event: argument fragment
         event2 = {
@@ -288,7 +292,7 @@ class TestOpenAIProviderExtractStreamChunks:
                 "finish_reason": None,
             }]
         }
-        OpenAIProvider._extract_openai_stream_chunks(event2, pending)
+        adapter.extract_stream_events(event2, tool_acc)
 
         # Third event: more arguments
         event3 = {
@@ -302,24 +306,25 @@ class TestOpenAIProviderExtractStreamChunks:
                 "finish_reason": None,
             }]
         }
-        OpenAIProvider._extract_openai_stream_chunks(event3, pending)
+        adapter.extract_stream_events(event3, tool_acc)
 
         # Fourth event: finish
         event4 = {
             "choices": [{"delta": {}, "finish_reason": "tool_calls"}]
         }
-        chunks4 = OpenAIProvider._extract_openai_stream_chunks(event4, pending)
+        chunks4 = adapter.extract_stream_events(event4, tool_acc)
 
         assert len(chunks4) == 1
         assert chunks4[0]["type"] == "tool_call"
         assert chunks4[0]["name"] == "turn_on_light"
         assert chunks4[0]["args"] == {"entity_id": "light.kitchen"}
         assert chunks4[0]["id"] == "call_abc"
-        assert pending == {}
+        assert not tool_acc.has_pending
 
     def test_parallel_tool_calls(self) -> None:
         """Multiple tool call indices yield all tool_call chunks."""
-        pending: dict[int, dict[str, Any]] = {}
+        adapter = OpenAICompatAdapter()
+        tool_acc = ToolAccumulator()
 
         # Start two tool calls
         event1 = {
@@ -333,8 +338,8 @@ class TestOpenAIProviderExtractStreamChunks:
                 "finish_reason": None,
             }]
         }
-        OpenAIProvider._extract_openai_stream_chunks(event1, pending)
-        assert len(pending) == 2
+        adapter.extract_stream_events(event1, tool_acc)
+        assert tool_acc.has_pending
 
         # Args for both
         event2 = {
@@ -348,13 +353,13 @@ class TestOpenAIProviderExtractStreamChunks:
                 "finish_reason": None,
             }]
         }
-        OpenAIProvider._extract_openai_stream_chunks(event2, pending)
+        adapter.extract_stream_events(event2, tool_acc)
 
         # Finish
         event3 = {
             "choices": [{"delta": {}, "finish_reason": "tool_calls"}]
         }
-        chunks = OpenAIProvider._extract_openai_stream_chunks(event3, pending)
+        chunks = adapter.extract_stream_events(event3, tool_acc)
 
         assert len(chunks) == 2
         assert chunks[0]["name"] == "tool_a"
@@ -364,13 +369,14 @@ class TestOpenAIProviderExtractStreamChunks:
 
     def test_text_and_tool_calls_mixed(self) -> None:
         """Text content + tool calls in sequence."""
-        pending: dict[int, dict[str, Any]] = {}
+        adapter = OpenAICompatAdapter()
+        tool_acc = ToolAccumulator()
 
         # Text first
         ev_text = {
             "choices": [{"delta": {"content": "Let me help"}, "finish_reason": None}]
         }
-        text_chunks = OpenAIProvider._extract_openai_stream_chunks(ev_text, pending)
+        text_chunks = adapter.extract_stream_events(ev_text, tool_acc)
         assert text_chunks == [{"type": "text", "content": "Let me help"}]
 
         # Then tool call
@@ -386,19 +392,20 @@ class TestOpenAIProviderExtractStreamChunks:
                 "finish_reason": None,
             }]
         }
-        OpenAIProvider._extract_openai_stream_chunks(ev_tool, pending)
+        adapter.extract_stream_events(ev_tool, tool_acc)
 
         ev_finish = {
             "choices": [{"delta": {}, "finish_reason": "tool_calls"}]
         }
-        tool_chunks = OpenAIProvider._extract_openai_stream_chunks(ev_finish, pending)
+        tool_chunks = adapter.extract_stream_events(ev_finish, tool_acc)
         assert len(tool_chunks) == 1
         assert tool_chunks[0]["type"] == "tool_call"
         assert tool_chunks[0]["name"] == "do_thing"
 
     def test_malformed_arguments(self) -> None:
         """Malformed JSON arguments yield tool_call with empty args."""
-        pending: dict[int, dict[str, Any]] = {}
+        adapter = OpenAICompatAdapter()
+        tool_acc = ToolAccumulator()
 
         ev1 = {
             "choices": [{
@@ -412,10 +419,10 @@ class TestOpenAIProviderExtractStreamChunks:
                 "finish_reason": None,
             }]
         }
-        OpenAIProvider._extract_openai_stream_chunks(ev1, pending)
+        adapter.extract_stream_events(ev1, tool_acc)
 
         ev2 = {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]}
-        chunks = OpenAIProvider._extract_openai_stream_chunks(ev2, pending)
+        chunks = adapter.extract_stream_events(ev2, tool_acc)
 
         assert len(chunks) == 1
         assert chunks[0]["type"] == "tool_call"
@@ -423,8 +430,9 @@ class TestOpenAIProviderExtractStreamChunks:
 
     def test_empty_choices(self) -> None:
         """Event with no choices returns nothing."""
-        pending: dict[int, dict[str, Any]] = {}
-        chunks = OpenAIProvider._extract_openai_stream_chunks({"choices": []}, pending)
+        adapter = OpenAICompatAdapter()
+        tool_acc = ToolAccumulator()
+        chunks = adapter.extract_stream_events({"choices": []}, tool_acc)
         assert chunks == []
 
 

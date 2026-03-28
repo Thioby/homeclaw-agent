@@ -27,8 +27,9 @@ from ._gemini_constants import (
     _build_user_agent,
     is_retryable_status_in_text,
 )
-from ._gemini_convert import convert_messages, convert_tools, process_gemini_chunk
+from ._gemini_convert import process_gemini_chunk
 from ._gemini_retry import classify_google_error, parse_retry_delay
+from .adapters.gemini_adapter import GeminiAdapter
 from .registry import AIProvider, ProviderRegistry
 
 if TYPE_CHECKING:
@@ -82,6 +83,7 @@ class GeminiOAuthProvider(AIProvider):
         """
         super().__init__(hass, config)
         self._model = config.get("model", self.DEFAULT_MODEL)
+        self.adapter = GeminiAdapter()
         self._config_entry: ConfigEntry | None = config.get("config_entry")
         self._oauth_data: dict[str, Any] = {}
         self._refresh_lock = asyncio.Lock()
@@ -358,22 +360,6 @@ class GeminiOAuthProvider(AIProvider):
             )
 
     # ------------------------------------------------------------------
-    # Message / tool conversion (delegate to pure functions)
-    # ------------------------------------------------------------------
-
-    def _convert_messages(
-        self, messages: list[dict[str, Any]]
-    ) -> tuple[list[dict[str, Any]], str | None]:
-        """Convert OpenAI-style messages to Gemini format."""
-        return convert_messages(messages)
-
-    def _convert_tools(
-        self, openai_tools: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
-        """Convert OpenAI tool format to Gemini functionDeclarations format."""
-        return convert_tools(openai_tools)
-
-    # ------------------------------------------------------------------
     # Request payload building (shared by streaming and non-streaming)
     # ------------------------------------------------------------------
 
@@ -396,7 +382,7 @@ class GeminiOAuthProvider(AIProvider):
         model = self._normalize_model(model)
 
         # Convert messages to Gemini format
-        gemini_contents, system_instruction = self._convert_messages(messages)
+        gemini_contents, system_instruction = self.adapter.transform_messages(messages)
 
         # Build request payload
         request_payload: dict[str, Any] = {
@@ -419,7 +405,7 @@ class GeminiOAuthProvider(AIProvider):
             from .gemini_schema_sanitizer import clean_tools_for_gemini
 
             cleaned_tools = clean_tools_for_gemini(tools)
-            gemini_tools = self._convert_tools(cleaned_tools)
+            gemini_tools = self.adapter.transform_tools(cleaned_tools)
             if gemini_tools:
                 request_payload["tools"] = gemini_tools
 
@@ -641,6 +627,9 @@ class GeminiOAuthProvider(AIProvider):
     def _parse_response(self, response_text: str) -> str:
         """Parse and extract the response from Gemini API JSON.
 
+        Delegates extraction to GeminiAdapter.extract_response() and converts
+        back to a string for backward compatibility with the agentic loop.
+
         Args:
             response_text: Raw JSON response text from the API.
 
@@ -675,48 +664,36 @@ class GeminiOAuthProvider(AIProvider):
             )
             raise Exception(f"Gemini API error: {error_info}")
 
-        # Extract response from Gemini format
-        candidates = data.get("candidates", [])
-        _LOGGER.debug("Gemini OAuth candidates count: %d", len(candidates))
+        # Delegate to adapter for response extraction
+        result = self.adapter.extract_response(data)
 
-        if candidates:
-            finish_reason = candidates[0].get("finishReason")
-            if finish_reason:
-                _LOGGER.debug("Gemini OAuth finish reason: %s", finish_reason)
+        if result["type"] == "tool_calls":
+            # Preserve Gemini's native format for function call detection
+            raw_part = result["tool_calls"][0].get("_raw_function_call", {})
+            func_name = result["tool_calls"][0].get("name", "unknown")
+            _LOGGER.debug("Gemini OAuth function call detected: %s", func_name)
+            return json.dumps(raw_part)
 
-            content = candidates[0].get("content", {})
-            parts = content.get("parts", [])
-            _LOGGER.debug("Gemini OAuth parts count: %d", len(parts))
-
-            if parts:
-                first_part = parts[0]
-                if "functionCall" in first_part:
-                    func_name = first_part["functionCall"].get("name", "unknown")
-                    _LOGGER.debug("Gemini OAuth function call detected: %s", func_name)
-                    return json.dumps(first_part)
-                if "text" in first_part:
-                    text_response = first_part["text"]
-                    _LOGGER.debug(
-                        "Gemini OAuth text response length: %d, preview: %s...",
-                        len(text_response),
-                        text_response[:100],
-                    )
-                    return text_response
-                _LOGGER.warning(
-                    "Gemini OAuth unexpected part format: %s",
-                    list(first_part.keys()),
-                )
-                return json.dumps(data)
-        else:
+        content = result.get("content", "")
+        if content:
+            _LOGGER.debug(
+                "Gemini OAuth text response length: %d, preview: %s...",
+                len(content),
+                content[:100],
+            )
+        elif not data.get("candidates"):
             prompt_feedback = data.get("promptFeedback")
             if prompt_feedback:
                 _LOGGER.warning(
                     "Gemini OAuth prompt feedback (possibly blocked): %s",
                     json.dumps(prompt_feedback),
                 )
+            _LOGGER.warning(
+                "Unexpected Gemini response format: %s", response_text[:500]
+            )
+            return json.dumps(data)
 
-        _LOGGER.warning("Unexpected Gemini response format: %s", response_text[:500])
-        return json.dumps(data)
+        return content
 
     async def get_response(self, messages: list[dict[str, Any]], **kwargs: Any) -> str:
         """Get a response from Gemini using OAuth token.
@@ -915,9 +892,7 @@ class GeminiOAuthProvider(AIProvider):
         _LOGGER.info("GeminiOAuthProvider._do_stream_request called. model: %s", model)
         access_token = await self._get_valid_token()
 
-        request_payload, model = self._build_request_payload(
-            messages, model, **kwargs
-        )
+        request_payload, model = self._build_request_payload(messages, model, **kwargs)
 
         session = self._get_session()
         project_id = await self._ensure_project_id(session, access_token)
@@ -1062,9 +1037,8 @@ class GeminiOAuthProvider(AIProvider):
             error_str = str(e)
             _LOGGER.warning("Gemini streaming connection error: %s", error_str)
 
-            is_retryable = (
-                "rate" in error_str.lower()
-                or is_retryable_status_in_text(error_str)
+            is_retryable = "rate" in error_str.lower() or is_retryable_status_in_text(
+                error_str
             )
 
             if is_retryable:

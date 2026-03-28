@@ -40,35 +40,10 @@ def normalize_tool_calls(tool_calls: list[dict[str, Any]]) -> list[dict[str, Any
 def build_assistant_tool_message(tool_calls: list[dict[str, Any]]) -> str:
     """Build a canonical JSON assistant content for tool calls.
 
-    Stores:
-    - `tool_calls` for provider-agnostic parsing
-    - `tool_use` + `additional_tool_calls` for Anthropic compatibility
+    Stores only the provider-agnostic ``tool_calls`` list.
     """
     normalized = normalize_tool_calls(tool_calls)
-    if not normalized:
-        return json.dumps({"tool_calls": []})
-
-    payload: dict[str, Any] = {
-        "tool_calls": normalized,
-    }
-
-    first = normalized[0]
-    payload["tool_use"] = {
-        "id": first["id"],
-        "name": first["name"],
-        "input": first["args"],
-    }
-    if len(normalized) > 1:
-        payload["additional_tool_calls"] = [
-            {
-                "id": tc["id"],
-                "name": tc["name"],
-                "input": tc["args"],
-            }
-            for tc in normalized[1:]
-        ]
-
-    return json.dumps(payload)
+    return json.dumps({"tool_calls": normalized})
 
 
 def extract_tool_calls_from_assistant_content(

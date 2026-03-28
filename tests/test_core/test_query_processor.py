@@ -695,4 +695,4 @@ class TestProcessStreamToolIds:
             m for m in second_call_messages if m.get("role") == "assistant"
         )
         parsed_assistant = json.loads(assistant_message["content"])
-        assert parsed_assistant["tool_use"]["id"] == "toolu_123"
+        assert parsed_assistant["tool_calls"][0]["id"] == "toolu_123"

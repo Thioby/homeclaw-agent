@@ -236,7 +236,7 @@ class TestGeminiOAuthProviderMessageConversion:
     def test_convert_messages_user(self, provider):
         """Test user message conversion."""
         messages = [{"role": "user", "content": "Hello"}]
-        contents, system = provider._convert_messages(messages)
+        contents, system = provider.adapter.transform_messages(messages)
 
         assert len(contents) == 1
         assert contents[0]["role"] == "user"
@@ -246,7 +246,7 @@ class TestGeminiOAuthProviderMessageConversion:
     def test_convert_messages_assistant(self, provider):
         """Test assistant message conversion to model role."""
         messages = [{"role": "assistant", "content": "Hi there"}]
-        contents, system = provider._convert_messages(messages)
+        contents, system = provider.adapter.transform_messages(messages)
 
         assert len(contents) == 1
         assert contents[0]["role"] == "model"
@@ -258,7 +258,7 @@ class TestGeminiOAuthProviderMessageConversion:
             {"role": "system", "content": "You are a helpful assistant"},
             {"role": "user", "content": "Hello"},
         ]
-        contents, system = provider._convert_messages(messages)
+        contents, system = provider.adapter.transform_messages(messages)
 
         assert len(contents) == 1
         assert system == "You are a helpful assistant"
@@ -270,7 +270,7 @@ class TestGeminiOAuthProviderMessageConversion:
             {"role": "system", "content": "Second instruction"},
             {"role": "user", "content": "Hello"},
         ]
-        contents, system = provider._convert_messages(messages)
+        contents, system = provider.adapter.transform_messages(messages)
 
         assert len(contents) == 1
         assert "First instruction" in system
@@ -282,7 +282,7 @@ class TestGeminiOAuthProviderToolConversion:
 
     def test_convert_tools_empty(self, provider):
         """Test empty tools list."""
-        result = provider._convert_tools([])
+        result = provider.adapter.transform_tools([])
         assert result == []
 
     def test_convert_tools_single_function(self, provider):
@@ -301,7 +301,7 @@ class TestGeminiOAuthProviderToolConversion:
             }
         ]
 
-        result = provider._convert_tools(openai_tools)
+        result = provider.adapter.transform_tools(openai_tools)
 
         assert len(result) == 1
         assert "functionDeclarations" in result[0]

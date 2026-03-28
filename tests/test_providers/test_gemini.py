@@ -65,7 +65,7 @@ class TestGeminiProviderConvertMessages:
         provider = GeminiProvider(hass, config)
 
         messages = [{"role": "user", "content": "Hello"}]
-        contents, system = provider._convert_messages(messages)
+        contents, system = provider.adapter.transform_messages(messages)
 
         assert len(contents) == 1
         assert contents[0]["role"] == "user"
@@ -80,7 +80,7 @@ class TestGeminiProviderConvertMessages:
         provider = GeminiProvider(hass, config)
 
         messages = [{"role": "assistant", "content": "Hi there!"}]
-        contents, system = provider._convert_messages(messages)
+        contents, system = provider.adapter.transform_messages(messages)
 
         assert len(contents) == 1
         assert contents[0]["role"] == "model"
@@ -97,7 +97,7 @@ class TestGeminiProviderConvertMessages:
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Hello"},
         ]
-        contents, system = provider._convert_messages(messages)
+        contents, system = provider.adapter.transform_messages(messages)
 
         assert len(contents) == 1  # Only user message in contents
         assert contents[0]["role"] == "user"
@@ -115,7 +115,7 @@ class TestGeminiProviderConvertMessages:
             {"role": "system", "content": "Second instruction."},
             {"role": "user", "content": "Hello"},
         ]
-        contents, system = provider._convert_messages(messages)
+        contents, system = provider.adapter.transform_messages(messages)
 
         assert len(contents) == 1
         assert system == "First instruction.\n\nSecond instruction."
@@ -193,7 +193,7 @@ class TestGeminiProviderExtractResponse:
         assert result == "Hello from Gemini!"
 
     def test_extract_response_empty_candidates(self, hass: HomeAssistant) -> None:
-        """Test extracting response when candidates is empty."""
+        """Test extracting response when candidates is empty returns empty string."""
         from custom_components.homeclaw.providers.gemini import GeminiProvider
 
         config = {"token": "test_key"}
@@ -201,8 +201,8 @@ class TestGeminiProviderExtractResponse:
 
         response_data = {"candidates": []}
 
-        with pytest.raises(ValueError, match="No response"):
-            provider._extract_response(response_data)
+        result = provider._extract_response(response_data)
+        assert result == ""
 
     def test_extract_response_missing_text(self, hass: HomeAssistant) -> None:
         """Test extracting response when text is missing."""
@@ -252,7 +252,7 @@ class TestGeminiProviderConvertTools:
             }
         ]
 
-        gemini_tools = provider._convert_tools(openai_tools)
+        gemini_tools = provider.adapter.transform_tools(openai_tools)
 
         assert len(gemini_tools) == 1
         assert "functionDeclarations" in gemini_tools[0]
@@ -269,7 +269,7 @@ class TestGeminiProviderConvertTools:
         config = {"token": "test_key"}
         provider = GeminiProvider(hass, config)
 
-        gemini_tools = provider._convert_tools([])
+        gemini_tools = provider.adapter.transform_tools([])
 
         assert gemini_tools == []
 
@@ -299,7 +299,7 @@ class TestGeminiProviderConvertTools:
             },
         ]
 
-        gemini_tools = provider._convert_tools(openai_tools)
+        gemini_tools = provider.adapter.transform_tools(openai_tools)
 
         assert len(gemini_tools) == 1
         declarations = gemini_tools[0]["functionDeclarations"]

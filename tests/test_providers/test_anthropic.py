@@ -14,6 +14,7 @@ from custom_components.homeclaw.providers import (
     anthropic as anthropic_module,
 )  # noqa: F401
 from custom_components.homeclaw.providers.anthropic import AnthropicProvider
+from custom_components.homeclaw.providers.adapters.stream_utils import ToolAccumulator
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -56,10 +57,10 @@ class TestAnthropicProviderHeaders:
 
 
 class TestAnthropicProviderSystemMessage:
-    """Tests for AnthropicProvider system message extraction."""
+    """Tests for system message extraction via adapter."""
 
     def test_extract_system_message(self, hass: HomeAssistant) -> None:
-        """Test that _extract_system separates system message from messages."""
+        """Test that adapter separates system message from messages."""
         config = {"api_key": "test-key"}
 
         provider = AnthropicProvider(hass, config)
@@ -70,7 +71,7 @@ class TestAnthropicProviderSystemMessage:
             {"role": "assistant", "content": "Hi there!"},
         ]
 
-        filtered_messages, system = provider._extract_system(messages)
+        filtered_messages, system = provider.adapter.transform_messages(messages)
 
         assert system == "You are a helpful assistant."
         assert len(filtered_messages) == 2
@@ -78,7 +79,7 @@ class TestAnthropicProviderSystemMessage:
         assert filtered_messages[1]["role"] == "assistant"
 
     def test_extract_system_message_no_system(self, hass: HomeAssistant) -> None:
-        """Test _extract_system when no system message present."""
+        """Test adapter when no system message present."""
         config = {"api_key": "test-key"}
 
         provider = AnthropicProvider(hass, config)
@@ -88,7 +89,7 @@ class TestAnthropicProviderSystemMessage:
             {"role": "assistant", "content": "Hi there!"},
         ]
 
-        filtered_messages, system = provider._extract_system(messages)
+        filtered_messages, system = provider.adapter.transform_messages(messages)
 
         assert system is None
         assert len(filtered_messages) == 2
@@ -121,7 +122,7 @@ class TestAnthropicProviderSystemMessage:
             }
         ]
 
-        filtered_messages, system = provider._extract_system(messages)
+        filtered_messages, system = provider.adapter.transform_messages(messages)
 
         assert system is None
         assert len(filtered_messages) == 1
@@ -152,7 +153,7 @@ class TestAnthropicProviderSystemMessage:
             }
         ]
 
-        filtered_messages, _ = provider._extract_system(messages)
+        filtered_messages, _ = provider.adapter.transform_messages(messages)
         assistant_content = filtered_messages[0]["content"]
         assert len(assistant_content) == 1
         assert assistant_content[0]["id"] == "toolu_10"
@@ -238,10 +239,10 @@ class TestAnthropicProviderPayload:
 
 
 class TestAnthropicProviderToolConversion:
-    """Tests for AnthropicProvider tool format conversion."""
+    """Tests for tool format conversion via adapter."""
 
     def test_convert_tools(self, hass: HomeAssistant) -> None:
-        """Test that _convert_tools converts OpenAI format to Anthropic input_schema format."""
+        """Test that adapter converts OpenAI format to Anthropic input_schema format."""
         config = {"api_key": "test-key"}
 
         provider = AnthropicProvider(hass, config)
@@ -263,7 +264,7 @@ class TestAnthropicProviderToolConversion:
             }
         ]
 
-        anthropic_tools = provider._convert_tools(openai_tools)
+        anthropic_tools = provider.adapter.transform_tools(openai_tools)
 
         assert len(anthropic_tools) == 1
         assert anthropic_tools[0]["name"] == "get_weather"
@@ -273,21 +274,21 @@ class TestAnthropicProviderToolConversion:
         assert "location" in anthropic_tools[0]["input_schema"]["properties"]
 
     def test_convert_tools_empty(self, hass: HomeAssistant) -> None:
-        """Test that _convert_tools handles empty list."""
+        """Test that adapter handles empty list."""
         config = {"api_key": "test-key"}
 
         provider = AnthropicProvider(hass, config)
 
-        result = provider._convert_tools([])
+        result = provider.adapter.transform_tools([])
         assert result == []
 
     def test_convert_tools_none(self, hass: HomeAssistant) -> None:
-        """Test that _convert_tools handles None input."""
+        """Test that adapter handles None input."""
         config = {"api_key": "test-key"}
 
         provider = AnthropicProvider(hass, config)
 
-        result = provider._convert_tools(None)
+        result = provider.adapter.transform_tools(None)
         assert result == []
 
 
@@ -407,12 +408,12 @@ class TestAnthropicProviderAPIUrl:
 
 
 class TestAnthropicProviderStreaming:
-    """Tests for AnthropicProvider streaming event parsing."""
+    """Tests for AnthropicProvider streaming event parsing via adapter."""
 
-    def test_extract_stream_chunks_text_delta(self, hass: HomeAssistant) -> None:
+    def test_extract_stream_events_text_delta(self, hass: HomeAssistant) -> None:
         """Text deltas should be converted to text chunks."""
         provider = AnthropicProvider(hass, {"api_key": "test-key"})
-        pending_tools: dict[int, dict[str, Any]] = {}
+        tool_acc = ToolAccumulator()
 
         event = {
             "type": "content_block_delta",
@@ -423,15 +424,15 @@ class TestAnthropicProviderStreaming:
             },
         }
 
-        chunks = provider._extract_stream_chunks(event, pending_tools)
+        chunks = provider.adapter.extract_stream_events(event, tool_acc)
         assert chunks == [{"type": "text", "content": "Hello"}]
 
-    def test_extract_stream_chunks_tool_use_and_input_json(
+    def test_extract_stream_events_tool_use_and_input_json(
         self, hass: HomeAssistant
     ) -> None:
         """Tool blocks should be assembled into tool_call chunks."""
         provider = AnthropicProvider(hass, {"api_key": "test-key"})
-        pending_tools: dict[int, dict[str, Any]] = {}
+        tool_acc = ToolAccumulator()
 
         start_event = {
             "type": "content_block_start",
@@ -457,10 +458,10 @@ class TestAnthropicProviderStreaming:
             },
         }
 
-        assert provider._extract_stream_chunks(start_event, pending_tools) == []
-        assert provider._extract_stream_chunks(delta_event, pending_tools) == []
+        assert provider.adapter.extract_stream_events(start_event, tool_acc) == []
+        assert provider.adapter.extract_stream_events(delta_event, tool_acc) == []
 
-        chunks = provider._extract_stream_chunks(stop_event, pending_tools)
+        chunks = provider.adapter.extract_stream_events(stop_event, tool_acc)
         assert chunks == [
             {
                 "type": "tool_call",
@@ -470,12 +471,12 @@ class TestAnthropicProviderStreaming:
             }
         ]
 
-    def test_extract_stream_chunks_merges_empty_start_input_with_deltas(
+    def test_extract_stream_events_merges_empty_start_input_with_deltas(
         self, hass: HomeAssistant
     ) -> None:
         """When start input is empty dict, delta JSON should still win."""
         provider = AnthropicProvider(hass, {"api_key": "test-key"})
-        pending_tools: dict[int, dict[str, Any]] = {}
+        tool_acc = ToolAccumulator()
 
         start_event = {
             "type": "content_block_start",
@@ -497,9 +498,9 @@ class TestAnthropicProviderStreaming:
         }
         stop_event = {"type": "message_delta", "delta": {"stop_reason": "tool_use"}}
 
-        assert provider._extract_stream_chunks(start_event, pending_tools) == []
-        assert provider._extract_stream_chunks(delta_event, pending_tools) == []
-        chunks = provider._extract_stream_chunks(stop_event, pending_tools)
+        assert provider.adapter.extract_stream_events(start_event, tool_acc) == []
+        assert provider.adapter.extract_stream_events(delta_event, tool_acc) == []
+        chunks = provider.adapter.extract_stream_events(stop_event, tool_acc)
         assert chunks == [
             {
                 "type": "tool_call",

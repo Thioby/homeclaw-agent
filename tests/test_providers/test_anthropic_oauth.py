@@ -10,6 +10,7 @@ from custom_components.homeclaw.providers.anthropic_oauth import (
     ANTHROPIC_BETA_FLAGS,
     USER_AGENT,
 )
+from custom_components.homeclaw.providers.adapters.stream_utils import ToolAccumulator
 
 
 @pytest.fixture
@@ -78,6 +79,10 @@ class TestAnthropicOAuthProviderInit:
     def test_supports_tools(self, provider):
         """Test that provider reports tool support."""
         assert provider.supports_tools is True
+
+    def test_adapter_initialized(self, provider):
+        """Test that adapter is initialized on the provider."""
+        assert provider.adapter is not None
 
 
 class TestAnthropicOAuthProviderTokenManagement:
@@ -158,11 +163,11 @@ class TestAnthropicOAuthProviderTransformations:
 
 
 class TestAnthropicOAuthProviderToolConversion:
-    """Tests for tool format conversion."""
+    """Tests for tool format conversion via adapter."""
 
     def test_convert_tools_empty(self, provider):
         """Test empty tools list."""
-        result = provider._convert_tools([])
+        result = provider.adapter.transform_tools([])
         assert result == []
 
     def test_convert_tools_single_function(self, provider):
@@ -181,7 +186,7 @@ class TestAnthropicOAuthProviderToolConversion:
             }
         ]
 
-        result = provider._convert_tools(openai_tools)
+        result = provider.adapter.transform_tools(openai_tools)
 
         assert len(result) == 1
         assert result[0]["name"] == "get_weather"
@@ -375,23 +380,23 @@ class TestAnthropicOAuthProviderConstants:
 
 
 class TestAnthropicOAuthProviderStreaming:
-    """Tests for Anthropic OAuth streaming event parsing."""
+    """Tests for Anthropic OAuth streaming event parsing via adapter."""
 
-    def test_extract_stream_chunks_text_delta(self, provider):
+    def test_extract_stream_events_text_delta(self, provider):
         """Text stream delta should map to text chunk."""
-        pending_tools = {}
+        tool_acc = ToolAccumulator()
         event = {
             "type": "content_block_delta",
             "index": 0,
             "delta": {"type": "text_delta", "text": "hello"},
         }
 
-        chunks = provider._extract_stream_chunks(event, pending_tools)
+        chunks = provider.adapter.extract_stream_events(event, tool_acc)
         assert chunks == [{"type": "text", "content": "hello"}]
 
-    def test_extract_stream_chunks_tool_use_and_json(self, provider):
+    def test_extract_stream_events_tool_use_and_json(self, provider):
         """Tool stream blocks should assemble to normalized tool_call."""
-        pending_tools = {}
+        tool_acc = ToolAccumulator()
         start_event = {
             "type": "content_block_start",
             "index": 2,
@@ -414,10 +419,10 @@ class TestAnthropicOAuthProviderStreaming:
             "delta": {"stop_reason": "tool_use"},
         }
 
-        assert provider._extract_stream_chunks(start_event, pending_tools) == []
-        assert provider._extract_stream_chunks(delta_event, pending_tools) == []
+        assert provider.adapter.extract_stream_events(start_event, tool_acc) == []
+        assert provider.adapter.extract_stream_events(delta_event, tool_acc) == []
 
-        chunks = provider._extract_stream_chunks(stop_event, pending_tools)
+        chunks = provider.adapter.extract_stream_events(stop_event, tool_acc)
         assert chunks == [
             {
                 "type": "tool_call",
@@ -427,9 +432,9 @@ class TestAnthropicOAuthProviderStreaming:
             }
         ]
 
-    def test_extract_stream_chunks_merges_empty_start_input_with_deltas(self, provider):
+    def test_extract_stream_events_merges_empty_start_input_with_deltas(self, provider):
         """When start input is {}, delta JSON should still populate args."""
-        pending_tools = {}
+        tool_acc = ToolAccumulator()
         start_event = {
             "type": "content_block_start",
             "index": 3,
@@ -450,9 +455,9 @@ class TestAnthropicOAuthProviderStreaming:
         }
         stop_event = {"type": "message_delta", "delta": {"stop_reason": "tool_use"}}
 
-        assert provider._extract_stream_chunks(start_event, pending_tools) == []
-        assert provider._extract_stream_chunks(delta_event, pending_tools) == []
-        chunks = provider._extract_stream_chunks(stop_event, pending_tools)
+        assert provider.adapter.extract_stream_events(start_event, tool_acc) == []
+        assert provider.adapter.extract_stream_events(delta_event, tool_acc) == []
+        chunks = provider.adapter.extract_stream_events(stop_event, tool_acc)
         assert chunks == [
             {
                 "type": "tool_call",
@@ -462,19 +467,27 @@ class TestAnthropicOAuthProviderStreaming:
             }
         ]
 
-    def test_assistant_tool_use_blocks_accepts_canonical_tool_calls(self, provider):
+    def test_adapter_transform_messages_maps_tool_calls(self, provider):
         """Canonical tool_calls payload should map to Anthropic tool_use blocks."""
-        parsed = {
-            "tool_calls": [
-                {
-                    "id": "toolu_1",
-                    "name": "get_entity_state",
-                    "args": {"entity_id": "light.kitchen"},
-                }
-            ]
-        }
+        messages = [
+            {
+                "role": "assistant",
+                "content": json.dumps(
+                    {
+                        "tool_calls": [
+                            {
+                                "id": "toolu_1",
+                                "name": "get_entity_state",
+                                "args": {"entity_id": "light.kitchen"},
+                            }
+                        ]
+                    }
+                ),
+            }
+        ]
 
-        blocks = provider._assistant_tool_use_blocks(parsed)
+        converted, _ = provider.adapter.transform_messages(messages)
+        blocks = converted[0]["content"]
         assert blocks == [
             {
                 "type": "tool_use",

@@ -289,15 +289,14 @@ class TestEdgeCases:
         assert result is not None
         assert result[0].name == "gemini_tool"
 
-    def test_canonical_format_uses_anthropic_not_openai(self, parser):
+    def test_canonical_format_parsed_via_tool_calls_list(self, parser):
         """Test that our canonical format (from build_assistant_tool_message)
-        goes through _try_anthropic, not _try_openai.
+        goes through _try_tool_calls_list, not _try_openai.
 
-        build_assistant_tool_message produces JSON with both "tool_calls"
-        (canonical) and "tool_use" (Anthropic) keys. The "tool_calls" key
-        must NOT match _try_openai because our items lack the OpenAI
-        "function" wrapper — that would produce FunctionCalls with empty
-        names, causing repair_tool_history to orphan tool_use blocks.
+        build_assistant_tool_message produces JSON with only "tool_calls"
+        (canonical items with "name"/"args"). The "tool_calls" key must NOT
+        match _try_openai because our items lack the OpenAI "function"
+        wrapper.
         """
         from custom_components.homeclaw.core.tool_call_codec import (
             build_assistant_tool_message,

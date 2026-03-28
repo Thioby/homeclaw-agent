@@ -6,8 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..models import get_model_ids
-from ._gemini_convert import convert_messages as _convert_gemini_messages
-from ._gemini_convert import convert_tools as _convert_gemini_tools
+from .adapters.gemini_adapter import GeminiAdapter
 from .base_client import BaseHTTPClient
 from .registry import ProviderRegistry
 
@@ -39,6 +38,7 @@ class GeminiProvider(BaseHTTPClient):
         """
         super().__init__(hass, config)
         self._model = config.get("model", self.DEFAULT_MODEL)
+        self.adapter = GeminiAdapter()
 
     @property
     def supports_tools(self) -> bool:
@@ -65,37 +65,6 @@ class GeminiProvider(BaseHTTPClient):
             "Content-Type": "application/json",
         }
 
-    def _convert_messages(
-        self, messages: list[dict[str, Any]]
-    ) -> tuple[list[dict[str, Any]], str | None]:
-        """Convert OpenAI-style messages to Gemini format.
-
-        Delegates to the shared _gemini_convert module which handles
-        multimodal messages (_images), function calls, and tool results.
-
-        Args:
-            messages: List of message dicts with 'role' and 'content'.
-
-        Returns:
-            Tuple of (contents list, system instruction text or None).
-        """
-        return _convert_gemini_messages(messages)
-
-    def _convert_tools(
-        self, openai_tools: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
-        """Convert OpenAI tool format to Gemini functionDeclarations format.
-
-        Delegates to the shared _gemini_convert module.
-
-        Args:
-            openai_tools: List of OpenAI-formatted tool definitions.
-
-        Returns:
-            List containing a single dict with 'functionDeclarations' key.
-        """
-        return _convert_gemini_tools(openai_tools)
-
     def _build_payload(
         self, messages: list[dict[str, Any]], **kwargs: Any
     ) -> dict[str, Any]:
@@ -109,7 +78,7 @@ class GeminiProvider(BaseHTTPClient):
             The request payload dictionary with contents and optional
             systemInstruction and tools.
         """
-        contents, system_instruction = self._convert_messages(messages)
+        contents, system_instruction = self.adapter.transform_messages(messages)
 
         payload: dict[str, Any] = {
             "contents": contents,
@@ -126,7 +95,7 @@ class GeminiProvider(BaseHTTPClient):
         # Convert and add tools if provided
         tools = kwargs.get("tools")
         if tools:
-            gemini_tools = self._convert_tools(tools)
+            gemini_tools = self.adapter.transform_tools(tools)
             if gemini_tools:
                 payload["tools"] = gemini_tools
                 _LOGGER.debug(
@@ -139,7 +108,8 @@ class GeminiProvider(BaseHTTPClient):
     def _extract_response(self, response_data: dict[str, Any]) -> str:
         """Extract the response text from Gemini API response.
 
-        Handles both text responses and function calls for agentic loop.
+        Delegates to GeminiAdapter.extract_response() and converts back to
+        a string for backward compatibility with the agentic loop.
 
         Args:
             response_data: The parsed JSON response from Gemini API.
@@ -152,28 +122,14 @@ class GeminiProvider(BaseHTTPClient):
         """
         import json
 
-        candidates = response_data.get("candidates", [])
+        result = self.adapter.extract_response(response_data)
 
-        if not candidates:
-            raise ValueError("No response from Gemini API (empty candidates)")
+        if result["type"] == "tool_calls":
+            # Preserve Gemini's native format for function call detection
+            raw_part = result["tool_calls"][0].get("_raw_function_call", {})
+            return json.dumps(raw_part)
 
-        candidate = candidates[0]
-        content = candidate.get("content", {})
-        parts = content.get("parts", [])
-
-        if parts:
-            first_part = parts[0]
-            # Check for function call first
-            if "functionCall" in first_part:
-                # Return JSON for agentic loop to detect
-                return json.dumps(first_part)
-            # Otherwise return text
-            if "text" in first_part:
-                return first_part["text"]
-            # No text and no functionCall - empty response
-            return ""
-
-        return ""
+        return result.get("content", "")
 
     def _get_api_url(self, model: str | None = None) -> str:
         """Get API URL with optional model override.
