@@ -85,6 +85,14 @@ class OpenAICompatAdapter(ProviderAdapter):
                     # Preserve any plain-text portion (not present in canonical JSON)
                     new_msg["content"] = None
 
+            elif role == "function":
+                # Convert canonical tool result to OpenAI tool format
+                new_msg = {
+                    "role": "tool",
+                    "content": content,
+                    "tool_call_id": msg.get("tool_use_id") or msg.get("name", "unknown"),
+                }
+
             converted.append(new_msg)
 
         return converted, None
