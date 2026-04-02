@@ -14238,7 +14238,7 @@ async function selectSession(hass, sessionId) {
       const currentProvider = get(providerState).selectedProvider;
       if (currentProvider !== sessionProvider) {
         providerState.update((s2) => ({ ...s2, selectedProvider: sessionProvider }));
-        fetchModels(hass, sessionProvider);
+        await fetchModels(hass, sessionProvider);
       }
     }
     if (typeof window !== "undefined" && window.innerWidth <= 768) {
@@ -18673,10 +18673,10 @@ function HomeclawPanel$1($$anchor, $$props) {
       try {
         await Promise.all([
           loadProviders($$props.hass),
-          loadSessions($$props.hass),
           loadIdentity($$props.hass),
           syncThemeFromPreferences($$props.hass)
         ]);
+        await loadSessions($$props.hass);
         console.log("[HomeclawPanel] Initialization complete");
       } catch (error) {
         console.error("[HomeclawPanel] Initialization error:", error);

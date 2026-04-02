@@ -75,7 +75,7 @@ export async function selectSession(hass: HomeAssistant, sessionId: string): Pro
       const currentProvider = get(providerState).selectedProvider;
       if (currentProvider !== sessionProvider) {
         providerState.update((s) => ({ ...s, selectedProvider: sessionProvider }));
-        fetchModels(hass, sessionProvider);
+        await fetchModels(hass, sessionProvider);
       }
     }
 

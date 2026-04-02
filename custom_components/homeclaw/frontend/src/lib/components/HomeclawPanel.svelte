@@ -43,15 +43,15 @@
   onMount(() => {
     console.log('[HomeclawPanel] Mounting...');
     
-    // Load providers, sessions, and identity in parallel
+    // Load providers first, then sessions (provider must be ready before session sync)
     (async () => {
       try {
         await Promise.all([
           loadProviders(hass),
-          loadSessions(hass),
           loadIdentity(hass),
           syncThemeFromPreferences(hass),
         ]);
+        await loadSessions(hass);
         console.log('[HomeclawPanel] Initialization complete');
       } catch (error) {
         console.error('[HomeclawPanel] Initialization error:', error);
