@@ -1883,15 +1883,20 @@ const componentCss = `
     padding-right: 30px;
   }
 
-  .provider-button.svelte-1whqbkb:hover {
+  .provider-button.svelte-1whqbkb:hover:not(:disabled) {
     background-color: var(--primary-background-color);
     border-color: var(--primary-color);
   }
 
-  .provider-button.svelte-1whqbkb:focus {
+  .provider-button.svelte-1whqbkb:focus:not(:disabled) {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.2);
+  }
+
+  .provider-button.svelte-1whqbkb:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .default-star.svelte-1whqbkb {
@@ -14278,6 +14283,31 @@ async function createSession(hass, provider) {
     appState.update((s2) => ({ ...s2, error: "Could not create new conversation" }));
   }
 }
+async function updateSessionProvider(hass, sessionId, provider) {
+  try {
+    await hass.callWS({
+      type: "homeclaw/sessions/update_provider",
+      session_id: sessionId,
+      provider
+    });
+    sessionState.update((s2) => ({
+      ...s2,
+      sessions: s2.sessions.map(
+        (session) => session.session_id === sessionId ? { ...session, provider } : session
+      )
+    }));
+    providerState.update((s2) => ({ ...s2, selectedProvider: provider }));
+    await fetchModels(hass, provider);
+    return true;
+  } catch (error) {
+    console.warn("updateSessionProvider failed:", error);
+    appState.update((s2) => ({
+      ...s2,
+      error: "Could not change provider for this session"
+    }));
+    return false;
+  }
+}
 async function deleteSession(hass, sessionId) {
   try {
     await hass.callWS({
@@ -14652,11 +14682,20 @@ function NewChatButton($$anchor, $$props) {
       appState.update((s2) => ({ ...s2, error: "Home Assistant not connected" }));
       return;
     }
-    if (!$providerState().selectedProvider) {
+    const startProvider = $providerState().defaultProvider || $providerState().selectedProvider;
+    if (!startProvider) {
       appState.update((s2) => ({ ...s2, error: "Please select a provider first" }));
       return;
     }
-    await createSession($appState().hass, $providerState().selectedProvider);
+    if ($providerState().selectedProvider !== startProvider) {
+      providerState.update((s2) => ({
+        ...s2,
+        selectedProvider: startProvider,
+        selectedModel: $providerState().defaultModel || null
+      }));
+      await fetchModels($appState().hass, startProvider);
+    }
+    await createSession($appState().hass, startProvider);
   }
   init();
   var button = root$l();
@@ -15528,10 +15567,16 @@ function ProviderSelector($$anchor, $$props) {
   let disabled = prop($$props, "disabled", 3, false);
   async function handleChange(e2) {
     const target = e2.target;
-    providerState.update((s2) => ({ ...s2, selectedProvider: target.value }));
+    const newProvider = target.value;
     const currentAppState = get(appState);
-    if (currentAppState.hass && target.value) {
-      await fetchModels(currentAppState.hass, target.value);
+    const activeSessionId = get(sessionState).activeSessionId;
+    if (currentAppState.hass && activeSessionId && newProvider) {
+      await updateSessionProvider(currentAppState.hass, activeSessionId, newProvider);
+    } else {
+      providerState.update((s2) => ({ ...s2, selectedProvider: newProvider }));
+      if (currentAppState.hass && newProvider) {
+        await fetchModels(currentAppState.hass, newProvider);
+      }
     }
   }
   var fragment = comment();
@@ -15557,6 +15602,7 @@ function ProviderSelector($$anchor, $$props) {
       init_select(select);
       template_effect(() => {
         select.disabled = disabled();
+        set_attribute(select, "title", disabled() ? "Provider is locked for this conversation. Start a new chat to change it." : "Choose provider");
         if (select_value !== (select_value = $providerState().selectedProvider || "")) {
           select.value = (select.__value = $providerState().selectedProvider || "") ?? "", select_option(select, $providerState().selectedProvider || "");
         }
@@ -15585,6 +15631,7 @@ function ModelSelector($$anchor, $$props) {
   const $providerState = () => store_get(providerState, "$providerState", $$stores);
   const $hasModels = () => store_get(hasModels, "$hasModels", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
+  let disabled = prop($$props, "disabled", 3, false);
   function handleChange(e2) {
     const target = e2.target;
     providerState.update((s2) => ({ ...s2, selectedModel: target.value }));
@@ -15622,6 +15669,8 @@ function ModelSelector($$anchor, $$props) {
       var select_value;
       init_select(select);
       template_effect(() => {
+        select.disabled = disabled();
+        set_attribute(select, "title", disabled() ? "Model is locked for this conversation. Start a new chat to change it." : "Choose model");
         if (select_value !== (select_value = $providerState().selectedModel || "")) {
           select.value = (select.__value = $providerState().selectedModel || "") ?? "", select_option(select, $providerState().selectedModel || "");
         }
@@ -16037,6 +16086,14 @@ _${status}_` } : msg)
                   error_message: error
                 } : msg)
               }));
+              const activeId = get(sessionState).activeSessionId;
+              if (activeId) {
+                const sessions = get(sessionState).sessions;
+                const sess = sessions.find((s2) => s2.session_id === activeId);
+                const isNewConversation = sess?.title === "New Conversation";
+                const previewText = message;
+                updateSessionInList(activeId, previewText, isNewConversation ? previewText.substring(0, 40) + (previewText.length > 40 ? "..." : "") : void 0);
+              }
             }
           },
           wsAttachments.length > 0 ? wsAttachments : void 0
@@ -16091,7 +16148,14 @@ _${status}_` } : msg)
     });
   }
   var node_4 = sibling(node_3, 2);
-  ModelSelector(node_4, {});
+  {
+    let $0 = /* @__PURE__ */ user_derived(() => !!$sessionState().activeSessionId && ($activeSession()?.message_count ?? 0) > 0);
+    ModelSelector(node_4, {
+      get disabled() {
+        return get$1($0);
+      }
+    });
+  }
   var node_5 = sibling(node_4, 2);
   ThinkingToggle(node_5, {});
   var node_6 = sibling(node_5, 2);

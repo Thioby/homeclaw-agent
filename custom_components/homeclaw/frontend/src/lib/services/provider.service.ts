@@ -212,3 +212,11 @@ export async function fetchModels(
   }
 }
 
+/**
+ * Provider names whose model usage is unlimited under OAuth subscription
+ * (Pro/Max plan). UI should render cost as 0 for these providers.
+ */
+export function isOAuthZeroCostProvider(providerName: string): boolean {
+  return providerName === 'anthropic_oauth';
+}
+

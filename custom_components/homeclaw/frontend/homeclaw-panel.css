@@ -1387,15 +1387,20 @@
     padding-right: 30px;
   }
 
-  .provider-button.svelte-1whqbkb:hover {
+  .provider-button.svelte-1whqbkb:hover:not(:disabled) {
     background-color: var(--primary-background-color);
     border-color: var(--primary-color);
   }
 
-  .provider-button.svelte-1whqbkb:focus {
+  .provider-button.svelte-1whqbkb:focus:not(:disabled) {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.2);
+  }
+
+  .provider-button.svelte-1whqbkb:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .default-star.svelte-1whqbkb {
