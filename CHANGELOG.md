@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.4.0 — Anthropic OAuth port from opencode-anthropic-auth v1.8.0
+
+### Breaking
+- **OAuth endpoints migrated** from `console.anthropic.com` to `platform.claude.com`. Existing OAuth refresh tokens may need re-authentication. Home Assistant will prompt automatically via the standard reauth flow if old tokens are rejected.
+- **OAuth scopes expanded** from 3 to 6 (added `user:sessions:claude_code`, `user:mcp_servers`, `user:file_upload`). Re-authentication required on first refresh after upgrade.
+
+### Added
+- Server-side classifier mitigations: CCH (content-consistency-hash) billing header, system prompt sanitization pipeline, identity swap to "Claude agent / Claude Agent SDK".
+- "Create API Key" OAuth flow for Console plan users — exchanges OAuth access token for a permanent API key, then configures a regular Anthropic provider entry.
+- `ANTHROPIC_BASE_URL` env override for proxies/dev (with `ANTHROPIC_INSECURE=1` for local TLS bypass).
+- Tool name namespacing (`mcp__homeclaw__<tool>`) — bidirectional, transparent to the agent code.
+
+### Changed
+- User-Agent bumped to `claude-cli/2.1.87 (external, cli)`.
+- Refresh token network errors retried with exponential backoff (2 retries, 0.5s/1s).
+- Concurrent token refreshes coalesce on a single in-flight task (prevents 401 cascades).
+- Refresh token re-read from storage per attempt (prevents stale-snapshot races).
+
+### Removed
+- Old `oauth.py` and flat `providers/anthropic_oauth.py` files — replaced by `providers/anthropic_oauth/` subpackage.
+
+### Provenance
+Code patterns and reverse-engineered values (CCH salt, classifier-fingerprint phrases, tool prefix convention) ported from MIT-licensed opencode-anthropic-auth v1.8.0 by Ex Machina.
+
 ## v1.3.1 — Agent loop hardening and Discord auto-compaction
 
 ### Fixed
