@@ -42,9 +42,18 @@ async def test_step_user_provider_selection(hass: HomeAssistant):
 
 
 async def test_step_user_anthropic_oauth(hass: HomeAssistant):
-    """Test user step selecting Anthropic OAuth."""
+    """Test user step selecting Anthropic OAuth routes to method-selection, then OAuth."""
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
+    # Step 1: select provider → lands on method-selection form
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"ai_provider": "anthropic_oauth"},
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "anthropic_method"
+
+    # Step 2: choose "max" → lands on anthropic_oauth form
     mock_request = MagicMock()
     mock_request.url = "http://auth-url"
     mock_request.state = "state123"
@@ -57,7 +66,7 @@ async def test_step_user_anthropic_oauth(hass: HomeAssistant):
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            user_input={"ai_provider": "anthropic_oauth"},
+            user_input={"method": "max"},
         )
 
     assert result["type"] == FlowResultType.FORM
@@ -201,6 +210,13 @@ async def test_step_anthropic_oauth_success(hass: HomeAssistant):
 
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
+    # Select provider → method-selection form
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"ai_provider": "anthropic_oauth"},
+    )
+    assert result["step_id"] == "anthropic_method"
+
     mock_request = MagicMock()
     mock_request.url = "http://auth-url"
     mock_request.state = "state123"
@@ -213,8 +229,9 @@ async def test_step_anthropic_oauth_success(hass: HomeAssistant):
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            user_input={"ai_provider": "anthropic_oauth"},
+            user_input={"method": "max"},
         )
+    assert result["step_id"] == "anthropic_oauth"
 
     mock_tokens = TokenSet(access_token="at", refresh_token="rt", expires_at=12345.0)
     with patch(
@@ -235,6 +252,13 @@ async def test_step_anthropic_oauth_no_code(hass: HomeAssistant):
     """Test Anthropic OAuth step with no code."""
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
+    # Select provider → method-selection form
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"ai_provider": "anthropic_oauth"},
+    )
+    assert result["step_id"] == "anthropic_method"
+
     mock_request = MagicMock()
     mock_request.url = "http://auth-url"
     mock_request.state = "state123"
@@ -247,8 +271,9 @@ async def test_step_anthropic_oauth_no_code(hass: HomeAssistant):
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            user_input={"ai_provider": "anthropic_oauth"},
+            user_input={"method": "max"},
         )
+    assert result["step_id"] == "anthropic_oauth"
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
@@ -265,6 +290,13 @@ async def test_step_anthropic_oauth_failed(hass: HomeAssistant):
 
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
+    # Select provider → method-selection form
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"ai_provider": "anthropic_oauth"},
+    )
+    assert result["step_id"] == "anthropic_method"
+
     mock_request = MagicMock()
     mock_request.url = "http://auth-url"
     mock_request.state = "state123"
@@ -277,8 +309,9 @@ async def test_step_anthropic_oauth_failed(hass: HomeAssistant):
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            user_input={"ai_provider": "anthropic_oauth"},
+            user_input={"method": "max"},
         )
+    assert result["step_id"] == "anthropic_oauth"
 
     with patch(
         "custom_components.homeclaw.config_flow.exchange_code",

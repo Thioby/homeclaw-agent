@@ -27,7 +27,7 @@ from .const import (
     DOMAIN,
 )
 from .models import get_allow_custom_model, get_default_model, get_model_ids
-from .providers.anthropic_oauth import authorize, exchange_code
+from .providers.anthropic_oauth import authorize, create_api_key, exchange_code
 from .providers.anthropic_oauth.auth import OAuthRefreshError
 
 
@@ -249,7 +249,7 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
             self.config_data = {"ai_provider": user_input["ai_provider"]}
 
             if user_input["ai_provider"] == "anthropic_oauth":
-                return await self.async_step_anthropic_oauth()
+                return await self.async_step_anthropic_method()
 
             if user_input["ai_provider"] == "gemini_oauth":
                 return await self.async_step_gemini_oauth()
@@ -414,6 +414,77 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
                 "token_label": token_label,
                 "provider": PROVIDERS[provider],
             },
+        )
+
+    async def async_step_anthropic_method(self, user_input=None):
+        """Let the user choose between Pro/Max OAuth and Console (API key) OAuth."""
+        if user_input is not None:
+            method = user_input.get("method", "max")
+            if method == "console":
+                return await self.async_step_anthropic_create_key()
+            # Default: Pro/Max OAuth
+            return await self.async_step_anthropic_oauth()
+
+        return self.async_show_form(
+            step_id="anthropic_method",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("method", default="max"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": "max", "label": "Claude Pro / Max (OAuth)"},
+                                {"value": "console", "label": "Generate API Key (Console)"},
+                            ]
+                        )
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_anthropic_create_key(self, user_input=None):
+        """Console OAuth flow: exchange code then mint a permanent API key."""
+        if not hasattr(self, "_anthropic_create_key_request") or self._anthropic_create_key_request is None:
+            request, pkce = authorize(mode="console")
+            self._anthropic_create_key_request = request
+            self._anthropic_create_key_pkce = pkce
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            code = user_input.get("code", "").strip()
+            if code:
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        tokens = await exchange_code(
+                            session,
+                            code,
+                            self._anthropic_create_key_pkce.verifier,
+                            expected_state=getattr(self._anthropic_create_key_request, "state", None),
+                        )
+                        api_key = await create_api_key(session, tokens.access_token)
+                except OAuthRefreshError as err:
+                    _LOGGER.error("API key creation OAuth failed: %s", err)
+                    errors["base"] = "oauth_failed"
+                else:
+                    return self.async_create_entry(
+                        title="Homeclaw (Anthropic)",
+                        data={
+                            "ai_provider": "anthropic",
+                            "anthropic_token": api_key,
+                        },
+                    )
+            else:
+                errors["code"] = "required"
+
+        return self.async_show_form(
+            step_id="anthropic_create_key",
+            description_placeholders={"auth_url": self._anthropic_create_key_request.url},
+            data_schema=vol.Schema(
+                {
+                    vol.Required("code"): TextSelector(TextSelectorConfig(type="text")),
+                }
+            ),
+            errors=errors,
         )
 
     async def async_step_anthropic_oauth(self, user_input=None):
