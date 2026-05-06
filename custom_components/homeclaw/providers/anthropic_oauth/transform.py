@@ -2,6 +2,7 @@
 
 Ported from opencode-anthropic-auth v1.8.0 src/transform.ts (MIT, © Ex Machina).
 """
+
 from __future__ import annotations
 
 import logging
@@ -25,6 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # ---------- Tool name prefixing ----------
 
+
 def prefix_tool_name(name: str) -> str:
     """Prefix a tool name with the homeclaw MCP namespace.
 
@@ -38,7 +40,7 @@ def prefix_tool_name(name: str) -> str:
 def unprefix_tool_name(name: str) -> str:
     """Reverse prefix_tool_name. Idempotent if prefix not present."""
     if name.startswith(TOOL_PREFIX):
-        return name[len(TOOL_PREFIX):]
+        return name[len(TOOL_PREFIX) :]
     return name
 
 
@@ -60,22 +62,14 @@ def prefix_tool_names_in_payload(payload: dict[str, Any]) -> None:
         if not isinstance(content, list):
             continue
         for block in content:
-            if (
-                isinstance(block, dict)
-                and block.get("type") == "tool_use"
-                and isinstance(block.get("name"), str)
-            ):
+            if isinstance(block, dict) and block.get("type") == "tool_use" and isinstance(block.get("name"), str):
                 block["name"] = prefix_tool_name(block["name"])
 
 
 def unprefix_tool_names_in_event(event: dict[str, Any]) -> None:
     """Mutate streaming event in-place: strip tool prefix from tool_use names."""
     block = event.get("content_block")
-    if (
-        isinstance(block, dict)
-        and block.get("type") == "tool_use"
-        and isinstance(block.get("name"), str)
-    ):
+    if isinstance(block, dict) and block.get("type") == "tool_use" and isinstance(block.get("name"), str):
         block["name"] = unprefix_tool_name(block["name"])
 
 
@@ -85,15 +79,12 @@ def unprefix_tool_names_in_response(data: dict[str, Any]) -> None:
     if not isinstance(content, list):
         return
     for block in content:
-        if (
-            isinstance(block, dict)
-            and block.get("type") == "tool_use"
-            and isinstance(block.get("name"), str)
-        ):
+        if isinstance(block, dict) and block.get("type") == "tool_use" and isinstance(block.get("name"), str):
             block["name"] = unprefix_tool_name(block["name"])
 
 
 # ---------- System prompt sanitization ----------
+
 
 def sanitize_system_text(text: str) -> str:
     """Sanitize OpenCode-branded strings from system prompt text.
@@ -146,11 +137,7 @@ def prepend_claude_code_identity(system: Any) -> list[dict[str, Any]]:
     for item in system:
         if isinstance(item, str):
             sanitized_blocks.append({"type": "text", "text": sanitize_system_text(item)})
-        elif (
-            isinstance(item, dict)
-            and item.get("type") == "text"
-            and isinstance(item.get("text"), str)
-        ):
+        elif isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
             sanitized_blocks.append({**item, "text": sanitize_system_text(item["text"])})
         else:
             sanitized_blocks.append({"type": "text", "text": str(item)})
@@ -162,6 +149,7 @@ def prepend_claude_code_identity(system: Any) -> list[dict[str, Any]]:
 
 # ---------- Header management ----------
 
+
 def merge_beta_headers(existing: str | None) -> str:
     """Merge required OAuth betas with any incoming anthropic-beta value, dedupe."""
     incoming = [b.strip() for b in (existing or "").split(",") if b.strip()]
@@ -171,9 +159,7 @@ def merge_beta_headers(existing: str | None) -> str:
     return ",".join(seen.keys())
 
 
-def build_oauth_headers(
-    access_token: str, *, extra: dict[str, str] | None = None
-) -> dict[str, str]:
+def build_oauth_headers(access_token: str, *, extra: dict[str, str] | None = None) -> dict[str, str]:
     """Build full request headers for /v1/messages with OAuth token.
 
     Drops any incoming x-api-key (we're using Bearer); sets authorization,
@@ -198,6 +184,7 @@ def build_oauth_headers(
 
 
 # ---------- URL rewriting ----------
+
 
 def _resolve_base_url() -> str | None:
     """Read ANTHROPIC_BASE_URL env var. Returns origin (scheme://host) or None.
@@ -247,6 +234,7 @@ def rewrite_url(url: str) -> str:
 
 # ---------- Top-level payload transform ----------
 
+
 def transform_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Apply all outgoing transforms to a /v1/messages payload.
 
@@ -257,9 +245,7 @@ def transform_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
     4. Prefix tool names (tools[] and tool_use messages).
     """
     messages = payload.get("messages") or []
-    has_user = any(
-        isinstance(m, dict) and m.get("role") == "user" for m in messages
-    )
+    has_user = any(isinstance(m, dict) and m.get("role") == "user" for m in messages)
     billing_header_text = build_billing_header_value(messages) if has_user else None
 
     payload["system"] = prepend_claude_code_identity(payload.get("system"))

@@ -28,9 +28,7 @@ def bypass_setup_entry():
 
 async def test_step_user_provider_selection(hass: HomeAssistant):
     """Test user step selecting a provider."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "user"
 
@@ -45,19 +43,17 @@ async def test_step_user_provider_selection(hass: HomeAssistant):
 
 async def test_step_user_anthropic_oauth(hass: HomeAssistant):
     """Test user step selecting Anthropic OAuth."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
-    with (
-        patch(
-            "custom_components.homeclaw.config_flow.generate_pkce",
-            return_value=("verifier", "challenge"),
-        ),
-        patch(
-            "custom_components.homeclaw.config_flow.build_auth_url",
-            return_value="http://auth-url",
-        ),
+    mock_request = MagicMock()
+    mock_request.url = "http://auth-url"
+    mock_request.state = "state123"
+    mock_pkce = MagicMock()
+    mock_pkce.verifier = "verifier"
+    mock_pkce.challenge = "challenge"
+    with patch(
+        "custom_components.homeclaw.config_flow.authorize",
+        return_value=(mock_request, mock_pkce),
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -71,9 +67,7 @@ async def test_step_user_anthropic_oauth(hass: HomeAssistant):
 
 async def test_step_user_gemini_oauth(hass: HomeAssistant):
     """Test user step selecting Gemini OAuth."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
     with (
         patch(
@@ -97,9 +91,7 @@ async def test_step_user_gemini_oauth(hass: HomeAssistant):
 
 async def test_step_configure_local(hass: HomeAssistant):
     """Test configure step for local provider."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         user_input={"ai_provider": "local"},
@@ -123,9 +115,7 @@ async def test_step_configure_local(hass: HomeAssistant):
 
 async def test_step_configure_zai(hass: HomeAssistant):
     """Test configure step for zai provider."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         user_input={"ai_provider": "zai"},
@@ -151,9 +141,7 @@ async def test_step_configure_zai(hass: HomeAssistant):
 
 async def test_step_configure_empty_token(hass: HomeAssistant):
     """Test configure step with empty token."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         user_input={"ai_provider": "openai"},
@@ -169,9 +157,7 @@ async def test_step_configure_empty_token(hass: HomeAssistant):
 
 async def test_step_configure_custom_model(hass: HomeAssistant):
     """Test configure step with custom model."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         user_input={"ai_provider": "openai"},
@@ -191,9 +177,7 @@ async def test_step_configure_custom_model(hass: HomeAssistant):
 
 async def test_step_configure_custom_fallback(hass: HomeAssistant):
     """Test configure step with 'Custom...' selected but empty custom_model field."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         user_input={"ai_provider": "openai"},
@@ -212,28 +196,30 @@ async def test_step_configure_custom_fallback(hass: HomeAssistant):
 
 async def test_step_anthropic_oauth_success(hass: HomeAssistant):
     """Test successful Anthropic OAuth flow."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    from unittest.mock import AsyncMock
+    from custom_components.homeclaw.providers.anthropic_oauth.auth import OAuthRefreshError, TokenSet
 
-    with (
-        patch(
-            "custom_components.homeclaw.config_flow.generate_pkce",
-            return_value=("verifier", "challenge"),
-        ),
-        patch(
-            "custom_components.homeclaw.config_flow.build_auth_url",
-            return_value="http://auth-url",
-        ),
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+
+    mock_request = MagicMock()
+    mock_request.url = "http://auth-url"
+    mock_request.state = "state123"
+    mock_pkce = MagicMock()
+    mock_pkce.verifier = "verifier"
+    mock_pkce.challenge = "challenge"
+    with patch(
+        "custom_components.homeclaw.config_flow.authorize",
+        return_value=(mock_request, mock_pkce),
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
             user_input={"ai_provider": "anthropic_oauth"},
         )
 
+    mock_tokens = TokenSet(access_token="at", refresh_token="rt", expires_at=12345.0)
     with patch(
         "custom_components.homeclaw.config_flow.exchange_code",
-        return_value={"access_token": "at", "refresh_token": "rt", "expires_at": 12345},
+        AsyncMock(return_value=mock_tokens),
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -247,19 +233,17 @@ async def test_step_anthropic_oauth_success(hass: HomeAssistant):
 
 async def test_step_anthropic_oauth_no_code(hass: HomeAssistant):
     """Test Anthropic OAuth step with no code."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
-    with (
-        patch(
-            "custom_components.homeclaw.config_flow.generate_pkce",
-            return_value=("verifier", "challenge"),
-        ),
-        patch(
-            "custom_components.homeclaw.config_flow.build_auth_url",
-            return_value="http://auth-url",
-        ),
+    mock_request = MagicMock()
+    mock_request.url = "http://auth-url"
+    mock_request.state = "state123"
+    mock_pkce = MagicMock()
+    mock_pkce.verifier = "verifier"
+    mock_pkce.challenge = "challenge"
+    with patch(
+        "custom_components.homeclaw.config_flow.authorize",
+        return_value=(mock_request, mock_pkce),
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -276,19 +260,20 @@ async def test_step_anthropic_oauth_no_code(hass: HomeAssistant):
 
 async def test_step_anthropic_oauth_failed(hass: HomeAssistant):
     """Test Anthropic OAuth step with exchange failure."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    from unittest.mock import AsyncMock
+    from custom_components.homeclaw.providers.anthropic_oauth.auth import OAuthRefreshError
 
-    with (
-        patch(
-            "custom_components.homeclaw.config_flow.generate_pkce",
-            return_value=("verifier", "challenge"),
-        ),
-        patch(
-            "custom_components.homeclaw.config_flow.build_auth_url",
-            return_value="http://auth-url",
-        ),
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+
+    mock_request = MagicMock()
+    mock_request.url = "http://auth-url"
+    mock_request.state = "state123"
+    mock_pkce = MagicMock()
+    mock_pkce.verifier = "verifier"
+    mock_pkce.challenge = "challenge"
+    with patch(
+        "custom_components.homeclaw.config_flow.authorize",
+        return_value=(mock_request, mock_pkce),
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -297,7 +282,7 @@ async def test_step_anthropic_oauth_failed(hass: HomeAssistant):
 
     with patch(
         "custom_components.homeclaw.config_flow.exchange_code",
-        return_value={"error": "failed"},
+        AsyncMock(side_effect=OAuthRefreshError("exchange failed")),
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
@@ -310,9 +295,7 @@ async def test_step_anthropic_oauth_failed(hass: HomeAssistant):
 
 async def test_step_gemini_oauth_success(hass: HomeAssistant):
     """Test successful Gemini OAuth flow."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
     with (
         patch(
@@ -346,9 +329,7 @@ async def test_step_gemini_oauth_success(hass: HomeAssistant):
 
 async def test_step_gemini_oauth_url_parsing(hass: HomeAssistant):
     """Test Gemini OAuth with full URL code."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
 
     with (
         patch(
@@ -396,17 +377,12 @@ async def test_extract_oauth_code(hass: HomeAssistant):
 
     # Test URL without code
     url_no_code = "http://localhost:8085/oauth2callback?state=xyz"
-    assert (
-        flow._extract_oauth_code(url_no_code)
-        == "http://localhost:8085/oauth2callback?state=xyz"
-    )
+    assert flow._extract_oauth_code(url_no_code) == "http://localhost:8085/oauth2callback?state=xyz"
 
 
 async def test_options_flow_init(hass: HomeAssistant):
     """Test options flow initialization."""
-    entry = MockConfigEntry(
-        domain=DOMAIN, data={"ai_provider": "openai", "openai_token": "abc"}
-    )
+    entry = MockConfigEntry(domain=DOMAIN, data={"ai_provider": "openai", "openai_token": "abc"})
     entry.add_to_hass(hass)
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
@@ -416,9 +392,7 @@ async def test_options_flow_init(hass: HomeAssistant):
 
 async def test_options_flow_switch_provider(hass: HomeAssistant):
     """Test switching provider in options flow."""
-    entry = MockConfigEntry(
-        domain=DOMAIN, data={"ai_provider": "openai", "openai_token": "abc"}
-    )
+    entry = MockConfigEntry(domain=DOMAIN, data={"ai_provider": "openai", "openai_token": "abc"})
     entry.add_to_hass(hass)
 
     result = await hass.config_entries.options.async_init(entry.entry_id)

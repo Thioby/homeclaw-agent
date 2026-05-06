@@ -1,4 +1,5 @@
 """Tests for anthropic_oauth.cch — billing header computation."""
+
 from __future__ import annotations
 
 import hashlib

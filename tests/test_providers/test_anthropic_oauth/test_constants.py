@@ -1,4 +1,5 @@
 """Tests for anthropic_oauth.constants — sanity check on values."""
+
 from __future__ import annotations
 
 from custom_components.homeclaw.providers.anthropic_oauth import constants
@@ -76,9 +77,7 @@ class TestSanitizationConfig:
         assert constants.OPENCODE_IDENTITY_PREFIX == "You are OpenCode"
 
     def test_claude_code_identity_is_agent_sdk_phrasing(self):
-        assert constants.CLAUDE_CODE_IDENTITY == (
-            "You are a Claude agent, built on Anthropic's Claude Agent SDK."
-        )
+        assert constants.CLAUDE_CODE_IDENTITY == ("You are a Claude agent, built on Anthropic's Claude Agent SDK.")
 
     def test_anchors_include_anomalyco_url(self):
         assert "github.com/anomalyco/opencode" in constants.PARAGRAPH_REMOVAL_ANCHORS
@@ -89,8 +88,7 @@ class TestSanitizationConfig:
     def test_critical_phrase_replacement_present(self):
         match_strings = [pair[0] for pair in constants.TEXT_REPLACEMENTS]
         assert any(
-            "Here is some useful information about the environment" in m
-            for m in match_strings
+            "Here is some useful information about the environment" in m for m in match_strings
         ), "Missing critical v1.7.5 classifier-fingerprint replacement"
 
     def test_inline_replacement_for_opencode_phrase(self):

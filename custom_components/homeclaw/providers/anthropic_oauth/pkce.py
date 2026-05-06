@@ -2,6 +2,7 @@
 
 Ported from opencode-anthropic-auth v1.8.0 src/pkce.ts (MIT, © Ex Machina).
 """
+
 from __future__ import annotations
 
 import base64

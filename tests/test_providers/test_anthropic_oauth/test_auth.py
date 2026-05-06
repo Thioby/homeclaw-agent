@@ -1,4 +1,5 @@
 """Tests for anthropic_oauth.auth."""
+
 from __future__ import annotations
 
 import asyncio
@@ -51,6 +52,7 @@ class TestBuildAuthorizeUrl:
 
     def test_scope_is_space_joined(self):
         from urllib.parse import unquote
+
         pkce = PKCEPair(verifier="v" * 86, challenge="c")
         url = build_authorize_url(pkce, "s", mode="max")
         # space-separated scope; decode percent-encoding before checking
@@ -63,6 +65,7 @@ class TestBuildAuthorizeUrl:
         pkce = PKCEPair(verifier="v", challenge="c")
         url = build_authorize_url(pkce, "s", mode="max")
         from urllib.parse import quote
+
         assert quote(CODE_CALLBACK_URL, safe="") in url
 
 
@@ -119,9 +122,13 @@ class TestExchangeCode:
         session = MagicMock()
         ctx = AsyncMock()
         ctx.__aenter__.return_value.status = 200
-        ctx.__aenter__.return_value.json = AsyncMock(return_value={
-            "access_token": "AC", "refresh_token": "RF", "expires_in": 3600,
-        })
+        ctx.__aenter__.return_value.json = AsyncMock(
+            return_value={
+                "access_token": "AC",
+                "refresh_token": "RF",
+                "expires_in": 3600,
+            }
+        )
         session.post = MagicMock(return_value=ctx)
 
         before = time.time()
@@ -182,9 +189,7 @@ class TestRefreshWithRetry:
         return session
 
     async def test_success_on_first_try(self):
-        session = self._mock_session(
-            {"status": 200, "json": {"access_token": "A", "refresh_token": "R", "expires_in": 3600}}
-        )
+        session = self._mock_session({"status": 200, "json": {"access_token": "A", "refresh_token": "R", "expires_in": 3600}})
         read = AsyncMock(return_value="REFRESH")
 
         tokens = await refresh_with_retry(session, read)

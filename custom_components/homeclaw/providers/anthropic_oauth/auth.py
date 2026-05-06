@@ -3,6 +3,7 @@
 Ported from opencode-anthropic-auth v1.8.0 src/auth.ts and src/index.ts
 refresh logic (MIT, © Ex Machina).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,7 +27,6 @@ from .constants import (
     TOKEN_URL,
 )
 from .pkce import PKCEPair, generate_pkce
-
 
 # Mimics axios — Anthropic accepts/expects this for token endpoint.
 _TOKEN_HEADERS = {
@@ -203,9 +203,7 @@ _NETWORK_ERRORS = (
 )
 
 
-async def _do_refresh(
-    session: aiohttp.ClientSession, refresh_token_value: str
-) -> TokenSet:
+async def _do_refresh(session: aiohttp.ClientSession, refresh_token_value: str) -> TokenSet:
     """Single refresh attempt — raises on any failure."""
     payload = {
         "grant_type": "refresh_token",
@@ -295,9 +293,7 @@ class InflightRefreshGate:
     ) -> TokenSet:
         async with self._lock:
             if self._task is None or self._task.done():
-                self._task = asyncio.create_task(
-                    refresh_with_retry(session, read_refresh_token)
-                )
+                self._task = asyncio.create_task(refresh_with_retry(session, read_refresh_token))
         try:
             return await self._task
         finally:

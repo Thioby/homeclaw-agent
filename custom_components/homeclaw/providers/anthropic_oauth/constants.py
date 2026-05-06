@@ -4,6 +4,7 @@ Ported from opencode-anthropic-auth v1.8.0 (MIT, © Ex Machina).
 Updates here track Anthropic's server-side classifier behavior;
 see CHANGELOG of upstream plugin for rationale of each value.
 """
+
 from __future__ import annotations
 
 CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"

@@ -1,4 +1,5 @@
 """Tests for anthropic_oauth.pkce."""
+
 from __future__ import annotations
 
 import base64

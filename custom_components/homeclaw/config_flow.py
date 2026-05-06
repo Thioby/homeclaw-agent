@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -17,8 +18,7 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
 )
 
-import aiohttp
-
+from . import gemini_oauth
 from .const import (
     CONF_LOCAL_MODEL,
     CONF_LOCAL_URL,
@@ -27,8 +27,8 @@ from .const import (
     DOMAIN,
 )
 from .models import get_allow_custom_model, get_default_model, get_model_ids
-from .oauth import generate_pkce, build_auth_url, exchange_code
-from . import gemini_oauth
+from .providers.anthropic_oauth import authorize, exchange_code
+from .providers.anthropic_oauth.auth import OAuthRefreshError
 
 
 # Re-export for backward compatibility (used by config flow steps and tests)
@@ -122,9 +122,7 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
         HA calls this with the config entry's data when
         ``config_entry.async_start_reauth()`` fires.
         """
-        self._reauth_entry = self.hass.config_entries.async_get_entry(
-            self.context["entry_id"]
-        )
+        self._reauth_entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         if self._reauth_entry is None:
             return self.async_abort(reason="reauth_entry_removed")
         return await self.async_step_reauth_confirm()
@@ -144,12 +142,11 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
     async def _reauth_anthropic(self, user_input=None):
         """Re-authorize Anthropic OAuth and update the existing entry."""
         if not hasattr(self, "_pkce_verifier") or self._pkce_verifier is None:
-            verifier, challenge = generate_pkce()
-            self._pkce_verifier = verifier
-            self._pkce_challenge = challenge
-            self._auth_url = build_auth_url(
-                self._pkce_challenge, self._pkce_verifier, mode="max"
-            )
+            request, pkce = authorize(mode="max")
+            self._pkce_verifier = pkce.verifier
+            self._pkce_challenge = pkce.challenge
+            self._oauth_state = request.state
+            self._auth_url = request.url
 
         errors: dict[str, str] = {}
 
@@ -158,57 +155,45 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
             if code:
                 try:
                     async with aiohttp.ClientSession() as session:
-                        result = await exchange_code(session, code, self._pkce_verifier)
-
-                    if "error" in result:
-                        _LOGGER.error(
-                            "Reauth OAuth exchange failed: %s", result.get("error")
+                        tokens = await exchange_code(
+                            session,
+                            code,
+                            self._pkce_verifier,
+                            expected_state=getattr(self, "_oauth_state", None),
                         )
-                        errors["base"] = "oauth_failed"
-                    else:
-                        new_data = {
-                            **self._reauth_entry.data,
-                            "anthropic_oauth": {
-                                "access_token": result["access_token"],
-                                "refresh_token": result["refresh_token"],
-                                "expires_at": result["expires_at"],
-                            },
-                        }
-                        if self._reauth_entry is not None:
-                            self.hass.config_entries.async_update_entry(
-                                self._reauth_entry, data=new_data
-                            )
-                            await self.hass.config_entries.async_reload(
-                                self._reauth_entry.entry_id
-                            )
-                        return self.async_abort(reason="reauth_successful")
-                except aiohttp.ClientError as e:
-                    _LOGGER.error("Network error during reauth: %s", e)
+                except OAuthRefreshError as err:
+                    _LOGGER.error("Reauth OAuth exchange failed: %s", err)
                     errors["base"] = "oauth_failed"
+                else:
+                    new_data = {
+                        **self._reauth_entry.data,
+                        "anthropic_oauth": {
+                            "access_token": tokens.access_token,
+                            "refresh_token": tokens.refresh_token,
+                            "expires_at": tokens.expires_at,
+                        },
+                    }
+                    if self._reauth_entry is not None:
+                        self.hass.config_entries.async_update_entry(self._reauth_entry, data=new_data)
+                        await self.hass.config_entries.async_reload(self._reauth_entry.entry_id)
+                    return self.async_abort(reason="reauth_successful")
             else:
                 errors["code"] = "required"
 
         return self.async_show_form(
             step_id="reauth_confirm",
             description_placeholders={"auth_url": self._auth_url},
-            data_schema=vol.Schema(
-                {vol.Required("code"): TextSelector(TextSelectorConfig(type="text"))}
-            ),
+            data_schema=vol.Schema({vol.Required("code"): TextSelector(TextSelectorConfig(type="text"))}),
             errors=errors,
         )
 
     async def _reauth_gemini(self, user_input=None):
         """Re-authorize Gemini OAuth and update the existing entry."""
-        if (
-            not hasattr(self, "_gemini_pkce_verifier")
-            or self._gemini_pkce_verifier is None
-        ):
+        if not hasattr(self, "_gemini_pkce_verifier") or self._gemini_pkce_verifier is None:
             verifier, challenge = gemini_oauth.generate_pkce()
             self._gemini_pkce_verifier = verifier
             self._gemini_pkce_challenge = challenge
-            self._gemini_auth_url = gemini_oauth.build_auth_url(
-                self._gemini_pkce_challenge, self._gemini_pkce_verifier
-            )
+            self._gemini_auth_url = gemini_oauth.build_auth_url(self._gemini_pkce_challenge, self._gemini_pkce_verifier)
 
         errors: dict[str, str] = {}
 
@@ -218,9 +203,7 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
                 code = self._extract_oauth_code(code_input)
                 try:
                     async with aiohttp.ClientSession() as session:
-                        result = await gemini_oauth.exchange_code(
-                            session, code, self._gemini_pkce_verifier
-                        )
+                        result = await gemini_oauth.exchange_code(session, code, self._gemini_pkce_verifier)
 
                     if "error" in result:
                         _LOGGER.error(
@@ -238,12 +221,8 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
                             },
                         }
                         if self._reauth_entry is not None:
-                            self.hass.config_entries.async_update_entry(
-                                self._reauth_entry, data=new_data
-                            )
-                            await self.hass.config_entries.async_reload(
-                                self._reauth_entry.entry_id
-                            )
+                            self.hass.config_entries.async_update_entry(self._reauth_entry, data=new_data)
+                            await self.hass.config_entries.async_reload(self._reauth_entry.entry_id)
                         return self.async_abort(reason="reauth_successful")
                 except aiohttp.ClientError as e:
                     _LOGGER.error("Network error during Gemini reauth: %s", e)
@@ -254,9 +233,7 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
         return self.async_show_form(
             step_id="reauth_confirm",
             description_placeholders={"auth_url": self._gemini_auth_url},
-            data_schema=vol.Schema(
-                {vol.Required("code"): TextSelector(TextSelectorConfig(type="text"))}
-            ),
+            data_schema=vol.Schema({vol.Required("code"): TextSelector(TextSelectorConfig(type="text"))}),
             errors=errors,
         )
 
@@ -285,11 +262,7 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
             data_schema=vol.Schema(
                 {
                     vol.Required("ai_provider"): SelectSelector(
-                        SelectSelectorConfig(
-                            options=[
-                                {"value": k, "label": v} for k, v in PROVIDERS.items()
-                            ]
-                        )
+                        SelectSelectorConfig(options=[{"value": k, "label": v} for k, v in PROVIDERS.items()])
                     ),
                 }
             ),
@@ -349,9 +322,7 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
                         self.config_data["models"][provider] = default_model
 
                 # Store RAG enabled setting
-                self.config_data[CONF_RAG_ENABLED] = user_input.get(
-                    CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED
-                )
+                self.config_data[CONF_RAG_ENABLED] = user_input.get(CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED)
 
                 return self.async_create_entry(
                     title=f"Homeclaw ({PROVIDERS[provider]})",
@@ -367,9 +338,7 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
             # For z.ai provider, we need token, endpoint type, and optional model name
             model_options = get_model_options_for_flow("zai")
             schema_dict = {
-                vol.Required(token_field): TextSelector(
-                    TextSelectorConfig(type="password")
-                ),
+                vol.Required(token_field): TextSelector(TextSelectorConfig(type="password")),
                 vol.Optional("zai_endpoint", default="general"): SelectSelector(
                     SelectSelectorConfig(
                         options=[
@@ -378,15 +347,9 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
                         ]
                     )
                 ),
-                vol.Optional("model", default="glm-4.7"): SelectSelector(
-                    SelectSelectorConfig(options=model_options)
-                ),
-                vol.Optional("custom_model"): TextSelector(
-                    TextSelectorConfig(type="text")
-                ),
-                vol.Optional(
-                    CONF_RAG_ENABLED, default=DEFAULT_RAG_ENABLED
-                ): BooleanSelector(),
+                vol.Optional("model", default="glm-4.7"): SelectSelector(SelectSelectorConfig(options=model_options)),
+                vol.Optional("custom_model"): TextSelector(TextSelectorConfig(type="text")),
+                vol.Optional(CONF_RAG_ENABLED, default=DEFAULT_RAG_ENABLED): BooleanSelector(),
             }
 
             return self.async_show_form(
@@ -402,9 +365,7 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
         if provider == "local":
             # For local provider, we need both URL and optional model name
             schema_dict = {
-                vol.Required(CONF_LOCAL_URL): TextSelector(
-                    TextSelectorConfig(type="text")
-                ),
+                vol.Required(CONF_LOCAL_URL): TextSelector(TextSelectorConfig(type="text")),
             }
 
             # Add model selection
@@ -412,12 +373,8 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
             schema_dict[vol.Optional("model", default="Custom...")] = SelectSelector(
                 SelectSelectorConfig(options=model_options)
             )
-            schema_dict[vol.Optional("custom_model")] = TextSelector(
-                TextSelectorConfig(type="text")
-            )
-            schema_dict[vol.Optional(CONF_RAG_ENABLED, default=DEFAULT_RAG_ENABLED)] = (
-                BooleanSelector()
-            )
+            schema_dict[vol.Optional("custom_model")] = TextSelector(TextSelectorConfig(type="text"))
+            schema_dict[vol.Optional(CONF_RAG_ENABLED, default=DEFAULT_RAG_ENABLED)] = BooleanSelector()
 
             return self.async_show_form(
                 step_id="configure",
@@ -431,9 +388,7 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
 
         # Build schema for other providers
         schema_dict = {
-            vol.Required(token_field): TextSelector(
-                TextSelectorConfig(type="password")
-            ),
+            vol.Required(token_field): TextSelector(TextSelectorConfig(type="password")),
         }
 
         # Add model selection if available
@@ -443,17 +398,13 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
                 model_options = available_models
             else:
                 model_options = available_models + ["Custom..."]
-            schema_dict[vol.Optional("model", default=dropdown_default)] = (
-                SelectSelector(SelectSelectorConfig(options=model_options))
+            schema_dict[vol.Optional("model", default=dropdown_default)] = SelectSelector(
+                SelectSelectorConfig(options=model_options)
             )
-            schema_dict[vol.Optional("custom_model")] = TextSelector(
-                TextSelectorConfig(type="text")
-            )
+            schema_dict[vol.Optional("custom_model")] = TextSelector(TextSelectorConfig(type="text"))
 
         # Add RAG option for all providers
-        schema_dict[vol.Optional(CONF_RAG_ENABLED, default=DEFAULT_RAG_ENABLED)] = (
-            BooleanSelector()
-        )
+        schema_dict[vol.Optional(CONF_RAG_ENABLED, default=DEFAULT_RAG_ENABLED)] = BooleanSelector()
 
         return self.async_show_form(
             step_id="configure",
@@ -468,12 +419,11 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
     async def async_step_anthropic_oauth(self, user_input=None):
         """Show auth URL and prompt user to authorize, then enter code."""
         if not hasattr(self, "_pkce_verifier") or self._pkce_verifier is None:
-            verifier, challenge = generate_pkce()
-            self._pkce_verifier = verifier
-            self._pkce_challenge = challenge
-            self._auth_url = build_auth_url(
-                self._pkce_challenge, self._pkce_verifier, mode="max"
-            )
+            request, pkce = authorize(mode="max")
+            self._pkce_verifier = pkce.verifier
+            self._pkce_challenge = pkce.challenge
+            self._oauth_state = request.state
+            self._auth_url = request.url
 
         errors = {}
 
@@ -482,26 +432,27 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
             if code:
                 try:
                     async with aiohttp.ClientSession() as session:
-                        result = await exchange_code(session, code, self._pkce_verifier)
-
-                    if "error" in result:
-                        _LOGGER.error("OAuth exchange failed: %s", result.get("error"))
-                        errors["base"] = "oauth_failed"
-                    else:
-                        return self.async_create_entry(
-                            title="Homeclaw (Anthropic OAuth)",
-                            data={
-                                "ai_provider": "anthropic_oauth",
-                                "anthropic_oauth": {
-                                    "access_token": result["access_token"],
-                                    "refresh_token": result["refresh_token"],
-                                    "expires_at": result["expires_at"],
-                                },
-                            },
+                        tokens = await exchange_code(
+                            session,
+                            code,
+                            self._pkce_verifier,
+                            expected_state=getattr(self, "_oauth_state", None),
                         )
-                except aiohttp.ClientError as e:
-                    _LOGGER.error("Network error during OAuth exchange: %s", e)
+                except OAuthRefreshError as err:
+                    _LOGGER.error("OAuth exchange failed: %s", err)
                     errors["base"] = "oauth_failed"
+                else:
+                    return self.async_create_entry(
+                        title="Homeclaw (Anthropic OAuth)",
+                        data={
+                            "ai_provider": "anthropic_oauth",
+                            "anthropic_oauth": {
+                                "access_token": tokens.access_token,
+                                "refresh_token": tokens.refresh_token,
+                                "expires_at": tokens.expires_at,
+                            },
+                        },
+                    )
             else:
                 errors["code"] = "required"
 
@@ -523,7 +474,7 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
         - Full callback URL: http://localhost:8085/oauth2callback?code=4/0A...&state=...
         - Just the authorization code: 4/0A...
         """
-        from urllib.parse import urlparse, parse_qs
+        from urllib.parse import parse_qs, urlparse
 
         if input_str.startswith("http://") or input_str.startswith("https://"):
             parsed = urlparse(input_str)
@@ -535,16 +486,11 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
 
     async def async_step_gemini_oauth(self, user_input=None):
         """Show auth URL and prompt user to authorize, then enter code for Gemini OAuth."""
-        if (
-            not hasattr(self, "_gemini_pkce_verifier")
-            or self._gemini_pkce_verifier is None
-        ):
+        if not hasattr(self, "_gemini_pkce_verifier") or self._gemini_pkce_verifier is None:
             verifier, challenge = gemini_oauth.generate_pkce()
             self._gemini_pkce_verifier = verifier
             self._gemini_pkce_challenge = challenge
-            self._gemini_auth_url = gemini_oauth.build_auth_url(
-                self._gemini_pkce_challenge, self._gemini_pkce_verifier
-            )
+            self._gemini_auth_url = gemini_oauth.build_auth_url(self._gemini_pkce_challenge, self._gemini_pkce_verifier)
 
         # Available models for Gemini OAuth (from models_config.json)
         gemini_oauth_models = get_model_options("gemini_oauth")
@@ -560,14 +506,10 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
                 code = self._extract_oauth_code(code_input)
                 try:
                     async with aiohttp.ClientSession() as session:
-                        result = await gemini_oauth.exchange_code(
-                            session, code, self._gemini_pkce_verifier
-                        )
+                        result = await gemini_oauth.exchange_code(session, code, self._gemini_pkce_verifier)
 
                     if "error" in result:
-                        _LOGGER.error(
-                            "Gemini OAuth exchange failed: %s", result.get("error")
-                        )
+                        _LOGGER.error("Gemini OAuth exchange failed: %s", result.get("error"))
                         errors["base"] = "oauth_failed"
                     else:
                         return self.async_create_entry(
@@ -630,14 +572,8 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        "ai_provider", default=current_provider
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=[
-                                {"value": k, "label": v} for k, v in PROVIDERS.items()
-                            ]
-                        )
+                    vol.Required("ai_provider", default=current_provider): SelectSelector(
+                        SelectSelectorConfig(options=[{"value": k, "label": v} for k, v in PROVIDERS.items()])
                     ),
                 }
             ),
@@ -651,34 +587,24 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
         current_provider = self.options_data["current_provider"]
 
         # Get current RAG setting (available for all providers)
-        current_rag_enabled = self.config_entry.data.get(
-            CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED
-        )
+        current_rag_enabled = self.config_entry.data.get(CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED)
 
         # OAuth providers - show only RAG option (no token reconfiguration)
         if provider in ("anthropic_oauth", "gemini_oauth"):
             if user_input is not None:
                 # Update RAG setting
                 updated_data = dict(self.config_entry.data)
-                updated_data[CONF_RAG_ENABLED] = user_input.get(
-                    CONF_RAG_ENABLED, current_rag_enabled
-                )
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry, data=updated_data
-                )
+                updated_data[CONF_RAG_ENABLED] = user_input.get(CONF_RAG_ENABLED, current_rag_enabled)
+                self.hass.config_entries.async_update_entry(self.config_entry, data=updated_data)
                 # Preserve existing options (e.g. Discord pairing data).
-                return self.async_create_entry(
-                    title="", data=dict(self.config_entry.options)
-                )
+                return self.async_create_entry(title="", data=dict(self.config_entry.options))
 
             # Show form with only RAG option for OAuth providers
             return self.async_show_form(
                 step_id="configure_options",
                 data_schema=vol.Schema(
                     {
-                        vol.Optional(
-                            CONF_RAG_ENABLED, default=current_rag_enabled
-                        ): BooleanSelector(),
+                        vol.Optional(CONF_RAG_ENABLED, default=current_rag_enabled): BooleanSelector(),
                     }
                 ),
                 errors=errors,
@@ -741,28 +667,18 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
                         else:
                             # Ensure we keep the current model or use default for other providers
                             if provider not in updated_data["models"]:
-                                updated_data["models"][provider] = (
-                                    get_default_model(provider) or ""
-                                )
+                                updated_data["models"][provider] = get_default_model(provider) or ""
 
-                    _LOGGER.debug(
-                        f"Options flow - Final model config for {provider}: {updated_data['models'].get(provider)}"
-                    )
+                    _LOGGER.debug(f"Options flow - Final model config for {provider}: {updated_data['models'].get(provider)}")
 
                     # Update RAG enabled setting
-                    updated_data[CONF_RAG_ENABLED] = user_input.get(
-                        CONF_RAG_ENABLED, current_rag_enabled
-                    )
+                    updated_data[CONF_RAG_ENABLED] = user_input.get(CONF_RAG_ENABLED, current_rag_enabled)
 
                     # Update the config entry
-                    self.hass.config_entries.async_update_entry(
-                        self.config_entry, data=updated_data
-                    )
+                    self.hass.config_entries.async_update_entry(self.config_entry, data=updated_data)
 
                     # Preserve existing options (e.g. Discord pairing data).
-                    return self.async_create_entry(
-                        title="", data=dict(self.config_entry.options)
-                    )
+                    return self.async_create_entry(title="", data=dict(self.config_entry.options))
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception in options flow")
                 errors["base"] = "unknown"
@@ -772,9 +688,7 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
             current_endpoint = self.config_entry.data.get("zai_endpoint", "general")
             model_options = get_model_options_for_flow("zai")
             schema_dict = {
-                vol.Required(token_field, default=display_token): TextSelector(
-                    TextSelectorConfig(type="password")
-                ),
+                vol.Required(token_field, default=display_token): TextSelector(TextSelectorConfig(type="password")),
                 vol.Optional("zai_endpoint", default=current_endpoint): SelectSelector(
                     SelectSelectorConfig(
                         options=[
@@ -783,15 +697,9 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
                         ]
                     )
                 ),
-                vol.Optional("model", default=current_model): SelectSelector(
-                    SelectSelectorConfig(options=model_options)
-                ),
-                vol.Optional("custom_model"): TextSelector(
-                    TextSelectorConfig(type="text")
-                ),
-                vol.Optional(
-                    CONF_RAG_ENABLED, default=current_rag_enabled
-                ): BooleanSelector(),
+                vol.Optional("model", default=current_model): SelectSelector(SelectSelectorConfig(options=model_options)),
+                vol.Optional("custom_model"): TextSelector(TextSelectorConfig(type="text")),
+                vol.Optional(CONF_RAG_ENABLED, default=current_rag_enabled): BooleanSelector(),
             }
 
             return self.async_show_form(
@@ -809,24 +717,16 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
             current_url = self.config_entry.data.get(CONF_LOCAL_URL, "")
 
             schema_dict = {
-                vol.Required(CONF_LOCAL_URL, default=current_url): TextSelector(
-                    TextSelectorConfig(type="text")
-                ),
+                vol.Required(CONF_LOCAL_URL, default=current_url): TextSelector(TextSelectorConfig(type="text")),
             }
 
             # Add model selection
             model_options = get_model_options_for_flow("local")
-            schema_dict[
-                vol.Optional(
-                    "model", default=current_model if current_model else "Custom..."
-                )
-            ] = SelectSelector(SelectSelectorConfig(options=model_options))
-            schema_dict[vol.Optional("custom_model")] = TextSelector(
-                TextSelectorConfig(type="text")
+            schema_dict[vol.Optional("model", default=current_model if current_model else "Custom...")] = SelectSelector(
+                SelectSelectorConfig(options=model_options)
             )
-            schema_dict[vol.Optional(CONF_RAG_ENABLED, default=current_rag_enabled)] = (
-                BooleanSelector()
-            )
+            schema_dict[vol.Optional("custom_model")] = TextSelector(TextSelectorConfig(type="text"))
+            schema_dict[vol.Optional(CONF_RAG_ENABLED, default=current_rag_enabled)] = BooleanSelector()
 
             return self.async_show_form(
                 step_id="configure_options",
@@ -840,9 +740,7 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
 
         # Build schema for other providers
         schema_dict = {
-            vol.Required(token_field, default=display_token): TextSelector(
-                TextSelectorConfig(type="password")
-            ),
+            vol.Required(token_field, default=display_token): TextSelector(TextSelectorConfig(type="password")),
         }
 
         # Add model selection if available
@@ -855,14 +753,10 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
             schema_dict[vol.Optional("model", default=current_model)] = SelectSelector(
                 SelectSelectorConfig(options=model_options)
             )
-            schema_dict[vol.Optional("custom_model")] = TextSelector(
-                TextSelectorConfig(type="text")
-            )
+            schema_dict[vol.Optional("custom_model")] = TextSelector(TextSelectorConfig(type="text"))
 
         # Add RAG option for all providers
-        schema_dict[vol.Optional(CONF_RAG_ENABLED, default=current_rag_enabled)] = (
-            BooleanSelector()
-        )
+        schema_dict[vol.Optional(CONF_RAG_ENABLED, default=current_rag_enabled)] = BooleanSelector()
 
         return self.async_show_form(
             step_id="configure_options",
