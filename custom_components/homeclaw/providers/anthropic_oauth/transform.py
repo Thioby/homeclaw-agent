@@ -30,10 +30,16 @@ _LOGGER = logging.getLogger(__name__)
 def prefix_tool_name(name: str) -> str:
     """Prefix a tool name with the homeclaw MCP namespace.
 
+    Idempotent: names already carrying the prefix are returned unchanged
+    (defends against double-prefix if upstream registry adopts the same
+    convention).
+
     Examples:
         ``ha_native`` -> ``mcp__homeclaw__ha_native``
         ``memory`` -> ``mcp__homeclaw__memory``
     """
+    if name.startswith(TOOL_PREFIX):
+        return name
     return f"{TOOL_PREFIX}{name}"
 
 

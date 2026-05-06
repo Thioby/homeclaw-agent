@@ -26,6 +26,12 @@ class TestPrefixToolName:
         assert prefix_tool_name("ha_native") == "mcp__homeclaw__ha_native"
         assert prefix_tool_name("shell_execute") == "mcp__homeclaw__shell_execute"
 
+    def test_idempotent_when_already_prefixed(self):
+        from custom_components.homeclaw.providers.anthropic_oauth.transform import prefix_tool_name
+
+        already = "mcp__homeclaw__memory"
+        assert prefix_tool_name(already) == already
+
 
 class TestUnprefixToolName:
     def test_strips_prefix(self):
