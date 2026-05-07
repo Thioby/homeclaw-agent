@@ -2,6 +2,7 @@
   import { appState } from "$lib/stores/appState"
   import { providerState } from "$lib/stores/providers"
   import { createSession } from '$lib/services/session.service';
+  import { fetchModels } from '$lib/services/provider.service';
 
   async function handleNewChat() {
     if (!$appState.hass) {
@@ -9,12 +10,26 @@
       return;
     }
 
-    if (!$providerState.selectedProvider) {
+    // New chats always start from the user's preferred default, even if the
+    // selector currently mirrors some other session's locked provider.
+    const startProvider =
+      $providerState.defaultProvider || $providerState.selectedProvider;
+
+    if (!startProvider) {
       appState.update(s => ({ ...s, error: 'Please select a provider first' }));
       return;
     }
 
-    await createSession($appState.hass, $providerState.selectedProvider);
+    if ($providerState.selectedProvider !== startProvider) {
+      providerState.update(s => ({
+        ...s,
+        selectedProvider: startProvider,
+        selectedModel: $providerState.defaultModel || null,
+      }));
+      await fetchModels($appState.hass, startProvider);
+    }
+
+    await createSession($appState.hass, startProvider);
   }
 </script>
 

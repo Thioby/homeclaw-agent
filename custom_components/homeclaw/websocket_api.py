@@ -77,4 +77,5 @@ from .ws_handlers.sessions import (  # noqa: F401
     ws_get_session,
     ws_list_sessions,
     ws_rename_session,
+    ws_update_session_provider,
 )

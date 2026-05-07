@@ -2,18 +2,28 @@
   import { providerState, hasProviders } from "$lib/stores/providers"
   import { get } from 'svelte/store';
   import { appState } from "$lib/stores/appState"
+  import { sessionState } from "$lib/stores/sessions"
   import { fetchModels } from '$lib/services/provider.service';
+  import { updateSessionProvider } from '$lib/services/session.service';
 
   let { disabled = false }: { disabled?: boolean } = $props();
 
   async function handleChange(e: Event) {
     const target = e.target as HTMLSelectElement;
-    providerState.update(s => ({ ...s, selectedProvider: target.value }));
-
-    // Fetch models for new provider
+    const newProvider = target.value;
     const currentAppState = get(appState);
-    if (currentAppState.hass && target.value) {
-      await fetchModels(currentAppState.hass, target.value);
+    const activeSessionId = get(sessionState).activeSessionId;
+
+    // Persist on the active session so the backend uses the new provider
+    // for the next send. Selectors are already disabled once a session has
+    // messages, so updateSessionProvider should always succeed here.
+    if (currentAppState.hass && activeSessionId && newProvider) {
+      await updateSessionProvider(currentAppState.hass, activeSessionId, newProvider);
+    } else {
+      providerState.update(s => ({ ...s, selectedProvider: newProvider }));
+      if (currentAppState.hass && newProvider) {
+        await fetchModels(currentAppState.hass, newProvider);
+      }
     }
   }
 </script>
@@ -26,6 +36,7 @@
       value={$providerState.selectedProvider || ''}
       onchange={handleChange}
       {disabled}
+      title={disabled ? 'Provider is locked for this conversation. Start a new chat to change it.' : 'Choose provider'}
     >
       {#each $providerState.availableProviders as provider}
         <option value={provider.value}>

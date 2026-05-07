@@ -287,6 +287,25 @@
                     : msg
                 ),
               }));
+
+              // Backend already persisted the user message + error assistant
+              // message, so the session is no longer empty. Bump local count
+              // to match or the provider selector will incorrectly stay
+              // unlocked.
+              const activeId = get(sessionState).activeSessionId;
+              if (activeId) {
+                const sessions = get(sessionState).sessions;
+                const sess = sessions.find((s) => s.session_id === activeId);
+                const isNewConversation = sess?.title === 'New Conversation';
+                const previewText = message;
+                updateSessionInList(
+                  activeId,
+                  previewText,
+                  isNewConversation
+                    ? previewText.substring(0, 40) + (previewText.length > 40 ? '...' : '')
+                    : undefined
+                );
+              }
             },
           },
           wsAttachments.length > 0 ? wsAttachments : undefined
@@ -365,7 +384,7 @@
   <div class="input-footer">
     <AttachButton onFilesSelected={handleFilesSelected} />
     <ProviderSelector disabled={!!$sessionState.activeSessionId && ($activeSession?.message_count ?? 0) > 0} />
-    <ModelSelector />
+    <ModelSelector disabled={!!$sessionState.activeSessionId && ($activeSession?.message_count ?? 0) > 0} />
     <ThinkingToggle />
     <SendButton onclick={handleSend} />
   </div>

@@ -347,6 +347,28 @@ async def _prepare_chat_request(
         connection.send_error(request_id, ERR_SESSION_NOT_FOUND, "Session not found")
         return None
 
+    # First-send provider override: on a session that hasn't been used yet,
+    # honor the provider picked in the frontend selector even if the session
+    # was initially created with a different default. After the first message
+    # the provider stays locked (see note below).
+    override_provider = msg.get("provider")
+    if (
+        override_provider
+        and override_provider != session.provider
+        and session.message_count == 0
+    ):
+        update_result = await storage.update_session_provider(
+            session_id, override_provider
+        )
+        if update_result == "ok":
+            _LOGGER.info(
+                "Session %s: migrated provider %s → %s on first send",
+                session_id,
+                session.provider,
+                override_provider,
+            )
+            session.provider = override_provider
+
     processed_attachments = []
     raw_attachments = msg.get("attachments", [])
     if raw_attachments:
@@ -379,7 +401,8 @@ async def _prepare_chat_request(
     all_messages = await storage.get_session_messages(session_id)
     conversation_history = await _build_conversation_history(hass, all_messages[:-1])
 
-    # Provider is locked to the session — ignore any override from the message
+    # Provider is locked once the session has messages. Any override from
+    # msg["provider"] is applied above, before the first send is persisted.
     provider = session.provider or "anthropic"
 
     return _PreparedChatRequest(

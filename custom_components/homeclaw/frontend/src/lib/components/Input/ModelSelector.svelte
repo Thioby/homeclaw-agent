@@ -1,6 +1,8 @@
 <script lang="ts">
   import { providerState, hasModels } from "$lib/stores/providers"
 
+  let { disabled = false }: { disabled?: boolean } = $props();
+
   function handleChange(e: Event) {
     const target = e.target as HTMLSelectElement;
     providerState.update(s => ({ ...s, selectedModel: target.value }));
@@ -23,6 +25,8 @@
       class="provider-button"
       value={$providerState.selectedModel || ''}
       onchange={handleChange}
+      {disabled}
+      title={disabled ? 'Model is locked for this conversation. Start a new chat to change it.' : 'Choose model'}
     >
       {#each $providerState.availableModels as model}
         <option value={model.id}>
@@ -68,15 +72,20 @@
     padding-right: 30px;
   }
 
-  .provider-button:hover {
+  .provider-button:hover:not(:disabled) {
     background-color: var(--primary-background-color);
     border-color: var(--primary-color);
   }
 
-  .provider-button:focus {
+  .provider-button:focus:not(:disabled) {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.2);
+  }
+
+  .provider-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .default-star {

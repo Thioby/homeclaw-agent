@@ -331,6 +331,50 @@ async def ws_delete_session(
 
 @websocket_api.websocket_command(
     {
+        vol.Required("type"): "homeclaw/sessions/update_provider",
+        vol.Required("session_id"): _validate_session_id,
+        vol.Required("provider"): vol.In(VALID_PROVIDERS),
+    }
+)
+@websocket_api.async_response
+async def ws_update_session_provider(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Change the provider of a session that has no messages yet."""
+    user_id = _get_user_id(connection)
+    session_id = msg["session_id"]
+    provider = msg["provider"]
+
+    try:
+        storage = _get_storage(hass, user_id)
+        result = await storage.update_session_provider(session_id, provider)
+        if result == "ok":
+            connection.send_result(msg["id"], {"success": True})
+        elif result == "locked":
+            connection.send_error(
+                msg["id"],
+                "session_locked",
+                "Provider cannot be changed after the first message",
+            )
+        else:
+            connection.send_error(
+                msg["id"], ERR_SESSION_NOT_FOUND, "Session not found"
+            )
+    except Exception:
+        _LOGGER.exception(
+            "Failed to update provider for session %s (user %s)",
+            session_id,
+            user_id,
+        )
+        connection.send_error(
+            msg["id"], ERR_STORAGE_ERROR, "Failed to update session provider"
+        )
+
+
+@websocket_api.websocket_command(
+    {
         vol.Required("type"): "homeclaw/sessions/rename",
         vol.Required("session_id"): _validate_session_id,
         vol.Required("title"): _validate_title,

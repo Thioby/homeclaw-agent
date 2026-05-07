@@ -662,6 +662,33 @@ class SessionStorage:
                 return True
         return False
 
+    async def update_session_provider(self, session_id: str, provider: str) -> str:
+        """Change the AI provider of a session that has no user messages yet.
+
+        Providers are locked to a session on the first sent message so that
+        conversation history stays coherent. This method only succeeds while
+        ``message_count == 0``.
+
+        Args:
+            session_id: The session ID.
+            provider: The new provider name.
+
+        Returns:
+            "ok" on success, "not_found" if the session does not exist,
+            "locked" if the session already has messages.
+        """
+        data = await self._load()
+        for session in data["sessions"]:
+            if session["session_id"] != session_id:
+                continue
+            if session.get("message_count", 0) > 0:
+                return "locked"
+            session["provider"] = provider
+            session["updated_at"] = datetime.now(timezone.utc).isoformat()
+            await self._save()
+            return "ok"
+        return "not_found"
+
     async def get_preferences(self) -> dict[str, Any]:
         """Get user preferences (default provider, model, etc.).
 

@@ -58,6 +58,7 @@ from .sessions import (
     ws_get_session,
     ws_list_sessions,
     ws_rename_session,
+    ws_update_session_provider,
 )
 
 if TYPE_CHECKING:
@@ -76,6 +77,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_create_session)
     websocket_api.async_register_command(hass, ws_delete_session)
     websocket_api.async_register_command(hass, ws_rename_session)
+    websocket_api.async_register_command(hass, ws_update_session_provider)
     websocket_api.async_register_command(hass, ws_generate_emoji)
     # Chat / messaging
     websocket_api.async_register_command(hass, ws_send_message)

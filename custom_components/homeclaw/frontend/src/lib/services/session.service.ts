@@ -69,7 +69,10 @@ export async function selectSession(hass: HomeAssistant, sessionId: string): Pro
 
     appState.update((s) => ({ ...s, messages }));
 
-    // Sync provider selector to the session's locked provider
+    // Mirror the session's provider in the selector so the user sees what
+    // will actually be used. For sessions with messages the selector is
+    // read-only (provider locked server-side). For empty sessions the user
+    // can still change it via updateSessionProvider.
     const sessionProvider = result.session?.provider;
     if (sessionProvider) {
       const currentProvider = get(providerState).selectedProvider;
@@ -128,6 +131,43 @@ export async function createSession(hass: HomeAssistant, provider: string): Prom
   } catch (error) {
     console.error('Failed to create session:', error);
     appState.update(s => ({ ...s, error: 'Could not create new conversation' }));
+  }
+}
+
+/**
+ * Change a session's provider. Only succeeds if the session has no messages
+ * yet — the backend locks the provider on first send. On success the local
+ * session list and selectedProvider are updated to reflect the change.
+ */
+export async function updateSessionProvider(
+  hass: HomeAssistant,
+  sessionId: string,
+  provider: string
+): Promise<boolean> {
+  try {
+    await hass.callWS({
+      type: 'homeclaw/sessions/update_provider',
+      session_id: sessionId,
+      provider,
+    });
+
+    sessionState.update((s) => ({
+      ...s,
+      sessions: s.sessions.map((session) =>
+        session.session_id === sessionId ? { ...session, provider } : session
+      ),
+    }));
+
+    providerState.update((s) => ({ ...s, selectedProvider: provider }));
+    await fetchModels(hass, provider);
+    return true;
+  } catch (error) {
+    console.warn('updateSessionProvider failed:', error);
+    appState.update((s) => ({
+      ...s,
+      error: 'Could not change provider for this session',
+    }));
+    return false;
   }
 }
 
