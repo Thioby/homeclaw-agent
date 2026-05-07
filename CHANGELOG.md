@@ -1,5 +1,43 @@
 # Changelog
 
+## v1.5.0 — Panel UI redesign and OpenRouter free models
+
+### Added
+- **Panel UI redesign** — paper-tone "warm" aesthetic by default, with `tech` (high-contrast) and `ambient` (always-dark, gold accent) alternates. New `--hc-*` design token layer (light/dark for each aesthetic), system fonts in place of Roboto.
+- **Settings → Appearance** — theme selector (light / dark / system) and aesthetic selector with live color-swatch preview. Choice persists to `localStorage`.
+- **Sidebar redesign** — brand mark, inline "New conversation" button, search field, sessions grouped by date (Today / Yesterday / Earlier), foot status pulse with smart entity count.
+- **Topbar** — replaces Telegram-style header. Shows session title in display serif, `<model> · N entities` meta in mono.
+- **Empty-state status rail** — derives a "RIGHT NOW" snapshot from `hass.states` (lights on, climate mode + temperature, locks, open covers). Time-based greeting using the user's RAG `user_name`. Suggestion cards in a 2×2 grid; clicking a card injects the prompt into the composer and focuses the textarea.
+- **Per-message avatar + meta-row** — square avatar (home icon for bot, initial for user) with name + monospaced timestamp above each message, replacing inline float-right time.
+- **Composer paper-card** — single paper-tone card with auto-growing textarea, chip-bar (Attach + Provider + Model + Debug), square Send button. Mono footer with keyboard hint.
+- **Smart entity count helper** — `lib/utils/entities.ts` filters `hass.states` to real devices/sensors (light/switch/sensor/binary_sensor/climate/cover/lock/fan/media_player/camera/vacuum/lawn_mower/water_heater/humidifier/valve/button) instead of counting bookkeeping entries.
+- **Centralized icon set** — `Icon.svelte` with 22 inline SVG glyphs; new components consume it instead of inlining SVG.
+- **OpenRouter free tier** — Tencent Hy3 Preview as the default with tool-calling support, plus a lightweight free model option.
+- **Unified provider adapter layer** — single normalization layer across Anthropic / OpenAI / Gemini / OpenRouter / Groq / Local for tool-use payloads.
+
+### Changed
+- **OpenRouter default** model bumped to free Tencent Hy3 Preview.
+- **Per-request model override** is now honored by all OpenAI-compatible providers.
+- **OpenAI-compatible requests** log the resolved model name for easier debugging.
+- **Emoji generation** uses the user's default provider instead of a hard-coded one.
+- **Tool name prefix (`mcp__homeclaw__<tool>`)** is now idempotent — no double-prefixing on retries.
+- **OpenAI adapter** converts `function` role to the appropriate tool format on the fly.
+
+### Fixed
+- **Provider selector** can be changed before the first message in a new conversation (was incorrectly locked).
+- **Provider list** uses the backend-configured list and hides RAG-only providers from the chat selector.
+- **Provider reset on refresh** — selected provider is restored across page reloads.
+- **Array tool params** are properly serialized when forwarded to providers.
+- **Per-subclass logger** for tools so log lines carry the correct module name.
+- **Mobile composer overflow** — provider/model chips truncate with ellipsis, debug toggle and second footer line move to Settings, Send button stays in viewport on narrow screens (≤380px).
+- **Avatar overflow** — multi-emoji values are clipped to the first grapheme and capped in font-size; bot avatar always uses the home icon for visual consistency.
+- **Greeting** sources the user's name from RAG `user_name` (was incorrectly using the bot's `agent_name`).
+- **Custom-element constructor** — `data-aesthetic` / `data-theme` attributes are applied via microtask to comply with the DOM spec (HA's `createElement` rejects elements with attributes set in the constructor).
+
+### Removed
+- **Telegram-style chat bubbles** — replaced with paper-card messages; no more tail triangles or float-right timestamps.
+- **Floating round "New chat" FAB** — replaced with an inline button at the top of the sidebar.
+
 ## v1.4.0 — Anthropic OAuth port from opencode-anthropic-auth v1.8.0
 
 ### Breaking
