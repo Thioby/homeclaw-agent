@@ -88,7 +88,7 @@ class TestOpenRouterProviderBuildPayload:
         messages = [{"role": "user", "content": "Hello"}]
         payload = provider._build_payload(messages)
 
-        assert payload["model"] == "openai/gpt-4o"
+        assert payload["model"] == "tencent/hy3-preview:free"
         assert payload["messages"] == messages
 
     def test_build_payload_with_tools(self, hass: HomeAssistant) -> None:
