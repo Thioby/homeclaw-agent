@@ -156,7 +156,7 @@ class HomeclawAgent:
             "anthropic": "claude-sonnet-4-5-20250929",
             "anthropic_oauth": "claude-sonnet-4-5-20250929",
             "groq": "llama-3.3-70b-versatile",
-            "openrouter": "openai/gpt-4",
+            "openrouter": "tencent/hy3-preview:free",
             "zai": "glm-4-flash",
             "xiaomi": "mimo-v2-flash",
             "local": "llama2",
