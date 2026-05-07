@@ -372,78 +372,237 @@
   }
 </script>
 
-<div class="input-container">
-  {#if pendingAttachments.length > 0}
-    <AttachmentPreview attachments={pendingAttachments} onRemove={removeAttachment} />
-  {/if}
+<div class="hc-composer-wrap">
+  <div class="hc-composer">
+    {#if pendingAttachments.length > 0}
+      <div class="hc-composer-attachments">
+        <AttachmentPreview attachments={pendingAttachments} onRemove={removeAttachment} />
+      </div>
+    {/if}
 
-  <div class="input-main">
-    <MessageInput bind:this={messageInput} onSend={handleSend} onFilesDropped={handleFilesDropped} />
+    <div class="hc-composer-input">
+      <MessageInput bind:this={messageInput} onSend={handleSend} onFilesDropped={handleFilesDropped} />
+    </div>
+
+    <div class="hc-composer-bar">
+      <AttachButton onFilesSelected={handleFilesSelected} />
+      <ProviderSelector disabled={!!$sessionState.activeSessionId && ($activeSession?.message_count ?? 0) > 0} />
+      <ModelSelector disabled={!!$sessionState.activeSessionId && ($activeSession?.message_count ?? 0) > 0} />
+      <ThinkingToggle />
+      <div class="hc-composer-spacer"></div>
+      <SendButton onclick={handleSend} />
+    </div>
   </div>
-
-  <div class="input-footer">
-    <AttachButton onFilesSelected={handleFilesSelected} />
-    <ProviderSelector disabled={!!$sessionState.activeSessionId && ($activeSession?.message_count ?? 0) > 0} />
-    <ModelSelector disabled={!!$sessionState.activeSessionId && ($activeSession?.message_count ?? 0) > 0} />
-    <ThinkingToggle />
-    <SendButton onclick={handleSend} />
+  <div class="hc-composer-foot">
+    <span>Enter to send · Shift+Enter for newline</span>
+    <span>Homeclaw asks before saving anything.</span>
   </div>
 </div>
 
 <style>
-  .input-container {
-    position: relative;
+  .hc-composer-wrap {
+    padding: 0 28px 18px;
+    flex-shrink: 0;
     width: 100%;
-    background: var(--bg-input, var(--card-background-color));
-    border: 1px solid var(--divider-color);
-    border-radius: 24px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
-    margin: 0 auto 12px;
-    max-width: 720px;
-    overflow: hidden;
-    transition:
-      border-color var(--transition-fast, 150ms ease-in-out),
-      box-shadow var(--transition-fast, 150ms ease-in-out);
+    box-sizing: border-box;
   }
 
-  .input-container:focus-within {
-    border-color: var(--accent, var(--primary-color));
-    box-shadow: 0 0 0 2px var(--accent-light, rgba(3, 169, 244, 0.1));
+  .hc-composer {
+    max-width: 760px;
+    margin: 0 auto;
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius);
+    box-shadow: 0 8px 24px -16px rgba(40, 30, 15, 0.18);
+    transition: border-color 0.12s, box-shadow 0.12s;
   }
 
-  .input-main {
-    display: flex;
-    align-items: flex-end;
-    padding: 8px 12px;
-    gap: 8px;
+  .hc-composer:focus-within {
+    border-color: var(--hc-line-strong);
+    box-shadow: 0 8px 32px -12px rgba(40, 30, 15, 0.28);
   }
 
-  .input-footer {
+  .hc-composer-attachments {
+    padding: 10px 14px 0;
+  }
+
+  .hc-composer-input {
+    padding: 10px 14px 0;
+  }
+
+  .hc-composer-bar {
     display: flex;
     align-items: center;
+    gap: 4px;
+    padding: 6px 8px 8px;
+  }
+
+  .hc-composer-spacer {
+    flex: 1;
+  }
+
+  .hc-composer-foot {
+    max-width: 760px;
+    margin: 6px auto 0;
+    display: flex;
     justify-content: space-between;
-    padding: 6px 14px 10px;
-    border-top: 1px solid var(--divider-color);
-    gap: 8px;
+    font-family: var(--hc-font-mono);
+    font-size: 10.5px;
+    color: var(--hc-ink-3);
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Subkomponenty: zewnętrzny restyle przez :global ─────────────────── */
+
+  /* MessageInput textarea — bez border-radius/bg, większy padding */
+  .hc-composer-input :global(.input-wrapper) {
+    border-radius: 0;
+    background: transparent;
+  }
+  .hc-composer-input :global(textarea) {
+    padding: 4px 0;
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: var(--hc-ink);
+    max-height: 220px;
+  }
+  .hc-composer-input :global(textarea::placeholder) {
+    color: var(--hc-ink-3);
+  }
+  .hc-composer-input :global(.drop-overlay) {
+    background: color-mix(in oklab, var(--hc-ink) 6%, transparent);
+    border: 2px dashed var(--hc-line-strong);
+    border-radius: var(--hc-radius-sm);
+  }
+  .hc-composer-input :global(.drop-label) {
+    color: var(--hc-ink-2);
+    font-family: var(--hc-font-mono);
+  }
+
+  /* ── Chip-buttony ─────────────────────────────────────────────────────── */
+
+  /* AttachButton */
+  .hc-composer-bar :global(.attach-button) {
+    width: auto;
+    height: auto;
+    min-width: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--hc-ink-3);
+    padding: 6px 9px;
+    font: inherit;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .hc-composer-bar :global(.attach-button:hover:not(:disabled)) {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink);
+  }
+  .hc-composer-bar :global(.attach-button .icon) {
+    width: 13px;
+    height: 13px;
+    fill: currentColor;
+  }
+  .hc-composer-bar :global(.attach-button:active:not(:disabled)) {
+    transform: none;
+  }
+
+  /* ProviderSelector / ModelSelector — chip-like select */
+  .hc-composer-bar :global(.provider-selector),
+  .hc-composer-bar :global(.model-selector) {
+    gap: 0;
+  }
+  .hc-composer-bar :global(.provider-label),
+  .hc-composer-bar :global(.model-label) {
+    display: none;
+  }
+  .hc-composer-bar :global(.provider-button),
+  .hc-composer-bar :global(.model-button) {
+    background: transparent;
+    border: 0;
+    color: var(--hc-ink-3);
+    padding: 6px 9px;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: none;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .hc-composer-bar :global(.provider-button:hover:not(:disabled)),
+  .hc-composer-bar :global(.model-button:hover:not(:disabled)) {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink);
+  }
+  .hc-composer-bar :global(.provider-button:disabled),
+  .hc-composer-bar :global(.model-button:disabled) {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  /* ThinkingToggle */
+  .hc-composer-bar :global(.thinking-toggle) {
+    padding: 6px 9px;
+    border-radius: 6px;
+    color: var(--hc-ink-3);
+    font-size: 12px;
+    gap: 6px;
+  }
+  .hc-composer-bar :global(.thinking-toggle:hover) {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink);
+  }
+  .hc-composer-bar :global(.thinking-toggle .label) {
+    color: inherit;
+    font-weight: 500;
+  }
+  .hc-composer-bar :global(.thinking-toggle input[type="checkbox"]) {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--hc-ink);
+  }
+
+  /* SendButton — czarny kwadrat z send icon */
+  .hc-composer-bar :global(.send-button) {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 8px;
+    background: var(--hc-ink);
+    color: var(--hc-bg);
+  }
+  .hc-composer-bar :global(.send-button:hover:not(:disabled)) {
+    transform: none;
+    opacity: 0.92;
+    background: var(--hc-ink);
+  }
+  .hc-composer-bar :global(.send-button:active:not(:disabled)) {
+    transform: scale(0.96);
+  }
+  .hc-composer-bar :global(.send-button:disabled) {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink-4);
+    opacity: 1;
+    cursor: default;
+  }
+  .hc-composer-bar :global(.send-button .icon) {
+    width: 15px;
+    height: 15px;
+    fill: currentColor;
   }
 
   @media (max-width: 768px) {
-    .input-container {
-      border-radius: 20px;
-      margin-bottom: 8px;
-      margin-left: 6px;
-      margin-right: 6px;
+    .hc-composer-wrap {
+      padding: 0 12px 12px;
     }
-
-    .input-footer {
-      gap: 6px;
-      padding: 4px 10px 8px;
+    .hc-composer-foot {
+      font-size: 10px;
     }
-  }
-
-  @media (min-width: 1400px) {
-    .input-container {
-      max-width: 820px;
+    .hc-composer-bar :global(.thinking-toggle .label) {
+      display: none;
     }
   }
 </style>
