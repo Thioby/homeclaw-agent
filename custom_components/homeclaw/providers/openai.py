@@ -147,6 +147,12 @@ class OpenAIProvider(BaseHTTPClient):
         log = _logger_for(self)
         provider_name = type(self).__name__
 
+        log.info(
+            "%s streaming request to model: %s",
+            provider_name,
+            payload.get("model"),
+        )
+
         try:
             async with self.session.post(
                 self.api_url,

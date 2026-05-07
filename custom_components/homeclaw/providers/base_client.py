@@ -109,6 +109,12 @@ class BaseHTTPClient(AIProvider):
         headers = self._build_headers()
         payload = self._build_payload(messages, **kwargs)
 
+        _LOGGER.info(
+            "%s request to model: %s",
+            type(self).__name__,
+            payload.get("model"),
+        )
+
         last_error: Exception | None = None
 
         for attempt in range(self._max_retries):
