@@ -91,6 +91,20 @@ class TestOpenRouterProviderBuildPayload:
         assert payload["model"] == "tencent/hy3-preview:free"
         assert payload["messages"] == messages
 
+    def test_build_payload_model_kwarg_overrides_config(
+        self, hass: HomeAssistant
+    ) -> None:
+        """Per-request model in kwargs takes precedence over config/default."""
+        config = {"token": "sk-or-test-key", "model": "openai/gpt-4"}
+
+        provider = OpenRouterProvider(hass, config)
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = provider._build_payload(
+            messages, model="z-ai/glm-4.5-air:free"
+        )
+
+        assert payload["model"] == "z-ai/glm-4.5-air:free"
+
     def test_build_payload_with_tools(self, hass: HomeAssistant) -> None:
         """Test that tools are included when passed."""
         config = {"token": "sk-or-test-key", "model": "openai/gpt-4"}

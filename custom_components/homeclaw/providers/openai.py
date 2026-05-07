@@ -87,6 +87,8 @@ class OpenAIProvider(BaseHTTPClient):
         Args:
             messages: List of message dictionaries with role and content.
             **kwargs: Additional arguments. Supports:
+                - model: Per-request model override (e.g. user picked a model
+                  in the UI different from the session/provider default).
                 - tools: List of tool definitions for function calling.
 
         Returns:
@@ -95,7 +97,7 @@ class OpenAIProvider(BaseHTTPClient):
         converted_messages, _ = self.adapter.transform_messages(messages)
 
         payload: dict[str, Any] = {
-            "model": self._model,
+            "model": kwargs.get("model") or self._model,
             "messages": converted_messages,
         }
 
