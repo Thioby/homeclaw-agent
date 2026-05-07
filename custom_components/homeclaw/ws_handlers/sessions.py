@@ -439,16 +439,20 @@ async def ws_generate_emoji(
     title = msg["title"]
 
     try:
-        # Find the first available AI provider
         agents = hass.data.get(DOMAIN, {}).get("agents", {})
         if not agents:
             _LOGGER.debug("No AI agents configured, skipping emoji generation")
             connection.send_result(msg["id"], {"emoji": ""})
             return
 
-        # Pick the first available provider
-        provider_name = next(iter(agents))
-        agent = agents[provider_name]
+        # Prefer the user's default provider; fall back to the first registered.
+        storage = _get_storage(hass, user_id)
+        prefs = await storage.get_preferences()
+        provider_name = prefs.get("default_provider")
+        agent = agents.get(provider_name) if provider_name else None
+        if agent is None:
+            provider_name = next(iter(agents))
+            agent = agents[provider_name]
         provider = agent._provider
 
         # Simple one-shot prompt — ask for a single emoji
@@ -479,7 +483,6 @@ async def ws_generate_emoji(
                 emoji = ""
 
         if emoji:
-            storage = _get_storage(hass, user_id)
             await storage.update_session_emoji(session_id, emoji)
             _LOGGER.debug("Generated emoji '%s' for session %s", emoji, session_id)
 
