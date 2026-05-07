@@ -219,3 +219,15 @@ class TestOpenRouterProviderExtractResponse:
         result = provider._extract_response(response_data)
 
         assert result == ""
+
+
+class TestOpenRouterProviderLightweightModel:
+    """Tests for OpenRouter provider lightweight_model property."""
+
+    def test_lightweight_model_returns_gpt_oss_20b(self, hass: HomeAssistant) -> None:
+        """Lightweight model is the JSON-tagged free 20B model."""
+        config = {"token": "sk-or-test-key"}
+
+        provider = OpenRouterProvider(hass, config)
+
+        assert provider.lightweight_model == "openai/gpt-oss-20b:free"
