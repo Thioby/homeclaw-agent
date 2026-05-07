@@ -82,6 +82,9 @@ class ToolSchemaConverter:
             if param.enum:
                 prop["enum"] = param.enum
 
+            if param_type == "array":
+                prop["items"] = param.items or {"type": "string"}
+
             properties[param.name] = prop
 
             if param.required:

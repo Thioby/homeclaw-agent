@@ -15,7 +15,14 @@ from .registry import ProviderRegistry
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
-_LOGGER = logging.getLogger(__name__)
+def _logger_for(obj: Any) -> logging.Logger:
+    """Return a logger bound to the concrete subclass's module.
+
+    Subclasses like XiaomiProvider inherit streaming code from OpenAIProvider
+    but should surface errors under their own logger name so debugging a 451
+    from Xiaomi doesn't look like an OpenAI failure.
+    """
+    return logging.getLogger(type(obj).__module__)
 
 
 @ProviderRegistry.register("openai")
@@ -137,6 +144,8 @@ class OpenAIProvider(BaseHTTPClient):
 
         sse_parser = SSEParser()
         tool_acc = ToolAccumulator()
+        log = _logger_for(self)
+        provider_name = type(self).__name__
 
         try:
             async with self.session.post(
@@ -146,14 +155,15 @@ class OpenAIProvider(BaseHTTPClient):
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    _LOGGER.error(
-                        "OpenAI streaming request failed: status=%d body=%s",
+                    log.error(
+                        "%s streaming request failed: status=%d body=%s",
+                        provider_name,
                         response.status,
                         error_text[:500],
                     )
                     yield {
                         "type": "error",
-                        "message": f"OpenAI API error {response.status}: {error_text[:200]}",
+                        "message": f"{provider_name} API error {response.status}: {error_text[:200]}",
                     }
                     return
 
@@ -172,8 +182,9 @@ class OpenAIProvider(BaseHTTPClient):
                         try:
                             event_data = json.loads(event_text)
                         except (TypeError, ValueError, json.JSONDecodeError):
-                            _LOGGER.debug(
-                                "Skipping unparsable OpenAI stream event: %s",
+                            log.debug(
+                                "Skipping unparsable %s stream event: %s",
+                                provider_name,
                                 event_text[:200],
                             )
                             continue
@@ -198,7 +209,7 @@ class OpenAIProvider(BaseHTTPClient):
 
                 # Safety flush: emit any remaining pending tool calls (no finish_reason received)
                 if tool_acc.has_pending:
-                    _LOGGER.warning(
+                    log.warning(
                         "Safety flush: emitting %d pending tool calls without finish_reason",
                         len(tool_acc._calls),
                     )
@@ -206,5 +217,8 @@ class OpenAIProvider(BaseHTTPClient):
                         yield {"type": "tool_call", **tool}
 
         except Exception:
-            _LOGGER.exception("Error during OpenAI streaming")
-            yield {"type": "error", "message": "OpenAI streaming connection error"}
+            log.exception("Error during %s streaming", provider_name)
+            yield {
+                "type": "error",
+                "message": f"{provider_name} streaming connection error",
+            }

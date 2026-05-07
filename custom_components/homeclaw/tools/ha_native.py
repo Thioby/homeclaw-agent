@@ -687,6 +687,7 @@ class GetEntities(Tool):
             type="array",
             description="List of area IDs to filter by",
             required=False,
+            items={"type": "string"},
         ),
         ToolParameter(
             name="limit",
@@ -1402,6 +1403,7 @@ class CreateDashboard(Tool):
             type="list",
             description="List of views with cards",
             required=True,
+            items={"type": "object"},
         ),
         ToolParameter(
             name="dry_run",
@@ -1468,6 +1470,7 @@ class UpdateDashboard(Tool):
             type="list",
             description="New list of views with cards",
             required=False,
+            items={"type": "object"},
         ),
         ToolParameter(
             name="dry_run",

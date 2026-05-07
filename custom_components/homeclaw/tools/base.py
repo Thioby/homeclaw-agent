@@ -69,6 +69,7 @@ class ToolParameter:
     required: bool = True
     default: Any = None
     enum: Optional[List[str]] = None
+    items: Optional[Dict[str, Any]] = None
 
     _COERCE_TYPE_MAP = {
         "str": str,
