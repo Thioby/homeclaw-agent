@@ -129,31 +129,38 @@
   /* Scroll to bottom button */
   .scroll-bottom-btn {
     position: absolute;
-    bottom: 16px;
-    right: 20px;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--card-background-color, #fff);
-    border: 1px solid var(--divider-color);
-    color: var(--secondary-text-color);
+    bottom: 18px;
+    right: 24px;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--hc-radius-sm, 8px);
+    background: var(--hc-card-bg, #fff);
+    border: 1px solid var(--hc-line, rgba(0, 0, 0, 0.1));
+    color: var(--hc-ink-2);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 5;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    transition: transform 0.15s, opacity 0.15s;
-    animation: fadeIn 0.2s ease-out;
+    padding: 0;
+    box-shadow: 0 8px 24px -16px rgba(40, 30, 15, 0.28);
+    transition: background 0.12s, border-color 0.12s, transform 0.12s;
+    animation: fadeIn 0.18s ease-out;
   }
 
   .scroll-bottom-btn:hover {
-    transform: scale(1.1);
+    background: var(--hc-bg-sunken);
+    border-color: var(--hc-line-strong);
+    color: var(--hc-ink);
+  }
+
+  .scroll-bottom-btn:active {
+    transform: scale(0.96);
   }
 
   .scroll-bottom-btn svg {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
   }
 
   @keyframes fadeIn {

@@ -2,6 +2,7 @@
   import { appState } from '$lib/stores/appState';
   import { uiState, closeSidebar, toggleSettings, cycleTheme } from '$lib/stores/ui';
   import { isMobile } from '$lib/utils/dom';
+  import { countSmartEntities } from '$lib/utils/entities';
   import SessionList from './SessionList.svelte';
   import NewChatButton from './NewChatButton.svelte';
   import Icon from '../Icon.svelte';
@@ -16,10 +17,10 @@
 
   const showOverlay = $derived($uiState.sidebarOpen && isMobile());
 
-  // Status: entity count from hass.states (best-effort).
+  // Smart entity count (devices/sensors only).
   const entityCount = $derived.by(() => {
-    const states = $appState.hass?.states;
-    return states ? Object.keys(states).length : null;
+    const n = countSmartEntities($appState.hass?.states);
+    return n > 0 ? n : null;
   });
 
   const themeIcon = $derived(

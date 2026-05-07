@@ -1525,74 +1525,77 @@ const componentCss = `
     }
   }
 
-  .typing-indicator.svelte-174ds4q {
+  .hc-msg.svelte-174ds4q {
     display: flex;
-    justify-content: flex-start;
-    margin-bottom: 3px;
-    animation: svelte-174ds4q-messageAppear 0.3s ease-out;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: var(--hc-msg-gap, 22px);
+    animation: svelte-174ds4q-hcMsgAppear 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
-  .typing-bubble.svelte-174ds4q {
-    background: var(--bubble-assistant, var(--card-background-color));
-    padding: 12px 16px;
-    border-radius: 12px 12px 12px 4px;
+  .hc-msg-body.svelte-174ds4q {
     display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    max-width: calc(100% - 40px);
+  }
+
+  .hc-msg-meta.svelte-174ds4q {
+    font-size: 11.5px;
+    color: var(--hc-ink-3);
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  .hc-msg-name.svelte-174ds4q {
+    font-weight: 500;
+    color: var(--hc-ink-2);
+  }
+
+  .hc-msg-thinking.svelte-174ds4q {
+    font-family: var(--hc-font-mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--hc-ink-3);
+  }
+
+  .hc-bubble-loading.svelte-174ds4q {
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius);
+    padding: 14px 16px;
+    display: inline-flex;
     align-items: center;
-    gap: 4px;
-    position: relative;
+    gap: 6px;
+    width: fit-content;
   }
 
-  /* Tail on left side, matching assistant bubble */
-  .typing-bubble.svelte-174ds4q::after {
-    content: '';
-    position: absolute;
-    left: -8px;
-    bottom: 0;
-    width: 0;
-    height: 0;
-    border: 8px solid transparent;
-    border-right-color: var(--bubble-assistant-tail, var(--card-background-color));
-    border-bottom-color: var(--bubble-assistant-tail, var(--card-background-color));
-    border-left: 0;
-    border-bottom-left-radius: 4px;
-  }
-
-  .typing-dot.svelte-174ds4q {
-    width: 7px;
-    height: 7px;
-    background: var(--secondary-text-color);
+  .dot.svelte-174ds4q {
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
-    animation: svelte-174ds4q-typingBounce 1.4s infinite ease-in-out;
+    background: var(--hc-ink-3);
+    animation: svelte-174ds4q-hcDot 1.2s infinite ease-in-out;
+  }
+  .dot.svelte-174ds4q:nth-child(2) { animation-delay: 0.18s; }
+  .dot.svelte-174ds4q:nth-child(3) { animation-delay: 0.36s; }
+
+  @keyframes svelte-174ds4q-hcDot {
+    0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+    30%           { opacity: 1;    transform: translateY(-3px); }
   }
 
-  .typing-dot.svelte-174ds4q:nth-child(2) {
-    animation-delay: 0.2s;
+  @keyframes svelte-174ds4q-hcMsgAppear {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
-  .typing-dot.svelte-174ds4q:nth-child(3) {
-    animation-delay: 0.4s;
-  }
-
-  @keyframes svelte-174ds4q-typingBounce {
-    0%, 60%, 100% {
-      transform: translateY(0);
-      opacity: 0.4;
-    }
-    30% {
-      transform: translateY(-5px);
-      opacity: 1;
-    }
-  }
-
-  @keyframes svelte-174ds4q-messageAppear {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  @media (max-width: 768px) {
+    .hc-msg.svelte-174ds4q { gap: 10px; }
+    .hc-msg-body.svelte-174ds4q { max-width: calc(100% - 38px); }
   }
 
   .hc-empty.svelte-euh035 {
@@ -1848,31 +1851,38 @@ const componentCss = `
   /* Scroll to bottom button */
   .scroll-bottom-btn.svelte-hiq0w4 {
     position: absolute;
-    bottom: 16px;
-    right: 20px;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--card-background-color, #fff);
-    border: 1px solid var(--divider-color);
-    color: var(--secondary-text-color);
+    bottom: 18px;
+    right: 24px;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--hc-radius-sm, 8px);
+    background: var(--hc-card-bg, #fff);
+    border: 1px solid var(--hc-line, rgba(0, 0, 0, 0.1));
+    color: var(--hc-ink-2);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 5;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    transition: transform 0.15s, opacity 0.15s;
-    animation: svelte-hiq0w4-fadeIn 0.2s ease-out;
+    padding: 0;
+    box-shadow: 0 8px 24px -16px rgba(40, 30, 15, 0.28);
+    transition: background 0.12s, border-color 0.12s, transform 0.12s;
+    animation: svelte-hiq0w4-fadeIn 0.18s ease-out;
   }
 
   .scroll-bottom-btn.svelte-hiq0w4:hover {
-    transform: scale(1.1);
+    background: var(--hc-bg-sunken);
+    border-color: var(--hc-line-strong);
+    color: var(--hc-ink);
+  }
+
+  .scroll-bottom-btn.svelte-hiq0w4:active {
+    transform: scale(0.96);
   }
 
   .scroll-bottom-btn.svelte-hiq0w4 svg:where(.svelte-hiq0w4) {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
   }
 
   @keyframes svelte-hiq0w4-fadeIn {
@@ -2538,11 +2548,42 @@ const componentCss = `
     .hc-composer-wrap.svelte-f7ebxa {
       padding: 0 12px 12px;
     }
+    .hc-composer.svelte-f7ebxa {
+      max-width: 100%;
+    }
+
+    /* Compact provider/model chips: keep them visible but cap width with
+       ellipsis so a long name like "OpenRouter · Tencent Hy3" can't push
+       the Send button off-screen. Debug toggle and "no providers" copy
+       move to Settings — too noisy here. */
+    .hc-composer-bar.svelte-f7ebxa .thinking-toggle,
+    .hc-composer-bar.svelte-f7ebxa .no-providers {
+      display: none;
+    }
+    .hc-composer-bar.svelte-f7ebxa .provider-button,
+    .hc-composer-bar.svelte-f7ebxa .model-button {
+      max-width: 9ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding: 6px 6px;
+      font-size: 11.5px;
+    }
+
     .hc-composer-foot.svelte-f7ebxa {
       font-size: 10px;
+      gap: 10px;
+      letter-spacing: 0.02em;
     }
-    .hc-composer-bar.svelte-f7ebxa .thinking-toggle .label {
-      display: none;
+  }
+
+  @media (max-width: 380px) {
+    .hc-composer-bar.svelte-f7ebxa .provider-button,
+    .hc-composer-bar.svelte-f7ebxa .model-button {
+      max-width: 7ch;
+    }
+    .hc-composer-foot.svelte-f7ebxa {
+      font-size: 9.5px;
+      gap: 8px;
     }
   }
 
@@ -15021,6 +15062,34 @@ async function generateSessionEmoji(hass, sessionId, title) {
     console.warn("Emoji generation failed:", error);
   }
 }
+const SMART_DOMAINS = /* @__PURE__ */ new Set([
+  "light",
+  "switch",
+  "sensor",
+  "binary_sensor",
+  "climate",
+  "cover",
+  "lock",
+  "fan",
+  "media_player",
+  "camera",
+  "vacuum",
+  "lawn_mower",
+  "water_heater",
+  "humidifier",
+  "valve",
+  "button"
+]);
+function countSmartEntities(states) {
+  if (!states) return 0;
+  let n2 = 0;
+  for (const id in states) {
+    const dot = id.indexOf(".");
+    if (dot < 0) continue;
+    if (SMART_DOMAINS.has(id.slice(0, dot))) n2++;
+  }
+  return n2;
+}
 enable_legacy_mode_flag();
 var root_1$p = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>`);
 var root_3$f = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>`);
@@ -15559,9 +15628,8 @@ function Topbar($$anchor, $$props) {
   const $providerState = () => store_get(providerState, "$providerState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   const entityCount = /* @__PURE__ */ user_derived(() => {
-    const states = $appState().hass?.states;
-    if (!states) return null;
-    return Object.keys(states).length;
+    const n2 = countSmartEntities($appState().hass?.states);
+    return n2 > 0 ? n2 : null;
   });
   const themeIcon = /* @__PURE__ */ user_derived(() => $uiState().theme === "dark" ? "moon" : $uiState().theme === "light" ? "sun" : "refresh");
   var div = root$p();
@@ -15934,8 +16002,8 @@ function Sidebar($$anchor, $$props) {
   const sidebarClass = /* @__PURE__ */ user_derived(() => isMobile() ? $uiState().sidebarOpen ? "hc-sidebar open" : "hc-sidebar hidden" : $uiState().sidebarOpen ? "hc-sidebar" : "hc-sidebar hidden");
   const showOverlay = /* @__PURE__ */ user_derived(() => $uiState().sidebarOpen && isMobile());
   const entityCount = /* @__PURE__ */ user_derived(() => {
-    const states = $appState().hass?.states;
-    return states ? Object.keys(states).length : null;
+    const n2 = countSmartEntities($appState().hass?.states);
+    return n2 > 0 ? n2 : null;
   });
   const themeIcon = /* @__PURE__ */ user_derived(() => $uiState().theme === "dark" ? "moon" : $uiState().theme === "light" ? "sun" : "refresh");
   var fragment = root$m();
@@ -16680,10 +16748,28 @@ function MessageBubble($$anchor, $$props) {
   pop();
   $$cleanup();
 }
-var root$i = /* @__PURE__ */ from_html(`<div class="typing-indicator svelte-174ds4q"><div class="typing-bubble svelte-174ds4q"><div class="typing-dot svelte-174ds4q"></div> <div class="typing-dot svelte-174ds4q"></div> <div class="typing-dot svelte-174ds4q"></div></div></div>`);
-function LoadingIndicator($$anchor) {
+var root$i = /* @__PURE__ */ from_html(`<div class="hc-msg hc-loading svelte-174ds4q"><!> <div class="hc-msg-body svelte-174ds4q"><div class="hc-msg-meta svelte-174ds4q"><span class="hc-msg-name svelte-174ds4q"> </span> <span class="hc-msg-thinking svelte-174ds4q">thinking</span></div> <div class="hc-bubble hc-bubble-loading svelte-174ds4q" aria-live="polite" aria-label="Assistant is thinking"><span class="dot svelte-174ds4q"></span> <span class="dot svelte-174ds4q"></span> <span class="dot svelte-174ds4q"></span></div></div></div>`);
+function LoadingIndicator($$anchor, $$props) {
+  push($$props, true);
+  const $appState = () => store_get(appState, "$appState", $$stores);
+  const [$$stores, $$cleanup] = setup_stores();
+  const senderName = /* @__PURE__ */ user_derived(() => $appState().agentName || "Homeclaw");
   var div = root$i();
+  var node = child(div);
+  Avatar(node, {
+    from: "bot",
+    get name() {
+      return get$1(senderName);
+    }
+  });
+  var div_1 = sibling(node, 2);
+  var div_2 = child(div_1);
+  var span = child(div_2);
+  var text2 = child(span);
+  template_effect(() => set_text(text2, get$1(senderName)));
   append($$anchor, div);
+  pop();
+  $$cleanup();
 }
 var root_2$a = /* @__PURE__ */ from_html(`<div class="hc-rail-chip svelte-euh035"><span class="dot svelte-euh035"></span> </div>`);
 var root_1$i = /* @__PURE__ */ from_html(`<div class="hc-empty-rail svelte-euh035"><span class="hc-rail-label svelte-euh035">RIGHT NOW</span> <!></div>`);
@@ -16921,7 +17007,7 @@ function ChatArea($$anchor, $$props) {
   var node_2 = sibling(node_1, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      LoadingIndicator($$anchor2);
+      LoadingIndicator($$anchor2, {});
     };
     if_block(node_2, ($$render) => {
       if ($appState().isLoading) $$render(consequent_1);

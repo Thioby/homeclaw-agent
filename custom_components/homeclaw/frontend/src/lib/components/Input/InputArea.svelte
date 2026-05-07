@@ -598,11 +598,42 @@
     .hc-composer-wrap {
       padding: 0 12px 12px;
     }
+    .hc-composer {
+      max-width: 100%;
+    }
+
+    /* Compact provider/model chips: keep them visible but cap width with
+       ellipsis so a long name like "OpenRouter · Tencent Hy3" can't push
+       the Send button off-screen. Debug toggle and "no providers" copy
+       move to Settings — too noisy here. */
+    .hc-composer-bar :global(.thinking-toggle),
+    .hc-composer-bar :global(.no-providers) {
+      display: none;
+    }
+    .hc-composer-bar :global(.provider-button),
+    .hc-composer-bar :global(.model-button) {
+      max-width: 9ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding: 6px 6px;
+      font-size: 11.5px;
+    }
+
     .hc-composer-foot {
       font-size: 10px;
+      gap: 10px;
+      letter-spacing: 0.02em;
     }
-    .hc-composer-bar :global(.thinking-toggle .label) {
-      display: none;
+  }
+
+  @media (max-width: 380px) {
+    .hc-composer-bar :global(.provider-button),
+    .hc-composer-bar :global(.model-button) {
+      max-width: 7ch;
+    }
+    .hc-composer-foot {
+      font-size: 9.5px;
+      gap: 8px;
     }
   }
 </style>

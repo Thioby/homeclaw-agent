@@ -3,13 +3,14 @@
   import { activeSession } from '$lib/stores/sessions';
   import { providerState } from '$lib/stores/providers';
   import { toggleSidebar, toggleSettings, cycleTheme, uiState } from '$lib/stores/ui';
+  import { countSmartEntities } from '$lib/utils/entities';
   import Icon from './Icon.svelte';
 
-  // Entity count from hass.states (best-effort; defaults to '—' if unavailable)
+  // Count only "smart" entities — devices and sensors a user thinks about,
+  // not bookkeeping (automations, scripts, groups, sun, weather, etc.).
   const entityCount = $derived.by(() => {
-    const states = $appState.hass?.states;
-    if (!states) return null;
-    return Object.keys(states).length;
+    const n = countSmartEntities($appState.hass?.states);
+    return n > 0 ? n : null;
   });
 
   const themeIcon = $derived(
