@@ -1,37 +1,31 @@
 <script lang="ts">
   import type { SessionListItem } from '$lib/types';
   import { get } from 'svelte/store';
-  import { appState } from "$lib/stores/appState"
-  import { sessionState } from "$lib/stores/sessions"
+  import { appState } from '$lib/stores/appState';
+  import { sessionState } from '$lib/stores/sessions';
   import { selectSession, deleteSession } from '$lib/services/session.service';
   import { formatSessionTime } from '$lib/utils/time';
+  import Icon from '../Icon.svelte';
 
   let { session }: { session: SessionListItem } = $props();
 
   const isActive = $derived(session.session_id === $sessionState.activeSessionId);
 
-  // Generate avatar color from session title hash
-  const avatarColor = $derived.by(() => {
-    const title = session.title || 'New';
-    let hash = 0;
-    for (let i = 0; i < title.length; i++) {
-      hash = title.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const colors = ['#2AABEE', '#F5A623', '#E74C3C', '#27AE60', '#9B59B6', '#1ABC9C', '#E67E22', '#3498DB'];
-    return colors[Math.abs(hash) % colors.length];
-  });
-
-  // Detect voice sessions by title prefix
+  // Voice sessions get the mic glyph; otherwise leave room for emoji.
   const isVoice = $derived(session.title?.startsWith('Voice: ') ?? false);
   const displayTitle = $derived(isVoice ? session.title!.slice(7) : session.title);
-
-  // Avatar displays emoji if available, otherwise first letter
-  const avatarText = $derived(session.emoji || (displayTitle || 'N')[0].toUpperCase());
 
   async function handleClick() {
     const hass = get(appState).hass;
     if (hass && !isActive) {
       await selectSession(hass, session.session_id);
+    }
+  }
+
+  async function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      await handleClick();
     }
   }
 
@@ -47,174 +41,133 @@
 </script>
 
 <div
-  class="session-item"
-  class:active={isActive}
+  class="hc-session"
+  class:is-active={isActive}
   onclick={handleClick}
+  onkeydown={handleKeydown}
   role="button"
   tabindex="0"
 >
-  <div class="session-avatar" style="background: {avatarColor}">
-    <span>{avatarText}</span>
+  <div class="hc-session-row">
     {#if isVoice}
-      <div class="voice-badge" title="Voice session" role="img" aria-label="Voice session">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
-          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-        </svg>
-      </div>
+      <span class="hc-session-voice" title="Voice session" aria-label="Voice session">
+        <Icon name="mic" size={11} />
+      </span>
+    {:else if session.emoji}
+      <span class="hc-session-emoji" aria-hidden="true">{session.emoji}</span>
     {/if}
+    <div class="hc-session-title">{displayTitle || 'New conversation'}</div>
+    <div class="hc-session-time">{formatSessionTime(session.updated_at)}</div>
+    <button
+      class="hc-session-del"
+      onclick={handleDelete}
+      aria-label="Delete session"
+      title="Delete"
+    >
+      <Icon name="x" size={12} />
+    </button>
   </div>
-  <div class="session-content">
-    <div class="session-top-row">
-      <span class="session-name">{displayTitle || 'New Conversation'}</span>
-      <span class="session-time">{formatSessionTime(session.updated_at)}</span>
-    </div>
-    <div class="session-bottom-row">
-      <span class="session-preview">{session.preview || 'Start typing...'}</span>
-    </div>
-  </div>
-  
-  <button
-    class="session-delete"
-    onclick={handleDelete}
-    aria-label="Delete session"
-  >
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-    </svg>
-  </button>
+  {#if session.preview}
+    <div class="hc-session-preview">{session.preview}</div>
+  {/if}
 </div>
 
 <style>
-  .session-item {
-    display: flex;
-    align-items: center;
-    padding: 9px 12px;
-    gap: 12px;
+  .hc-session {
+    padding: 8px 10px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 0.1s;
     position: relative;
   }
 
-  .session-item:hover {
-    background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+  .hc-session:hover {
+    background: var(--hc-bg-sunken);
   }
 
-  .session-item.active {
-    background: var(--bg-active, rgba(42, 171, 238, 0.12));
+  .hc-session.is-active {
+    background: var(--hc-card-bg);
+    box-shadow: 0 0 0 1px var(--hc-line-strong);
   }
 
-  .session-avatar {
-    width: 50px;
-    height: 50px;
-    min-width: 50px;
-    border-radius: 50%;
+  .hc-session:focus-visible {
+    outline: 2px solid var(--hc-ink);
+    outline-offset: -2px;
+  }
+
+  .hc-session-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    color: #fff;
+    gap: 6px;
+  }
+
+  .hc-session-emoji {
+    font-size: 13px;
+    line-height: 1;
     flex-shrink: 0;
-    position: relative;
   }
 
-  .voice-badge {
-    position: absolute;
-    bottom: -1px;
-    right: -1px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--primary-color, #03a9f4);
-    display: flex;
+  .hc-session-voice {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    color: #fff;
-    border: 2px solid var(--card-background-color, #fff);
+    color: var(--hc-cool);
+    flex-shrink: 0;
   }
 
-  .voice-badge svg {
-    width: 10px;
-    height: 10px;
-  }
-
-  .session-content {
+  .hc-session-title {
     flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-
-  .session-top-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .session-name {
-    font-size: 15px;
+    font-size: 13.5px;
     font-weight: 500;
-    color: var(--primary-text-color);
+    color: var(--hc-ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .session-time {
-    font-size: 12px;
-    color: var(--disabled-text-color);
+  .hc-session-time {
+    font-family: var(--hc-font-mono);
+    font-size: 10.5px;
+    color: var(--hc-ink-3);
     flex-shrink: 0;
   }
 
-  .session-item.active .session-time {
-    color: var(--accent, var(--primary-color));
+  .hc-session.is-active .hc-session-time {
+    color: var(--hc-ink-2);
   }
 
-  .session-bottom-row {
-    display: flex;
-    align-items: center;
-  }
-
-  .session-preview {
-    font-size: 13.5px;
-    color: var(--secondary-text-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .session-delete {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 30px;
-    height: 30px;
-    border: none;
+  .hc-session-del {
+    width: 20px;
+    height: 20px;
+    border: 0;
     background: transparent;
+    color: var(--hc-ink-3);
+    border-radius: 4px;
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.15s, background 0.15s;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    color: var(--secondary-text-color);
+    transition: opacity 0.12s, background 0.12s, color 0.12s;
+    flex-shrink: 0;
   }
 
-  .session-item:hover .session-delete {
+  .hc-session:hover .hc-session-del,
+  .hc-session:focus-within .hc-session-del {
     opacity: 1;
   }
 
-  .session-delete:hover {
-    background: rgba(219, 68, 55, 0.12);
-    color: var(--error-color, #db4437);
+  .hc-session-del:hover {
+    background: color-mix(in oklab, var(--hc-warn) 15%, transparent);
+    color: var(--hc-warn);
   }
 
-  .session-delete svg {
-    width: 16px;
-    height: 16px;
+  .hc-session-preview {
+    font-size: 12.5px;
+    color: var(--hc-ink-3);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>

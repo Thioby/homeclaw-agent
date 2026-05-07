@@ -5,14 +5,21 @@ import { appState } from '$lib/stores/appState';
 /**
  * UI state
  */
+export type Aesthetic = 'warm' | 'tech' | 'ambient';
+
 export interface UIStateType {
   sidebarOpen: boolean;
   showProviderDropdown: boolean;
   settingsOpen: boolean;
   theme: 'light' | 'dark' | 'system';
+  aesthetic: Aesthetic;
 }
 
 type ThemePreference = UIStateType['theme'];
+
+function isValidAesthetic(value: unknown): value is Aesthetic {
+  return value === 'warm' || value === 'tech' || value === 'ambient';
+}
 
 /**
  * Reference to the <homeclaw-panel> host element.
@@ -22,6 +29,17 @@ let _hostElement: HTMLElement | null = null;
 
 export function setHostElement(el: HTMLElement): void {
   _hostElement = el;
+  // Custom element spec forbids setAttribute on `this` inside the constructor —
+  // HA enforces this via document.createElement and throws NotSupportedError.
+  // Defer one microtask: the element exists, the constructor has returned,
+  // and our default CSS (:host without attrs == warm) covers the brief gap.
+  queueMicrotask(() => {
+    const state = get(uiState);
+    if (state.theme !== 'system') {
+      el.setAttribute('data-theme', state.theme);
+    }
+    el.setAttribute('data-aesthetic', state.aesthetic);
+  });
 }
 
 const initialState: UIStateType = {
@@ -29,6 +47,7 @@ const initialState: UIStateType = {
   showProviderDropdown: false,
   settingsOpen: false,
   theme: 'system',
+  aesthetic: 'warm',
 };
 
 export const uiState = writable<UIStateType>(initialState);
@@ -163,3 +182,36 @@ function initTheme(): void {
 }
 
 initTheme();
+
+/**
+ * Aesthetic actions (warm/tech/ambient axis from redesign).
+ * Independent of light/dark theme — applied as data-aesthetic on host.
+ */
+export function setAesthetic(aesthetic: Aesthetic): void {
+  uiState.update(s => ({ ...s, aesthetic }));
+  applyAestheticToHost(aesthetic);
+  try {
+    localStorage.setItem('homeclaw-aesthetic', aesthetic);
+  } catch {
+    // localStorage may be unavailable
+  }
+}
+
+function applyAestheticToHost(aesthetic: Aesthetic): void {
+  const host = _hostElement || document.querySelector('homeclaw-panel');
+  if (!host) return;
+  host.setAttribute('data-aesthetic', aesthetic);
+}
+
+function initAesthetic(): void {
+  try {
+    const saved = localStorage.getItem('homeclaw-aesthetic');
+    const aesthetic: Aesthetic = isValidAesthetic(saved) ? saved : 'warm';
+    uiState.update(s => ({ ...s, aesthetic }));
+    setTimeout(() => applyAestheticToHost(aesthetic), 0);
+  } catch {
+    // localStorage may be unavailable
+  }
+}
+
+initAesthetic();

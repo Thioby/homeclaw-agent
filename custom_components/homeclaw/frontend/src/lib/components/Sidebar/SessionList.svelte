@@ -1,8 +1,26 @@
 <script lang="ts">
-  import { sessionState, hasSessions } from "$lib/stores/sessions"
+  import type { SessionListItem } from '$lib/types';
+  import { sessionState, hasSessions } from '$lib/stores/sessions';
   import SessionItem from './SessionItem.svelte';
 
   let { searchQuery = '' }: { searchQuery?: string } = $props();
+
+  type Group = 'Today' | 'Yesterday' | 'Earlier';
+  const GROUP_ORDER: Group[] = ['Today', 'Yesterday', 'Earlier'];
+
+  function classify(timestamp?: string): Group {
+    if (!timestamp) return 'Earlier';
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return 'Earlier';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date >= today) return 'Today';
+    if (date >= yesterday) return 'Yesterday';
+    return 'Earlier';
+  }
 
   const filteredSessions = $derived.by(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -12,135 +30,84 @@
     );
   });
 
-  // Loading skeleton count
+  const grouped = $derived.by(() => {
+    const buckets: Record<Group, SessionListItem[]> = {
+      Today: [],
+      Yesterday: [],
+      Earlier: [],
+    };
+    for (const s of filteredSessions) {
+      buckets[classify(s.updated_at)].push(s);
+    }
+    return GROUP_ORDER
+      .map(name => ({ name, items: buckets[name] }))
+      .filter(g => g.items.length > 0);
+  });
+
   const skeletonCount = 3;
 </script>
 
-<div class="session-list">
-  {#if $sessionState.sessionsLoading}
-    <!-- Loading skeletons -->
-    {#each Array(skeletonCount) as _}
-      <div class="session-skeleton">
-        <div class="skeleton-line"></div>
-        <div class="skeleton-line short"></div>
-        <div class="skeleton-line tiny"></div>
-      </div>
-    {/each}
-  {:else if !$hasSessions}
-    <!-- Empty state -->
-    <div class="empty-sessions">
-      <svg viewBox="0 0 24 24" class="icon">
-        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
-      </svg>
-      <p>No conversations yet</p>
+{#if $sessionState.sessionsLoading}
+  {#each Array(skeletonCount) as _}
+    <div class="hc-session-skeleton">
+      <div class="line"></div>
+      <div class="line short"></div>
     </div>
-  {:else if filteredSessions.length === 0}
-    <!-- No search results -->
-    <div class="empty-sessions">
-      <p>No results for "{searchQuery}"</p>
-    </div>
-  {:else}
-    <!-- Session list -->
-    {#each filteredSessions as session (session.session_id)}
+  {/each}
+{:else if !$hasSessions}
+  <div class="hc-empty-sessions">No conversations yet</div>
+{:else if filteredSessions.length === 0}
+  <div class="hc-empty-sessions">No results for &ldquo;{searchQuery}&rdquo;</div>
+{:else}
+  {#each grouped as g (g.name)}
+    <div class="hc-section">{g.name}</div>
+    {#each g.items as session (session.session_id)}
       <SessionItem {session} />
     {/each}
-  {/if}
-</div>
+  {/each}
+{/if}
 
 <style>
-  .session-list {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 0;
+  .hc-section {
+    font-family: var(--hc-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--hc-ink-3);
+    padding: 14px 8px 6px;
   }
 
-  /* Scrollbar styling */
-  .session-list::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .session-list::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .session-list::-webkit-scrollbar-thumb {
-    background-color: var(--scrollbar-thumb, var(--divider-color));
-    border-radius: 3px;
-  }
-
-  .session-list::-webkit-scrollbar-thumb:hover {
-    background-color: var(--secondary-text-color);
-  }
-
-  /* Empty state */
-  .empty-sessions {
+  .hc-empty-sessions {
     text-align: center;
     padding: 32px 16px;
-    color: var(--secondary-text-color);
+    color: var(--hc-ink-3);
+    font-size: 13px;
   }
 
-  .empty-sessions .icon {
-    width: 48px;
-    height: 48px;
-    fill: var(--disabled-text-color);
-    margin-bottom: 12px;
+  .hc-session-skeleton {
+    padding: 8px 10px;
   }
 
-  .empty-sessions p {
-    margin: 0;
-    font-size: 14px;
-  }
-
-  /* Loading skeleton */
-  .session-skeleton {
-    padding: 9px 12px;
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
-
-  .session-skeleton::before {
-    content: '';
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
+  .hc-session-skeleton .line {
+    height: 12px;
     background: linear-gradient(
       90deg,
-      var(--divider-color) 25%,
-      var(--card-background-color, #fff) 50%,
-      var(--divider-color) 75%
+      var(--hc-line) 25%,
+      var(--hc-bg-sunken) 50%,
+      var(--hc-line) 75%
     );
     background-size: 200% 100%;
-    animation: skeleton-shimmer 1.5s infinite;
-    flex-shrink: 0;
-  }
-
-  .skeleton-line {
-    height: 14px;
-    background: linear-gradient(
-      90deg,
-      var(--divider-color) 25%,
-      var(--card-background-color, #fff) 50%,
-      var(--divider-color) 75%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-shimmer 1.5s infinite;
+    animation: hc-shimmer 1.5s infinite;
     border-radius: 4px;
     margin-bottom: 6px;
   }
 
-  .skeleton-line.short {
+  .hc-session-skeleton .line.short {
     width: 60%;
-    height: 12px;
-  }
-
-  .skeleton-line.tiny {
-    width: 40%;
     height: 10px;
   }
 
-  @keyframes skeleton-shimmer {
+  @keyframes hc-shimmer {
     0% {
       background-position: 200% 0;
     }

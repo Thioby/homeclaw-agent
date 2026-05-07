@@ -1,57 +1,90 @@
 <script lang="ts">
-  import { uiState, closeSidebar } from "$lib/stores/ui"
+  import { appState } from '$lib/stores/appState';
+  import { uiState, closeSidebar, toggleSettings, cycleTheme } from '$lib/stores/ui';
   import { isMobile } from '$lib/utils/dom';
   import SessionList from './SessionList.svelte';
   import NewChatButton from './NewChatButton.svelte';
+  import Icon from '../Icon.svelte';
 
   let searchQuery = $state('');
 
   const sidebarClass = $derived(
     isMobile()
-      ? ($uiState.sidebarOpen ? 'sidebar open' : 'sidebar hidden')
-      : ($uiState.sidebarOpen ? 'sidebar' : 'sidebar hidden')
+      ? ($uiState.sidebarOpen ? 'hc-sidebar open' : 'hc-sidebar hidden')
+      : ($uiState.sidebarOpen ? 'hc-sidebar' : 'hc-sidebar hidden')
   );
 
   const showOverlay = $derived($uiState.sidebarOpen && isMobile());
+
+  // Status: entity count from hass.states (best-effort).
+  const entityCount = $derived.by(() => {
+    const states = $appState.hass?.states;
+    return states ? Object.keys(states).length : null;
+  });
+
+  const themeIcon = $derived(
+    $uiState.theme === 'dark' ? 'moon' : $uiState.theme === 'light' ? 'sun' : 'refresh'
+  );
 </script>
 
 <!-- Mobile overlay -->
 {#if showOverlay}
-  <div class="sidebar-overlay" onclick={closeSidebar}></div>
+  <div class="hc-sidebar-overlay" onclick={closeSidebar}></div>
 {/if}
 
-<!-- Sidebar -->
 <aside class={sidebarClass}>
-  <div class="search-container">
-    <div class="search-bar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input type="text" placeholder="Search conversations..." aria-label="Search conversations" bind:value={searchQuery}>
+  <div class="hc-sidebar-head">
+    <div class="hc-mark">
+      <Icon name="home" size={16} />
     </div>
+    <div class="hc-brand">{$appState.agentName || 'Homeclaw'}</div>
   </div>
-  
-  <SessionList {searchQuery} />
-  
+
   <NewChatButton />
+
+  <div class="hc-search">
+    <Icon name="search" size={14} />
+    <input bind:value={searchQuery} placeholder="Search conversations" aria-label="Search conversations" />
+  </div>
+
+  <div class="hc-sessions">
+    <SessionList {searchQuery} />
+  </div>
+
+  <div class="hc-sidebar-foot">
+    <div class="hc-status-pulse"></div>
+    <div class="hc-status-text">
+      {$appState.hass ? 'Connected' : 'Disconnected'}
+      {#if entityCount}
+        <small>{entityCount} entities</small>
+      {/if}
+    </div>
+    <button onclick={cycleTheme} title="Theme: {$uiState.theme}" aria-label="Toggle theme">
+      <Icon name={themeIcon} size={15} />
+    </button>
+    <button onclick={toggleSettings} title="Settings" aria-label="Settings">
+      <Icon name="settings" size={15} />
+    </button>
+  </div>
 </aside>
 
 <style>
-  .sidebar {
-    width: var(--sidebar-width, 320px);
-    min-width: var(--sidebar-width, 320px);
+  .hc-sidebar {
+    width: 280px;
+    min-width: 280px;
     height: 100%;
-    background: var(--bg-sidebar, var(--secondary-background-color));
-    border-right: 1px solid var(--divider-color);
+    flex-shrink: 0;
+    background: var(--hc-bg-2);
+    border-right: 1px solid var(--hc-line);
     display: flex;
     flex-direction: column;
-    flex-shrink: 0;
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s ease;
+    min-height: 0;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     z-index: 10;
   }
 
-  .sidebar.hidden {
+  .hc-sidebar.hidden {
     transform: translateX(-100%);
     width: 0;
     min-width: 0;
@@ -59,62 +92,148 @@
     overflow: hidden;
   }
 
-  .search-container {
-    padding: 10px 12px;
-  }
-
-  .search-bar {
+  .hc-sidebar-head {
+    height: 54px;
+    padding: 0 16px;
     display: flex;
     align-items: center;
-    background: var(--search-bg, var(--secondary-background-color));
-    border-radius: 24px;
-    padding: 8px 14px;
     gap: 10px;
-    transition: background 0.2s, box-shadow 0.15s;
-    cursor: text;
-  }
-
-  .search-bar:focus-within {
-    box-shadow: 0 0 0 2px var(--accent, var(--primary-color));
-    background: var(--card-background-color, #fff);
-  }
-
-  .search-bar svg {
-    width: 18px;
-    height: 18px;
-    color: var(--search-text, var(--secondary-text-color));
+    border-bottom: 1px solid var(--hc-line);
     flex-shrink: 0;
   }
 
-  .search-bar input {
-    border: none;
-    outline: none;
+  .hc-mark {
+    width: 26px;
+    height: 26px;
+    background: var(--hc-ink);
+    color: var(--hc-bg);
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hc-brand {
+    font-family: var(--hc-font-display);
+    font-size: 19px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--hc-ink);
+  }
+
+  .hc-search {
+    margin: 0 12px 12px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius-sm);
+  }
+
+  .hc-search :global(svg) {
+    color: var(--hc-ink-3);
+    flex-shrink: 0;
+  }
+
+  .hc-search input {
+    flex: 1;
+    border: 0;
     background: transparent;
-    font-size: 14px;
-    color: var(--primary-text-color);
-    width: 100%;
-    font-family: inherit;
+    padding: 8px 0;
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--hc-ink);
+    outline: none;
   }
 
-  .search-bar input::placeholder {
-    color: var(--search-text, var(--secondary-text-color));
+  .hc-search input::placeholder {
+    color: var(--hc-ink-3);
   }
 
-  .sidebar-overlay {
+  .hc-sessions {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 8px 8px;
+    min-height: 0;
+  }
+
+  .hc-sessions::-webkit-scrollbar {
+    width: 6px;
+  }
+  .hc-sessions::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .hc-sessions::-webkit-scrollbar-thumb {
+    background-color: var(--hc-line-strong);
+    border-radius: 3px;
+  }
+
+  .hc-sidebar-foot {
+    padding: 12px 14px;
+    border-top: 1px solid var(--hc-line);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .hc-status-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--hc-good);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--hc-good) 25%, transparent);
+    flex-shrink: 0;
+  }
+
+  .hc-status-text {
+    flex: 1;
+    font-size: 12.5px;
+    line-height: 1.3;
+    color: var(--hc-ink);
+    min-width: 0;
+  }
+
+  .hc-status-text small {
+    display: block;
+    color: var(--hc-ink-3);
+    font-size: 11px;
+  }
+
+  .hc-sidebar-foot button {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 0;
+    color: var(--hc-ink-3);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .hc-sidebar-foot button:hover {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink);
+  }
+
+  .hc-sidebar-overlay {
     display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--bg-overlay, rgba(0, 0, 0, 0.4));
+    inset: 0;
+    background: rgba(20, 16, 10, 0.32);
+    backdrop-filter: blur(2px);
     z-index: 99;
-    opacity: 0;
-    transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   @media (max-width: 768px) {
-    .sidebar {
+    .hc-sidebar {
       position: fixed;
       left: 0;
       top: 0;
@@ -123,29 +242,21 @@
       transform: translateX(-100%);
       width: 85vw;
       min-width: 85vw;
-      max-width: 360px;
+      max-width: 320px;
       box-shadow: none;
     }
 
-    .sidebar.open {
+    .hc-sidebar.open {
       transform: translateX(0);
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
     }
 
-    .sidebar.hidden {
+    .hc-sidebar.hidden {
       transform: translateX(-100%);
     }
 
-    .sidebar-overlay {
+    .hc-sidebar-overlay {
       display: block;
-      opacity: 1;
-    }
-  }
-
-  @media (max-width: 1024px) and (min-width: 769px) {
-    .sidebar {
-      width: 260px;
-      min-width: 260px;
     }
   }
 </style>

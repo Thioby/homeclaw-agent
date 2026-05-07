@@ -6,9 +6,9 @@
   import { syncThemeFromPreferences, uiState } from '$lib/stores/ui';
   import { loadProviders } from '../services/provider.service';
   import { loadSessions } from '../services/session.service';
-  
+
   // Components
-  import Header from './Header.svelte';
+  import Topbar from './Topbar.svelte';
   import Sidebar from './Sidebar/Sidebar.svelte';
   import ChatArea from './Chat/ChatArea.svelte';
   import InputArea from './Input/InputArea.svelte';
@@ -27,6 +27,7 @@
           ...s,
           agentName: identity.agent_name || 'Homeclaw',
           agentEmoji: identity.agent_emoji || '',
+          userName: identity.user_name || '',
         }));
       }
     } catch {
@@ -42,8 +43,7 @@
   // Lifecycle - Initialize
   onMount(() => {
     console.log('[HomeclawPanel] Mounting...');
-    
-    // Load providers first, then sessions (provider must be ready before session sync)
+
     (async () => {
       try {
         await Promise.all([
@@ -55,116 +55,109 @@
         console.log('[HomeclawPanel] Initialization complete');
       } catch (error) {
         console.error('[HomeclawPanel] Initialization error:', error);
-        appState.update(s => ({ 
-          ...s, 
-          error: error instanceof Error ? error.message : 'Failed to initialize' 
+        appState.update(s => ({
+          ...s,
+          error: error instanceof Error ? error.message : 'Failed to initialize',
         }));
       }
     })();
 
-    // Window resize handler for mobile detection
     const handleResize = () => {
-      const isMobile = window.innerWidth <= 768;
+      const isMobileNow = window.innerWidth <= 768;
       const currentUiState = get(uiState);
-      if (!isMobile && currentUiState.sidebarOpen) {
+      if (!isMobileNow && currentUiState.sidebarOpen) {
         // Keep sidebar open on desktop
       }
     };
     window.addEventListener('resize', handleResize);
-    handleResize(); // Initial check
+    handleResize();
 
-    // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
     };
   });
 
-  // Computed values
   const isMobile = $derived(narrow || window.innerWidth <= 768);
   const showThinkingPanel = $derived($appState.showThinking && $appState.debugInfo?.length > 0);
 </script>
 
-<div class="homeclaw-panel" class:narrow={isMobile}>
-  <Header />
-  
-  <div class="main-container">
-    <Sidebar />
-    
-    <div class="content-area">
-      <div class="chat-container">
-        <ChatArea {hass} />
-        
-        {#if showThinkingPanel}
-          <ThinkingPanel />
-        {/if}
-      </div>
-      
-      <InputArea />
+<div class="hc-app" class:narrow={isMobile}>
+  <Sidebar />
+
+  <div class="hc-main">
+    <Topbar />
+
+    <div class="hc-chat-region">
+      <ChatArea {hass} />
+      {#if showThinkingPanel}
+        <ThinkingPanel />
+      {/if}
     </div>
+
+    <InputArea />
   </div>
 
   <SettingsPanel />
 </div>
 
 <style>
-  .homeclaw-panel {
+  .hc-app {
     display: flex;
-    flex-direction: column;
     width: 100%;
     height: 100vh;
+    min-height: 0;
     overflow: hidden;
-    background-color: var(--primary-background-color);
+    background: var(--hc-bg);
+    color: var(--hc-ink);
+    font-family: var(--hc-font-sans);
+    font-size: 14px;
+    line-height: 1.5;
   }
 
-  .main-container {
-    display: flex;
+  .hc-main {
     flex: 1;
-    overflow: hidden;
-    position: relative;
-  }
-
-  .content-area {
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    flex: 1;
-    overflow: hidden;
-    position: relative;
-    background: var(--bg-chat, var(--primary-background-color));
+    min-height: 0;
+    background: var(--hc-bg);
     transition: background var(--transition-medium, 250ms ease-in-out);
   }
 
-  .chat-container {
+  .hc-chat-region {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    flex: 1;
     overflow: hidden;
-    position: relative;
+    min-height: 0;
   }
 
-  /* Mobile adjustments */
-  .homeclaw-panel.narrow .content-area {
-    width: 100%;
+  /* Override the legacy chat background — let the paper-tone hc-bg show through. */
+  .hc-app :global(.messages) {
+    background: var(--hc-bg) !important;
   }
 
-  /* Responsive */
+  .hc-app :global(.messages::before) {
+    /* Drop the legacy svg pattern overlay; it clashes with paper-tone bg. */
+    display: none !important;
+  }
+
+  /* Widen the chat column to match the redesign target (760px). */
+  .hc-app :global(.messages-inner) {
+    max-width: 760px !important;
+    padding: 28px 28px 16px !important;
+  }
+
   @media (max-width: 768px) {
-    .homeclaw-panel {
+    .hc-app :global(.messages-inner) {
+      padding: 16px 16px 12px !important;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .hc-app {
       height: 100vh;
-      height: 100dvh; /* Dynamic viewport height for mobile */
-    }
-  }
-
-  /* Animation */
-  .content-area {
-    animation: fadeIn 0.3s ease-in-out;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
+      height: 100dvh;
     }
   }
 </style>

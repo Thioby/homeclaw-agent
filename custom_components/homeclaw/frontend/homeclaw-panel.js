@@ -493,351 +493,400 @@ a:focus-visible {
   background-color: var(--primary-color);
   color: white;
 }
+
+/* =======================================================================
+   HOMECLAW REDESIGN — design tokens (--hc-*)
+   Layered on top of the legacy Telegram-style tokens above. Components
+   that opt in to the redesign read these. Legacy components keep working
+   because the original --bubble-* / --bg-chat tokens are untouched.
+
+   Axis: data-aesthetic = warm | tech | ambient (set on <homeclaw-panel>).
+   Default = warm (paper-tone editorial).
+   ======================================================================= */
+
+:host {
+  --hc-font-display: ui-serif, 'Iowan Old Style', 'Apple Garamond', Georgia, serif;
+  --hc-font-sans:    var(--ha-font-family, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  --hc-font-mono:    ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+}
+
+/* ── warm (default, paper-toned) ──────────────────────────────────────── */
+:host,
+:host([data-aesthetic="warm"]) {
+  --hc-bg:          #FBF8F2;
+  --hc-bg-2:        #F4EFE3;
+  --hc-bg-sunken:   #EDE6D5;
+  --hc-card-bg:     #FFFEFB;
+  --hc-line:        rgba(40, 30, 15, 0.10);
+  --hc-line-strong: rgba(40, 30, 15, 0.18);
+  --hc-ink:         #1F1A14;
+  --hc-ink-2:       #4A433B;
+  --hc-ink-3:       #8A8175;
+  --hc-ink-4:       #B7AE9F;
+  --hc-accent:      #E8D8B0;
+  --hc-accent-ink:  #4A3A1A;
+  --hc-good:        #5A8A4E;
+  --hc-warn:        #C4753D;
+  --hc-cool:        #4A6B7A;
+  --hc-radius:      14px;
+  --hc-radius-sm:   10px;
+  --hc-pad:         16px;
+  --hc-gap:         14px;
+  --hc-msg-gap:     22px;
+}
+
+/* ── tech (light + dense + monospaced metadata) ───────────────────────── */
+:host([data-aesthetic="tech"]) {
+  --hc-bg:          #FFFFFF;
+  --hc-bg-2:        #F5F5F4;
+  --hc-bg-sunken:   #ECECEA;
+  --hc-card-bg:     #FFFFFF;
+  --hc-line:        rgba(0, 0, 0, 0.08);
+  --hc-line-strong: rgba(0, 0, 0, 0.18);
+  --hc-ink:         #0A0A0A;
+  --hc-ink-2:       #404040;
+  --hc-ink-3:       #737373;
+  --hc-ink-4:       #A3A3A3;
+  --hc-accent:      #0A0A0A;
+  --hc-accent-ink:  #FFFFFF;
+  --hc-good:        #15803D;
+  --hc-warn:        #C2410C;
+  --hc-cool:        #1E40AF;
+  --hc-radius:      6px;
+  --hc-radius-sm:   4px;
+  --hc-font-display: var(--hc-font-sans);
+}
+
+/* ── warm + dark (forced via data-theme="dark") ───────────────────────── */
+:host([data-aesthetic="warm"][data-theme="dark"]),
+:host([data-theme="dark"]:not([data-aesthetic])) {
+  --hc-bg:          #14110C;
+  --hc-bg-2:        #1B1813;
+  --hc-bg-sunken:   #221E18;
+  --hc-card-bg:     #1E1A14;
+  --hc-line:        rgba(245, 230, 200, 0.08);
+  --hc-line-strong: rgba(245, 230, 200, 0.18);
+  --hc-ink:         #F5EFE2;
+  --hc-ink-2:       #C9C1B0;
+  --hc-ink-3:       #8A8275;
+  --hc-ink-4:       #5A5347;
+  --hc-accent:      #4A3A1A;
+  --hc-accent-ink:  #E8D8B0;
+  --hc-good:        #7AAB6E;
+  --hc-warn:        #D9925A;
+  --hc-cool:        #6E94A6;
+}
+
+/* ── tech + dark ──────────────────────────────────────────────────────── */
+:host([data-aesthetic="tech"][data-theme="dark"]) {
+  --hc-bg:          #0A0A0A;
+  --hc-bg-2:        #141414;
+  --hc-bg-sunken:   #1F1F1F;
+  --hc-card-bg:     #161616;
+  --hc-line:        rgba(255, 255, 255, 0.10);
+  --hc-line-strong: rgba(255, 255, 255, 0.22);
+  --hc-ink:         #FAFAFA;
+  --hc-ink-2:       #D4D4D4;
+  --hc-ink-3:       #888888;
+  --hc-ink-4:       #525252;
+  --hc-accent:      #FAFAFA;
+  --hc-accent-ink:  #0A0A0A;
+  --hc-good:        #4ADE80;
+  --hc-warn:        #FB923C;
+  --hc-cool:        #60A5FA;
+}
+
+/* ── system-pref dark (when no explicit data-theme set) ───────────────── */
+@media (prefers-color-scheme: dark) {
+  :host([data-aesthetic="warm"]:not([data-theme])) {
+    --hc-bg:          #14110C;
+    --hc-bg-2:        #1B1813;
+    --hc-bg-sunken:   #221E18;
+    --hc-card-bg:     #1E1A14;
+    --hc-line:        rgba(245, 230, 200, 0.08);
+    --hc-line-strong: rgba(245, 230, 200, 0.18);
+    --hc-ink:         #F5EFE2;
+    --hc-ink-2:       #C9C1B0;
+    --hc-ink-3:       #8A8275;
+    --hc-ink-4:       #5A5347;
+    --hc-accent:      #4A3A1A;
+    --hc-accent-ink:  #E8D8B0;
+    --hc-good:        #7AAB6E;
+    --hc-warn:        #D9925A;
+    --hc-cool:        #6E94A6;
+  }
+  :host([data-aesthetic="tech"]:not([data-theme])) {
+    --hc-bg:          #0A0A0A;
+    --hc-bg-2:        #141414;
+    --hc-bg-sunken:   #1F1F1F;
+    --hc-card-bg:     #161616;
+    --hc-line:        rgba(255, 255, 255, 0.10);
+    --hc-line-strong: rgba(255, 255, 255, 0.22);
+    --hc-ink:         #FAFAFA;
+    --hc-ink-2:       #D4D4D4;
+    --hc-ink-3:       #888888;
+    --hc-ink-4:       #525252;
+    --hc-accent:      #FAFAFA;
+    --hc-accent-ink:  #0A0A0A;
+    --hc-good:        #4ADE80;
+    --hc-warn:        #FB923C;
+    --hc-cool:        #60A5FA;
+  }
+}
+
+/* ── ambient (always dark, glow accent) ───────────────────────────────── */
+:host([data-aesthetic="ambient"]) {
+  --hc-bg:          #0F0D0A;
+  --hc-bg-2:        #16130E;
+  --hc-bg-sunken:   #1E1A14;
+  --hc-card-bg:     #1A1612;
+  --hc-line:        rgba(255, 220, 180, 0.08);
+  --hc-line-strong: rgba(255, 220, 180, 0.16);
+  --hc-ink:         #F2EBDD;
+  --hc-ink-2:       #C8BFAE;
+  --hc-ink-3:       #877E6E;
+  --hc-ink-4:       #5A5345;
+  --hc-accent:      #E8C46A;
+  --hc-accent-ink:  #1A1410;
+  --hc-good:        #6FBF60;
+  --hc-warn:        #E39D58;
+  --hc-cool:        #6FA3C0;
+  --hc-radius:      14px;
+  --hc-radius-sm:   10px;
+}
 `;
 const componentCss = `
-  .header.svelte-1elxaub {
+  .hc-topbar.svelte-h6bux4 {
     height: 54px;
-    min-height: 54px;
-    background: var(--bg-sidebar, var(--secondary-background-color));
-    color: var(--primary-text-color);
-    border-bottom: 1px solid var(--divider-color);
+    padding: 0 24px;
     display: flex;
     align-items: center;
-    padding: 0 8px;
-    gap: 8px;
-    position: relative;
-    z-index: 100;
-    transition: background var(--transition-medium, 250ms), border-color var(--transition-medium, 250ms);
+    gap: 16px;
+    border-bottom: 1px solid var(--hc-line);
+    background: var(--hc-bg);
+    flex-shrink: 0;
   }
 
-  .header-btn.svelte-1elxaub {
-    width: 40px;
-    height: 40px;
-    border: none;
+  .hc-topbar-mobile.svelte-h6bux4 {
+    display: none;
+    width: 32px;
+    height: 32px;
     background: transparent;
-    border-radius: 50%;
+    border: 0;
+    color: var(--hc-ink-3);
+    border-radius: 8px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .hc-topbar-mobile.svelte-h6bux4:hover {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink);
+  }
+
+  .hc-topbar-title.svelte-h6bux4 {
+    font-family: var(--hc-font-display);
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--hc-ink);
+  }
+
+  .hc-topbar-meta.svelte-h6bux4 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--hc-font-mono);
+    font-size: 11.5px;
+    color: var(--hc-ink-3);
+  }
+
+  .hc-topbar-meta.svelte-h6bux4 b:where(.svelte-h6bux4) {
+    color: var(--hc-ink-2);
+    font-weight: 500;
+  }
+
+  .hc-topbar-actions.svelte-h6bux4 {
+    display: flex;
+    gap: 4px;
+  }
+
+  .hc-topbar-actions.svelte-h6bux4 button:where(.svelte-h6bux4) {
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 0;
+    color: var(--hc-ink-3);
+    border-radius: 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--secondary-text-color);
-    transition: background 0.15s, color 0.15s;
-    flex-shrink: 0;
     padding: 0;
   }
 
-  .header-btn.svelte-1elxaub:hover {
-    background: var(--bg-hover, rgba(0, 0, 0, 0.04));
-    color: var(--primary-text-color);
-  }
-
-  .header-btn.svelte-1elxaub svg:where(.svelte-1elxaub) {
-    width: 22px;
-    height: 22px;
-  }
-
-  /* Back/hamburger button - hidden on desktop */
-  .back-btn.svelte-1elxaub {
-    display: none;
-  }
-
-  .header-avatar.svelte-1elxaub {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent, #2AABEE), var(--accent-hover, #229ED9));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    flex-shrink: 0;
-  }
-
-  .header-avatar.svelte-1elxaub svg:where(.svelte-1elxaub) {
-    width: 22px;
-    height: 22px;
-  }
-
-  .header-info.svelte-1elxaub {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .header-title.svelte-1elxaub {
-    font-size: 15px;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 1.2;
-  }
-
-  .header-subtitle.svelte-1elxaub {
-    font-size: 12.5px;
-    color: var(--accent, var(--primary-color));
-    line-height: 1.2;
-  }
-
-  .header-actions.svelte-1elxaub {
-    display: flex;
-    gap: 2px;
-    flex-shrink: 0;
-  }
-
-  .delete-btn.svelte-1elxaub:hover {
-    color: var(--error-color, #db4437);
-  }
-
-  .delete-btn.svelte-1elxaub:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
+  .hc-topbar-actions.svelte-h6bux4 button:where(.svelte-h6bux4):hover {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink);
   }
 
   @media (max-width: 768px) {
-    .back-btn.svelte-1elxaub {
+    .hc-topbar.svelte-h6bux4 {
+      padding: 0 12px;
+    }
+    .hc-topbar-mobile.svelte-h6bux4 {
       display: flex;
     }
-
-    .header-avatar.svelte-1elxaub {
-      width: 36px;
-      height: 36px;
-    }
-
-    .header-avatar.svelte-1elxaub svg:where(.svelte-1elxaub) {
-      width: 18px;
-      height: 18px;
-    }
-
-    .header-title.svelte-1elxaub {
-      font-size: 14px;
+    .hc-topbar-meta.svelte-h6bux4 {
+      display: none;
     }
   }
 
-  .session-item.svelte-114uzds {
-    display: flex;
-    align-items: center;
-    padding: 9px 12px;
-    gap: 12px;
+  .hc-session.svelte-114uzds {
+    padding: 8px 10px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 0.1s;
     position: relative;
   }
 
-  .session-item.svelte-114uzds:hover {
-    background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+  .hc-session.svelte-114uzds:hover {
+    background: var(--hc-bg-sunken);
   }
 
-  .session-item.active.svelte-114uzds {
-    background: var(--bg-active, rgba(42, 171, 238, 0.12));
+  .hc-session.is-active.svelte-114uzds {
+    background: var(--hc-card-bg);
+    box-shadow: 0 0 0 1px var(--hc-line-strong);
   }
 
-  .session-avatar.svelte-114uzds {
-    width: 50px;
-    height: 50px;
-    min-width: 50px;
-    border-radius: 50%;
+  .hc-session.svelte-114uzds:focus-visible {
+    outline: 2px solid var(--hc-ink);
+    outline-offset: -2px;
+  }
+
+  .hc-session-row.svelte-114uzds {
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    color: #fff;
+    gap: 6px;
+  }
+
+  .hc-session-emoji.svelte-114uzds {
+    font-size: 13px;
+    line-height: 1;
     flex-shrink: 0;
-    position: relative;
   }
 
-  .voice-badge.svelte-114uzds {
-    position: absolute;
-    bottom: -1px;
-    right: -1px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--primary-color, #03a9f4);
-    display: flex;
+  .hc-session-voice.svelte-114uzds {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    color: #fff;
-    border: 2px solid var(--card-background-color, #fff);
+    color: var(--hc-cool);
+    flex-shrink: 0;
   }
 
-  .voice-badge.svelte-114uzds svg:where(.svelte-114uzds) {
-    width: 10px;
-    height: 10px;
-  }
-
-  .session-content.svelte-114uzds {
+  .hc-session-title.svelte-114uzds {
     flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-
-  .session-top-row.svelte-114uzds {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .session-name.svelte-114uzds {
-    font-size: 15px;
+    font-size: 13.5px;
     font-weight: 500;
-    color: var(--primary-text-color);
+    color: var(--hc-ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .session-time.svelte-114uzds {
-    font-size: 12px;
-    color: var(--disabled-text-color);
+  .hc-session-time.svelte-114uzds {
+    font-family: var(--hc-font-mono);
+    font-size: 10.5px;
+    color: var(--hc-ink-3);
     flex-shrink: 0;
   }
 
-  .session-item.active.svelte-114uzds .session-time:where(.svelte-114uzds) {
-    color: var(--accent, var(--primary-color));
+  .hc-session.is-active.svelte-114uzds .hc-session-time:where(.svelte-114uzds) {
+    color: var(--hc-ink-2);
   }
 
-  .session-bottom-row.svelte-114uzds {
-    display: flex;
-    align-items: center;
-  }
-
-  .session-preview.svelte-114uzds {
-    font-size: 13.5px;
-    color: var(--secondary-text-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .session-delete.svelte-114uzds {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 30px;
-    height: 30px;
-    border: none;
+  .hc-session-del.svelte-114uzds {
+    width: 20px;
+    height: 20px;
+    border: 0;
     background: transparent;
+    color: var(--hc-ink-3);
+    border-radius: 4px;
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.15s, background 0.15s;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    color: var(--secondary-text-color);
+    transition: opacity 0.12s, background 0.12s, color 0.12s;
+    flex-shrink: 0;
   }
 
-  .session-item.svelte-114uzds:hover .session-delete:where(.svelte-114uzds) {
+  .hc-session.svelte-114uzds:hover .hc-session-del:where(.svelte-114uzds),
+  .hc-session.svelte-114uzds:focus-within .hc-session-del:where(.svelte-114uzds) {
     opacity: 1;
   }
 
-  .session-delete.svelte-114uzds:hover {
-    background: rgba(219, 68, 55, 0.12);
-    color: var(--error-color, #db4437);
+  .hc-session-del.svelte-114uzds:hover {
+    background: color-mix(in oklab, var(--hc-warn) 15%, transparent);
+    color: var(--hc-warn);
   }
 
-  .session-delete.svelte-114uzds svg:where(.svelte-114uzds) {
-    width: 16px;
-    height: 16px;
+  .hc-session-preview.svelte-114uzds {
+    font-size: 12.5px;
+    color: var(--hc-ink-3);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .session-list.svelte-1j5qstn {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 0;
+  .hc-section.svelte-1j5qstn {
+    font-family: var(--hc-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--hc-ink-3);
+    padding: 14px 8px 6px;
   }
 
-  /* Scrollbar styling */
-  .session-list.svelte-1j5qstn::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .session-list.svelte-1j5qstn::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .session-list.svelte-1j5qstn::-webkit-scrollbar-thumb {
-    background-color: var(--scrollbar-thumb, var(--divider-color));
-    border-radius: 3px;
-  }
-
-  .session-list.svelte-1j5qstn::-webkit-scrollbar-thumb:hover {
-    background-color: var(--secondary-text-color);
-  }
-
-  /* Empty state */
-  .empty-sessions.svelte-1j5qstn {
+  .hc-empty-sessions.svelte-1j5qstn {
     text-align: center;
     padding: 32px 16px;
-    color: var(--secondary-text-color);
+    color: var(--hc-ink-3);
+    font-size: 13px;
   }
 
-  .empty-sessions.svelte-1j5qstn .icon:where(.svelte-1j5qstn) {
-    width: 48px;
-    height: 48px;
-    fill: var(--disabled-text-color);
-    margin-bottom: 12px;
+  .hc-session-skeleton.svelte-1j5qstn {
+    padding: 8px 10px;
   }
 
-  .empty-sessions.svelte-1j5qstn p:where(.svelte-1j5qstn) {
-    margin: 0;
-    font-size: 14px;
-  }
-
-  /* Loading skeleton */
-  .session-skeleton.svelte-1j5qstn {
-    padding: 9px 12px;
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
-
-  .session-skeleton.svelte-1j5qstn::before {
-    content: '';
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
+  .hc-session-skeleton.svelte-1j5qstn .line:where(.svelte-1j5qstn) {
+    height: 12px;
     background: linear-gradient(
       90deg,
-      var(--divider-color) 25%,
-      var(--card-background-color, #fff) 50%,
-      var(--divider-color) 75%
+      var(--hc-line) 25%,
+      var(--hc-bg-sunken) 50%,
+      var(--hc-line) 75%
     );
     background-size: 200% 100%;
-    animation: svelte-1j5qstn-skeleton-shimmer 1.5s infinite;
-    flex-shrink: 0;
-  }
-
-  .skeleton-line.svelte-1j5qstn {
-    height: 14px;
-    background: linear-gradient(
-      90deg,
-      var(--divider-color) 25%,
-      var(--card-background-color, #fff) 50%,
-      var(--divider-color) 75%
-    );
-    background-size: 200% 100%;
-    animation: svelte-1j5qstn-skeleton-shimmer 1.5s infinite;
+    animation: svelte-1j5qstn-hc-shimmer 1.5s infinite;
     border-radius: 4px;
     margin-bottom: 6px;
   }
 
-  .skeleton-line.short.svelte-1j5qstn {
+  .hc-session-skeleton.svelte-1j5qstn .line.short:where(.svelte-1j5qstn) {
     width: 60%;
-    height: 12px;
-  }
-
-  .skeleton-line.tiny.svelte-1j5qstn {
-    width: 40%;
     height: 10px;
   }
 
-  @keyframes svelte-1j5qstn-skeleton-shimmer {
+  @keyframes svelte-1j5qstn-hc-shimmer {
     0% {
       background-position: 200% 0;
     }
@@ -846,59 +895,59 @@ const componentCss = `
     }
   }
 
-  .fab.svelte-19p7jpv {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    width: 54px;
-    height: 54px;
-    border-radius: 50%;
-    background: var(--accent, var(--primary-color));
-    color: #fff;
-    border: none;
-    cursor: pointer;
+  .hc-newchat.svelte-19p7jpv {
+    margin: 12px;
+    padding: 10px 12px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    box-shadow: var(--fab-shadow, 0 4px 16px rgba(3, 169, 244, 0.35));
-    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
-    z-index: 5;
+    gap: 10px;
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius-sm);
+    cursor: pointer;
+    font: inherit;
+    color: var(--hc-ink);
+    transition: border-color 0.12s, background 0.12s;
+    text-align: left;
   }
 
-  .fab.svelte-19p7jpv:hover:not(:disabled) {
-    transform: scale(1.05);
-    background: var(--accent-hover, var(--primary-color));
+  .hc-newchat.svelte-19p7jpv:hover:not(:disabled) {
+    border-color: var(--hc-line-strong);
   }
 
-  .fab.svelte-19p7jpv:active:not(:disabled) {
-    transform: scale(0.95);
-  }
-
-  .fab.svelte-19p7jpv:disabled {
+  .hc-newchat.svelte-19p7jpv:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
-  .fab.svelte-19p7jpv svg:where(.svelte-19p7jpv) {
-    width: 24px;
-    height: 24px;
+  .hc-newchat.svelte-19p7jpv svg {
+    width: 14px;
+    height: 14px;
+    color: var(--hc-ink-2);
   }
 
-  .sidebar.svelte-ou1367 {
-    width: var(--sidebar-width, 320px);
-    min-width: var(--sidebar-width, 320px);
+  .hc-newchat.svelte-19p7jpv span:where(.svelte-19p7jpv) {
+    flex: 1;
+    font-weight: 500;
+    font-size: 13.5px;
+  }
+
+  .hc-sidebar.svelte-ou1367 {
+    width: 280px;
+    min-width: 280px;
     height: 100%;
-    background: var(--bg-sidebar, var(--secondary-background-color));
-    border-right: 1px solid var(--divider-color);
+    flex-shrink: 0;
+    background: var(--hc-bg-2);
+    border-right: 1px solid var(--hc-line);
     display: flex;
     flex-direction: column;
-    flex-shrink: 0;
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s ease;
+    min-height: 0;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     z-index: 10;
   }
 
-  .sidebar.hidden.svelte-ou1367 {
+  .hc-sidebar.hidden.svelte-ou1367 {
     transform: translateX(-100%);
     width: 0;
     min-width: 0;
@@ -906,62 +955,148 @@ const componentCss = `
     overflow: hidden;
   }
 
-  .search-container.svelte-ou1367 {
-    padding: 10px 12px;
-  }
-
-  .search-bar.svelte-ou1367 {
+  .hc-sidebar-head.svelte-ou1367 {
+    height: 54px;
+    padding: 0 16px;
     display: flex;
     align-items: center;
-    background: var(--search-bg, var(--secondary-background-color));
-    border-radius: 24px;
-    padding: 8px 14px;
     gap: 10px;
-    transition: background 0.2s, box-shadow 0.15s;
-    cursor: text;
-  }
-
-  .search-bar.svelte-ou1367:focus-within {
-    box-shadow: 0 0 0 2px var(--accent, var(--primary-color));
-    background: var(--card-background-color, #fff);
-  }
-
-  .search-bar.svelte-ou1367 svg:where(.svelte-ou1367) {
-    width: 18px;
-    height: 18px;
-    color: var(--search-text, var(--secondary-text-color));
+    border-bottom: 1px solid var(--hc-line);
     flex-shrink: 0;
   }
 
-  .search-bar.svelte-ou1367 input:where(.svelte-ou1367) {
-    border: none;
-    outline: none;
+  .hc-mark.svelte-ou1367 {
+    width: 26px;
+    height: 26px;
+    background: var(--hc-ink);
+    color: var(--hc-bg);
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hc-brand.svelte-ou1367 {
+    font-family: var(--hc-font-display);
+    font-size: 19px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--hc-ink);
+  }
+
+  .hc-search.svelte-ou1367 {
+    margin: 0 12px 12px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius-sm);
+  }
+
+  .hc-search.svelte-ou1367 svg {
+    color: var(--hc-ink-3);
+    flex-shrink: 0;
+  }
+
+  .hc-search.svelte-ou1367 input:where(.svelte-ou1367) {
+    flex: 1;
+    border: 0;
     background: transparent;
-    font-size: 14px;
-    color: var(--primary-text-color);
-    width: 100%;
-    font-family: inherit;
+    padding: 8px 0;
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--hc-ink);
+    outline: none;
   }
 
-  .search-bar.svelte-ou1367 input:where(.svelte-ou1367)::placeholder {
-    color: var(--search-text, var(--secondary-text-color));
+  .hc-search.svelte-ou1367 input:where(.svelte-ou1367)::placeholder {
+    color: var(--hc-ink-3);
   }
 
-  .sidebar-overlay.svelte-ou1367 {
+  .hc-sessions.svelte-ou1367 {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 8px 8px;
+    min-height: 0;
+  }
+
+  .hc-sessions.svelte-ou1367::-webkit-scrollbar {
+    width: 6px;
+  }
+  .hc-sessions.svelte-ou1367::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .hc-sessions.svelte-ou1367::-webkit-scrollbar-thumb {
+    background-color: var(--hc-line-strong);
+    border-radius: 3px;
+  }
+
+  .hc-sidebar-foot.svelte-ou1367 {
+    padding: 12px 14px;
+    border-top: 1px solid var(--hc-line);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .hc-status-pulse.svelte-ou1367 {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--hc-good);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--hc-good) 25%, transparent);
+    flex-shrink: 0;
+  }
+
+  .hc-status-text.svelte-ou1367 {
+    flex: 1;
+    font-size: 12.5px;
+    line-height: 1.3;
+    color: var(--hc-ink);
+    min-width: 0;
+  }
+
+  .hc-status-text.svelte-ou1367 small:where(.svelte-ou1367) {
+    display: block;
+    color: var(--hc-ink-3);
+    font-size: 11px;
+  }
+
+  .hc-sidebar-foot.svelte-ou1367 button:where(.svelte-ou1367) {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 0;
+    color: var(--hc-ink-3);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .hc-sidebar-foot.svelte-ou1367 button:where(.svelte-ou1367):hover {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink);
+  }
+
+  .hc-sidebar-overlay.svelte-ou1367 {
     display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--bg-overlay, rgba(0, 0, 0, 0.4));
+    inset: 0;
+    background: rgba(20, 16, 10, 0.32);
+    backdrop-filter: blur(2px);
     z-index: 99;
-    opacity: 0;
-    transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   @media (max-width: 768px) {
-    .sidebar.svelte-ou1367 {
+    .hc-sidebar.svelte-ou1367 {
       position: fixed;
       left: 0;
       top: 0;
@@ -970,29 +1105,21 @@ const componentCss = `
       transform: translateX(-100%);
       width: 85vw;
       min-width: 85vw;
-      max-width: 360px;
+      max-width: 320px;
       box-shadow: none;
     }
 
-    .sidebar.open.svelte-ou1367 {
+    .hc-sidebar.open.svelte-ou1367 {
       transform: translateX(0);
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
     }
 
-    .sidebar.hidden.svelte-ou1367 {
+    .hc-sidebar.hidden.svelte-ou1367 {
       transform: translateX(-100%);
     }
 
-    .sidebar-overlay.svelte-ou1367 {
+    .hc-sidebar-overlay.svelte-ou1367 {
       display: block;
-      opacity: 1;
-    }
-  }
-
-  @media (max-width: 1024px) and (min-width: 769px) {
-    .sidebar.svelte-ou1367 {
-      width: 260px;
-      min-width: 260px;
     }
   }
 
@@ -1119,267 +1246,282 @@ const componentCss = `
     }
   }
 
-  .message.svelte-cu3vo4 {
+  .hc-avatar.svelte-112qgxv {
+    border-radius: var(--hc-radius-sm);
+    flex-shrink: 0;
     display: flex;
-    margin-bottom: 3px;
-    animation: messageAppear 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    box-sizing: border-box;
   }
 
-  /* Group spacing: different sender = more space */
-  .message.user + .message.assistant,
-  .message.assistant + .message.user {
-    margin-top: 10px;
+  .hc-avatar.is-user.svelte-112qgxv {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink-2);
   }
 
-  .message.user.svelte-cu3vo4 {
-    justify-content: flex-end;
+  .hc-avatar.is-bot.svelte-112qgxv {
+    background: var(--hc-ink);
+    color: var(--hc-bg);
   }
 
-  .message.assistant.svelte-cu3vo4 {
-    justify-content: flex-start;
+  .hc-avatar-emoji.svelte-112qgxv {
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .bubble.svelte-cu3vo4 {
-    max-width: min(80%, 500px);
-    padding: 7px 11px;
-    position: relative;
-    line-height: 1.45;
+  .hc-avatar-initial.svelte-112qgxv {
+    font-size: 11.5px;
+    user-select: none;
+  }
+
+  .hc-msg.svelte-cu3vo4 {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: var(--hc-msg-gap, 22px);
+    animation: svelte-cu3vo4-hcMsgAppear 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .hc-msg.is-user.svelte-cu3vo4 {
+    flex-direction: row-reverse;
+  }
+
+  .hc-msg-body.svelte-cu3vo4 {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    max-width: calc(100% - 40px);
+  }
+
+  .hc-msg.is-user.svelte-cu3vo4 .hc-msg-body:where(.svelte-cu3vo4) {
+    align-items: flex-end;
+  }
+
+  .hc-msg-meta.svelte-cu3vo4 {
+    font-size: 11.5px;
+    color: var(--hc-ink-3);
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  .hc-msg-name.svelte-cu3vo4 {
+    font-weight: 500;
+    color: var(--hc-ink-2);
+  }
+
+  .hc-msg-name-emoji.svelte-cu3vo4 {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .hc-msg-time.svelte-cu3vo4 {
+    font-family: var(--hc-font-mono);
+    font-size: 10.5px;
+  }
+
+  .hc-bubble.svelte-cu3vo4 {
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius);
+    padding: 12px 14px;
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: var(--hc-ink);
     word-wrap: break-word;
     overflow-wrap: break-word;
-    overflow: hidden;
+    max-width: 100%;
   }
 
-  /* User bubble -- right side, Telegram-style */
-  .message.user.svelte-cu3vo4 .bubble:where(.svelte-cu3vo4) {
-    background: var(--bubble-user);
-    color: var(--text-bubble-user);
-    border-radius: 12px 12px 4px 12px;
+  .hc-msg.is-user.svelte-cu3vo4 .hc-bubble:where(.svelte-cu3vo4) {
+    background: var(--hc-ink);
+    color: var(--hc-bg);
+    border-color: var(--hc-ink);
   }
 
-  /* User bubble tail (CSS triangle) */
-  .message.user.svelte-cu3vo4 .bubble:where(.svelte-cu3vo4)::after {
-    content: '';
-    position: absolute;
-    right: -8px;
-    bottom: 0;
-    width: 0;
-    height: 0;
-    border: 8px solid transparent;
-    border-left-color: var(--bubble-user-tail);
-    border-bottom-color: var(--bubble-user-tail);
-    border-right: 0;
-    border-bottom-right-radius: 4px;
+  /* Markdown content inside bubble */
+  .hc-bubble.svelte-cu3vo4 p {
+    margin: 0 0 8px 0;
+  }
+  .hc-bubble.svelte-cu3vo4 p:last-child {
+    margin-bottom: 0;
+  }
+  .hc-bubble.svelte-cu3vo4 strong {
+    font-weight: 600;
+  }
+  .hc-bubble.svelte-cu3vo4 code {
+    font-family: var(--hc-font-mono);
+    font-size: 12.5px;
+    background: var(--hc-bg-sunken);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--hc-ink-2);
+  }
+  .hc-msg.is-user.svelte-cu3vo4 .hc-bubble:where(.svelte-cu3vo4) code {
+    background: rgba(255, 255, 255, 0.12);
+    color: inherit;
+  }
+  .hc-bubble.svelte-cu3vo4 pre {
+    background: var(--hc-bg-sunken);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius-sm);
+    padding: 10px 12px;
+    margin: 8px 0;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  .hc-msg.is-user.svelte-cu3vo4 .hc-bubble:where(.svelte-cu3vo4) pre {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  .hc-bubble.svelte-cu3vo4 pre code {
+    background: none;
+    padding: 0;
+    font-size: 12.5px;
+  }
+  .hc-bubble.svelte-cu3vo4 ul,
+  .hc-bubble.svelte-cu3vo4 ol {
+    padding-left: 20px;
+    margin: 6px 0;
+  }
+  .hc-bubble.svelte-cu3vo4 li {
+    margin: 2px 0;
+  }
+  .hc-bubble.svelte-cu3vo4 h1,
+  .hc-bubble.svelte-cu3vo4 h2,
+  .hc-bubble.svelte-cu3vo4 h3 {
+    font-family: var(--hc-font-display);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    margin: 12px 0 6px;
+    line-height: 1.2;
+  }
+  .hc-bubble.svelte-cu3vo4 h1 { font-size: 1.4em; }
+  .hc-bubble.svelte-cu3vo4 h2 { font-size: 1.2em; }
+  .hc-bubble.svelte-cu3vo4 h3 { font-size: 1.05em; }
+  .hc-bubble.svelte-cu3vo4 a {
+    color: var(--hc-cool);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .hc-msg.is-user.svelte-cu3vo4 .hc-bubble:where(.svelte-cu3vo4) a {
+    color: var(--hc-bg);
   }
 
-  /* Hide tail on consecutive same-type messages */
-  .message.user + .message.user .bubble::after {
-    display: none;
+  /* Attachments */
+  .hc-attachments.svelte-cu3vo4 {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .hc-msg.is-user.svelte-cu3vo4 .hc-attachments:where(.svelte-cu3vo4) {
+    align-items: flex-end;
   }
 
-  /* Assistant bubble -- left side */
-  .message.assistant.svelte-cu3vo4 .bubble:where(.svelte-cu3vo4) {
-    background: var(--bubble-assistant);
-    color: var(--text-bubble-assistant);
-    border-radius: 12px 12px 12px 4px;
-  }
-
-  /* Assistant bubble tail */
-  .message.assistant.svelte-cu3vo4 .bubble:where(.svelte-cu3vo4)::after {
-    content: '';
-    position: absolute;
-    left: -8px;
-    bottom: 0;
-    width: 0;
-    height: 0;
-    border: 8px solid transparent;
-    border-right-color: var(--bubble-assistant-tail);
-    border-bottom-color: var(--bubble-assistant-tail);
-    border-left: 0;
-    border-bottom-left-radius: 4px;
-  }
-
-  .message.assistant + .message.assistant .bubble::after {
-    display: none;
-  }
-
-  /* Timestamp INSIDE bubble -- Telegram style */
-  .bubble-time.svelte-cu3vo4 {
-    float: right;
-    font-size: 11px;
-    margin: 4px -4px -2px 12px;
-    color: var(--text-bubble-time);
-    white-space: nowrap;
-  }
-
-  .message.user.svelte-cu3vo4 .bubble-time:where(.svelte-cu3vo4) {
-    color: var(--text-bubble-time-user);
-  }
-
-  /* --- Attachments --- */
-  .attachments.svelte-cu3vo4 {
-    margin-bottom: 6px;
-  }
-
-  .image-attachments.svelte-cu3vo4 {
+  .hc-image-attachments.svelte-cu3vo4,
+  .hc-file-attachments.svelte-cu3vo4 {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 4px;
+    gap: 6px;
   }
 
-  .attached-image.svelte-cu3vo4 {
-    max-width: 260px;
-    max-height: 200px;
-    border-radius: 8px;
+  .hc-attached-image.svelte-cu3vo4 {
+    max-width: 280px;
+    max-height: 220px;
+    border-radius: var(--hc-radius-sm);
     object-fit: contain;
-    cursor: pointer;
     display: block;
+    border: 1px solid var(--hc-line);
   }
 
-  .image-placeholder.svelte-cu3vo4 {
+  .hc-image-placeholder.svelte-cu3vo4 {
     width: 120px;
     height: 80px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.06);
-    border-radius: 8px;
+    background: var(--hc-bg-sunken);
+    border-radius: var(--hc-radius-sm);
     gap: 4px;
   }
-
-  .image-placeholder.svelte-cu3vo4 svg:where(.svelte-cu3vo4) {
-    width: 24px;
-    height: 24px;
-    fill: var(--secondary-text-color);
+  .hc-image-placeholder.svelte-cu3vo4 svg:where(.svelte-cu3vo4) {
+    width: 22px;
+    height: 22px;
+    fill: var(--hc-ink-3);
   }
-
-  .image-placeholder.svelte-cu3vo4 span:where(.svelte-cu3vo4) {
+  .hc-image-placeholder.svelte-cu3vo4 span:where(.svelte-cu3vo4) {
     font-size: 10px;
-    color: var(--secondary-text-color);
+    color: var(--hc-ink-3);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 100px;
   }
 
-  .file-attachments.svelte-cu3vo4 {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 4px;
-  }
-
-  .file-chip.svelte-cu3vo4 {
+  .hc-file-chip.svelte-cu3vo4 {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    background: rgba(0, 0, 0, 0.06);
-    border-radius: 8px;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius-sm);
     font-size: 12px;
-    max-width: 200px;
+    color: var(--hc-ink-2);
+    max-width: 240px;
   }
-
-  .message.user.svelte-cu3vo4 .file-chip:where(.svelte-cu3vo4) {
-    background: rgba(255, 255, 255, 0.15);
+  .hc-file-icon.svelte-cu3vo4 {
+    width: 14px;
+    height: 14px;
+    fill: var(--hc-ink-3);
+    flex-shrink: 0;
   }
-
-  .file-icon.svelte-cu3vo4 {
-    width: 16px;
-    height: 16px;
-    min-width: 16px;
-    fill: currentColor;
-    opacity: 0.7;
-  }
-
-  .file-name.svelte-cu3vo4 {
+  .hc-file-name.svelte-cu3vo4 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 500;
   }
-
-  .file-size.svelte-cu3vo4 {
-    opacity: 0.6;
+  .hc-file-size.svelte-cu3vo4 {
+    color: var(--hc-ink-3);
     white-space: nowrap;
     font-size: 11px;
   }
 
-  /* Bubble content formatting (from markdown) */
-  .bubble.svelte-cu3vo4 p {
-    margin-bottom: 6px;
-  }
-  .bubble.svelte-cu3vo4 p:last-of-type {
-    margin-bottom: 0;
-  }
-  .bubble.svelte-cu3vo4 strong {
-    font-weight: 600;
-  }
-  .bubble.svelte-cu3vo4 code {
-    background: var(--bubble-code-bg);
-    padding: 1px 5px;
-    border-radius: 4px;
-    font-size: 13px;
-    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-  }
-  .bubble.svelte-cu3vo4 pre {
-    background: var(--bubble-code-bg);
-    border-radius: 8px;
-    padding: 10px 12px;
-    margin: 6px 0;
-    overflow-x: auto;
-    font-size: 13px;
-    line-height: 1.4;
-  }
-  .bubble.svelte-cu3vo4 pre code {
-    background: none;
-    padding: 0;
-    font-size: 13px;
-  }
-  .bubble.svelte-cu3vo4 ul,
-  .bubble.svelte-cu3vo4 ol {
-    padding-left: 18px;
-    margin: 4px 0;
-  }
-  .bubble.svelte-cu3vo4 li {
-    margin: 2px 0;
-  }
-
-  /* Streaming cursor */
-  .streaming-cursor.svelte-cu3vo4 {
+  .hc-streaming-cursor.svelte-cu3vo4 {
     display: inline-block;
     margin-left: 2px;
-    animation: svelte-cu3vo4-blink 1s infinite;
-    color: var(--accent, var(--primary-color));
+    animation: svelte-cu3vo4-hcBlink 1s infinite;
+    color: var(--hc-ink-3);
     font-weight: bold;
   }
 
-  @keyframes svelte-cu3vo4-blink {
-    0%,
-    50% {
-      opacity: 1;
-    }
-    51%,
-    100% {
-      opacity: 0;
-    }
+  @keyframes svelte-cu3vo4-hcBlink {
+    0%, 50%   { opacity: 1; }
+    51%, 100% { opacity: 0; }
   }
 
-  .message.streaming.svelte-cu3vo4 {
-    animation: messageAppear 0.3s ease-out;
+  @keyframes svelte-cu3vo4-hcMsgAppear {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
   @media (max-width: 768px) {
-    .bubble.svelte-cu3vo4 {
-      max-width: min(88%, 500px);
+    .hc-msg.svelte-cu3vo4 {
+      gap: 10px;
     }
-  }
-
-  @media (max-width: 400px) {
-    .bubble.svelte-cu3vo4 {
-      max-width: 92%;
-      font-size: 13.5px;
+    .hc-msg-body.svelte-cu3vo4 {
+      max-width: calc(100% - 38px);
     }
   }
 
@@ -1453,111 +1595,136 @@ const componentCss = `
     }
   }
 
-  .empty-state.svelte-euh035 {
-    flex: 1;
+  .hc-empty.svelte-euh035 {
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 60px 28px 28px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 24px;
+    gap: 24px;
     z-index: 1;
+    position: relative;
   }
 
-  .empty-icon.svelte-euh035 {
-    width: 100px;
-    height: 100px;
+  .hc-empty-rail.svelte-euh035 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .hc-rail-label.svelte-euh035 {
+    font-family: var(--hc-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--hc-ink-3);
+    margin-right: 4px;
+  }
+
+  .hc-rail-chip.svelte-euh035 {
+    font-size: 12.5px;
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: 999px;
+    padding: 5px 12px;
+    color: var(--hc-ink-2);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .hc-rail-chip.svelte-euh035 .dot:where(.svelte-euh035) {
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
-    background: var(--accent-light, rgba(3, 169, 244, 0.12));
+    flex-shrink: 0;
+  }
+
+  .hc-empty-greet.svelte-euh035 {
+    font-family: var(--hc-font-display);
+    font-weight: 400;
+    font-size: 38px;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    margin: 8px 0 0;
+    text-wrap: balance;
+    color: var(--hc-ink);
+  }
+
+  .hc-empty-greet.svelte-euh035 em:where(.svelte-euh035) {
+    color: var(--hc-ink-3);
+    font-style: italic;
+  }
+
+  .hc-empty-sub.svelte-euh035 {
+    max-width: 560px;
+    font-size: 15px;
+    color: var(--hc-ink-2);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .hc-empty-grid.svelte-euh035 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .hc-suggest.svelte-euh035 {
+    text-align: left;
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius);
+    padding: 14px;
+    cursor: pointer;
+    font: inherit;
+    color: var(--hc-ink);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 0.12s, transform 0.12s;
+  }
+
+  .hc-suggest.svelte-euh035:hover {
+    border-color: var(--hc-line-strong);
+    transform: translateY(-1px);
+  }
+
+  .hc-suggest-icon.svelte-euh035 {
+    width: 26px;
+    height: 26px;
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink-2);
+    border-radius: 7px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 20px;
-    animation: svelte-euh035-emptyPulse 3s ease-in-out infinite;
+    margin-bottom: 2px;
   }
 
-  .empty-icon.svelte-euh035 svg:where(.svelte-euh035) {
-    width: 48px;
-    height: 48px;
-    color: var(--accent, var(--primary-color));
+  .hc-suggest-title.svelte-euh035 {
+    font-size: 14px;
+    font-weight: 500;
   }
 
-  .empty-icon.svelte-euh035 .emoji-icon:where(.svelte-euh035) {
-    font-size: 48px;
-    line-height: 1;
-  }
-
-  @keyframes svelte-euh035-emptyPulse {
-    0%, 100% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 var(--accent-light, rgba(3, 169, 244, 0.15));
-    }
-    50% {
-      transform: scale(1.03);
-      box-shadow: 0 0 0 16px transparent;
-    }
-  }
-
-  h2.svelte-euh035 {
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--primary-text-color);
-    margin-bottom: 8px;
-  }
-
-  p.svelte-euh035 {
-    color: var(--secondary-text-color);
-    font-size: 15px;
-    max-width: 360px;
-    line-height: 1.5;
-    margin-bottom: 0;
-  }
-
-  .suggestions.svelte-euh035 {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 24px;
-    justify-content: center;
-    max-width: 480px;
-  }
-
-  .suggestion-chip.svelte-euh035 {
-    padding: 8px 16px;
-    background: var(--card-background-color, #fff);
-    border: 1px solid var(--divider-color);
-    border-radius: 9999px;
-    font-size: 13.5px;
-    color: var(--primary-text-color);
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-
-  .suggestion-chip.svelte-euh035:hover {
-    border-color: var(--accent, var(--primary-color));
-    color: var(--accent, var(--primary-color));
-    background: var(--accent-light, rgba(3, 169, 244, 0.08));
+  .hc-suggest-sub.svelte-euh035 {
+    font-size: 12.5px;
+    color: var(--hc-ink-3);
+    line-height: 1.45;
   }
 
   @media (max-width: 768px) {
-    .suggestions.svelte-euh035 {
-      flex-direction: column;
-      align-items: center;
+    .hc-empty.svelte-euh035 {
+      padding: 40px 16px 16px;
     }
-
-    .empty-icon.svelte-euh035 {
-      width: 80px;
-      height: 80px;
+    .hc-empty-greet.svelte-euh035 {
+      font-size: 30px;
     }
-
-    .empty-icon.svelte-euh035 svg:where(.svelte-euh035) {
-      width: 40px;
-      height: 40px;
-    }
-
-    h2.svelte-euh035 {
-      font-size: 20px;
+    .hc-empty-grid.svelte-euh035 {
+      grid-template-columns: 1fr;
     }
   }
 
@@ -2321,6 +2488,143 @@ const componentCss = `
     font-size: 12px;
     text-align: center;
     padding: 16px;
+  }
+
+  .hc-section-block.svelte-1ty8kd9 {
+    margin-bottom: 28px;
+  }
+  .hc-section-block.svelte-1ty8kd9:last-child {
+    margin-bottom: 0;
+  }
+
+  .hc-set-eyebrow.svelte-1ty8kd9 {
+    font-family: var(--hc-font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--hc-ink-3);
+    margin-bottom: 12px;
+  }
+
+  .hc-set-row.svelte-1ty8kd9 {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--hc-line);
+  }
+
+  .hc-set-row.svelte-1ty8kd9:last-child {
+    border-bottom: 0;
+  }
+
+  .hc-set-row-text.svelte-1ty8kd9 {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hc-set-row-title.svelte-1ty8kd9 {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--hc-ink);
+  }
+
+  .hc-set-row-sub.svelte-1ty8kd9 {
+    font-size: 12px;
+    color: var(--hc-ink-3);
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+
+  .hc-pill-select.svelte-1ty8kd9 {
+    font: inherit;
+    font-size: 13px;
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius-sm);
+    padding: 6px 10px;
+    color: var(--hc-ink);
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .hc-aesthetic-grid.svelte-1ty8kd9 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .hc-aesthetic.svelte-1ty8kd9 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius-sm);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    transition: border-color 0.12s, background 0.12s;
+  }
+
+  .hc-aesthetic.svelte-1ty8kd9:hover {
+    border-color: var(--hc-line-strong);
+  }
+
+  .hc-aesthetic.selected.svelte-1ty8kd9 {
+    border-color: var(--hc-ink);
+    background: var(--hc-bg-2);
+  }
+
+  .hc-aesthetic-swatch.svelte-1ty8kd9 {
+    width: 44px;
+    height: 28px;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    border: 1px solid var(--hc-line);
+  }
+
+  .hc-aesthetic-swatch.svelte-1ty8kd9 .sw-bg:where(.svelte-1ty8kd9),
+  .hc-aesthetic-swatch.svelte-1ty8kd9 .sw-card:where(.svelte-1ty8kd9),
+  .hc-aesthetic-swatch.svelte-1ty8kd9 .sw-ink:where(.svelte-1ty8kd9) {
+    flex: 1;
+    height: 100%;
+  }
+
+  /* warm preview */
+  .hc-aesthetic-swatch[data-id='warm'].svelte-1ty8kd9 .sw-bg:where(.svelte-1ty8kd9)   { background: #FBF8F2; }
+  .hc-aesthetic-swatch[data-id='warm'].svelte-1ty8kd9 .sw-card:where(.svelte-1ty8kd9) { background: #FFFEFB; }
+  .hc-aesthetic-swatch[data-id='warm'].svelte-1ty8kd9 .sw-ink:where(.svelte-1ty8kd9)  { background: #1F1A14; }
+
+  /* tech preview */
+  .hc-aesthetic-swatch[data-id='tech'].svelte-1ty8kd9 .sw-bg:where(.svelte-1ty8kd9)   { background: #FFFFFF; }
+  .hc-aesthetic-swatch[data-id='tech'].svelte-1ty8kd9 .sw-card:where(.svelte-1ty8kd9) { background: #F5F5F4; }
+  .hc-aesthetic-swatch[data-id='tech'].svelte-1ty8kd9 .sw-ink:where(.svelte-1ty8kd9)  { background: #0A0A0A; }
+
+  /* ambient preview */
+  .hc-aesthetic-swatch[data-id='ambient'].svelte-1ty8kd9 .sw-bg:where(.svelte-1ty8kd9)   { background: #0F0D0A; }
+  .hc-aesthetic-swatch[data-id='ambient'].svelte-1ty8kd9 .sw-card:where(.svelte-1ty8kd9) { background: #1A1612; }
+  .hc-aesthetic-swatch[data-id='ambient'].svelte-1ty8kd9 .sw-ink:where(.svelte-1ty8kd9)  { background: #E8C46A; }
+
+  .hc-aesthetic-text.svelte-1ty8kd9 {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hc-aesthetic-name.svelte-1ty8kd9 {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--hc-ink);
+  }
+
+  .hc-aesthetic-sub.svelte-1ty8kd9 {
+    font-size: 12px;
+    color: var(--hc-ink-3);
+    margin-top: 2px;
+    line-height: 1.35;
   }
 
   .models-editor.svelte-fraw8h {
@@ -3744,173 +4048,196 @@ const componentCss = `
     margin-top: 2px;
   }
 
-  .settings-backdrop.svelte-nsapwt {
+  .hc-drawer-scrim.svelte-nsapwt {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 200;
+    background: rgba(20, 16, 10, 0.32);
+    backdrop-filter: blur(2px);
+    z-index: 50;
+    animation: svelte-nsapwt-scrimFadeIn 0.18s ease-out;
   }
 
-  .settings-panel.svelte-nsapwt {
+  @keyframes svelte-nsapwt-scrimFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .hc-drawer.svelte-nsapwt {
     position: fixed;
-    top: 0;
     right: 0;
+    top: 0;
     bottom: 0;
-    width: min(480px, 100vw);
-    background: var(--primary-background-color);
-    z-index: 201;
+    width: min(520px, 100vw);
+    background: var(--hc-bg);
+    border-left: 1px solid var(--hc-line);
+    z-index: 51;
     display: flex;
     flex-direction: column;
-    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
-    animation: svelte-nsapwt-slideIn 0.2s ease-out;
+    color: var(--hc-ink);
+    animation: svelte-nsapwt-drawerSlideIn 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  @keyframes svelte-nsapwt-slideIn {
-    from {
-      transform: translateX(100%);
-    }
-    to {
-      transform: translateX(0);
-    }
+  @keyframes svelte-nsapwt-drawerSlideIn {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
   }
 
-  .settings-header.svelte-nsapwt {
+  .hc-drawer-head.svelte-nsapwt {
+    height: 60px;
+    padding: 0 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--divider-color);
+    border-bottom: 1px solid var(--hc-line);
+    flex-shrink: 0;
   }
 
-  .settings-header.svelte-nsapwt h2:where(.svelte-nsapwt) {
+  .hc-drawer-head.svelte-nsapwt h2:where(.svelte-nsapwt) {
+    font-family: var(--hc-font-display);
+    font-size: 22px;
+    font-weight: 500;
     margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--primary-text-color);
+    letter-spacing: -0.01em;
+    color: var(--hc-ink);
   }
 
-  .close-btn.svelte-nsapwt {
-    width: 36px;
-    height: 36px;
-    border: none;
+  .hc-drawer-close.svelte-nsapwt {
+    width: 32px;
+    height: 32px;
     background: transparent;
+    border: 0;
+    color: var(--hc-ink-3);
+    border-radius: 8px;
     cursor: pointer;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s;
+    padding: 0;
   }
 
-  .close-btn.svelte-nsapwt:hover {
-    background: var(--secondary-background-color);
+  .hc-drawer-close.svelte-nsapwt:hover {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink);
   }
 
-  .icon.svelte-nsapwt {
-    width: 20px;
-    height: 20px;
-    fill: var(--secondary-text-color);
-  }
-
-  .tabs.svelte-nsapwt {
+  .hc-drawer-tabs.svelte-nsapwt {
     display: flex;
-    border-bottom: 1px solid var(--divider-color);
-    padding: 0 20px;
+    border-bottom: 1px solid var(--hc-line);
+    padding: 0 16px;
+    overflow-x: auto;
+    flex-shrink: 0;
   }
 
-  .tab.svelte-nsapwt {
-    padding: 10px 16px;
-    border: none;
-    background: none;
+  .hc-drawer-tabs.svelte-nsapwt::-webkit-scrollbar {
+    height: 0;
+  }
+
+  .hc-drawer-tab.svelte-nsapwt {
+    padding: 12px 14px;
+    border: 0;
+    background: transparent;
     cursor: pointer;
-    font-size: 14px;
+    font: inherit;
+    font-size: 13px;
     font-weight: 500;
-    color: var(--secondary-text-color);
+    color: var(--hc-ink-3);
     border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-    font-family: inherit;
+    transition: color 0.12s, border-color 0.12s;
+    white-space: nowrap;
   }
 
-  .tab.active.svelte-nsapwt {
-    color: var(--primary-color);
-    border-bottom-color: var(--primary-color);
+  .hc-drawer-tab.svelte-nsapwt:hover {
+    color: var(--hc-ink);
   }
 
-  .tab.svelte-nsapwt:hover:not(.active) {
-    color: var(--primary-text-color);
-    background: var(--secondary-background-color);
+  .hc-drawer-tab.active.svelte-nsapwt {
+    color: var(--hc-ink);
+    border-bottom-color: var(--hc-ink);
   }
 
-  .settings-content.svelte-nsapwt {
+  .hc-drawer-body.svelte-nsapwt {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
+    padding: 24px;
+  }
+
+  /* Override legacy backgrounds inside settings sub-panels so they pick up
+     paper-tone hc tokens. Sub-panel internals stay as-is. */
+  .hc-drawer-body.svelte-nsapwt .tab-content,
+  .hc-drawer-body.svelte-nsapwt .editor-section,
+  .hc-drawer-body.svelte-nsapwt .section {
+    background: transparent !important;
   }
 
   @media (max-width: 768px) {
-    .settings-panel.svelte-nsapwt {
+    .hc-drawer.svelte-nsapwt {
       width: 100vw;
+    }
+    .hc-drawer-head.svelte-nsapwt {
+      padding: 0 16px;
+    }
+    .hc-drawer-body.svelte-nsapwt {
+      padding: 16px;
     }
   }
 
-  .homeclaw-panel.svelte-j6syiu {
+  .hc-app.svelte-j6syiu {
     display: flex;
-    flex-direction: column;
     width: 100%;
     height: 100vh;
+    min-height: 0;
     overflow: hidden;
-    background-color: var(--primary-background-color);
+    background: var(--hc-bg);
+    color: var(--hc-ink);
+    font-family: var(--hc-font-sans);
+    font-size: 14px;
+    line-height: 1.5;
   }
 
-  .main-container.svelte-j6syiu {
-    display: flex;
+  .hc-main.svelte-j6syiu {
     flex: 1;
-    overflow: hidden;
-    position: relative;
-  }
-
-  .content-area.svelte-j6syiu {
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    flex: 1;
-    overflow: hidden;
-    position: relative;
-    background: var(--bg-chat, var(--primary-background-color));
+    min-height: 0;
+    background: var(--hc-bg);
     transition: background var(--transition-medium, 250ms ease-in-out);
   }
 
-  .chat-container.svelte-j6syiu {
+  .hc-chat-region.svelte-j6syiu {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    flex: 1;
     overflow: hidden;
-    position: relative;
+    min-height: 0;
   }
 
-  /* Mobile adjustments */
-  .homeclaw-panel.narrow.svelte-j6syiu .content-area:where(.svelte-j6syiu) {
-    width: 100%;
+  /* Override the legacy chat background — let the paper-tone hc-bg show through. */
+  .hc-app.svelte-j6syiu .messages {
+    background: var(--hc-bg) !important;
   }
 
-  /* Responsive */
+  .hc-app.svelte-j6syiu .messages::before {
+    /* Drop the legacy svg pattern overlay; it clashes with paper-tone bg. */
+    display: none !important;
+  }
+
+  /* Widen the chat column to match the redesign target (760px). */
+  .hc-app.svelte-j6syiu .messages-inner {
+    max-width: 760px !important;
+    padding: 28px 28px 16px !important;
+  }
+
   @media (max-width: 768px) {
-    .homeclaw-panel.svelte-j6syiu {
+    .hc-app.svelte-j6syiu .messages-inner {
+      padding: 16px 16px 12px !important;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .hc-app.svelte-j6syiu {
       height: 100vh;
-      height: 100dvh; /* Dynamic viewport height for mobile */
-    }
-  }
-
-  /* Animation */
-  .content-area.svelte-j6syiu {
-    animation: svelte-j6syiu-fadeIn 0.3s ease-in-out;
-  }
-
-  @keyframes svelte-j6syiu-fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
+      height: 100dvh;
     }
   }
 `;
@@ -3923,6 +4250,11 @@ const EACH_INDEX_REACTIVE = 1 << 1;
 const EACH_IS_CONTROLLED = 1 << 2;
 const EACH_IS_ANIMATED = 1 << 3;
 const EACH_ITEM_IMMUTABLE = 1 << 4;
+const PROPS_IS_IMMUTABLE = 1;
+const PROPS_IS_RUNES = 1 << 1;
+const PROPS_IS_UPDATED = 1 << 2;
+const PROPS_IS_BINDABLE = 1 << 3;
+const PROPS_IS_LAZY_INITIAL = 1 << 4;
 const TEMPLATE_FRAGMENT = 1;
 const TEMPLATE_USE_IMPORT_NODE = 1 << 1;
 const UNINITIALIZED = /* @__PURE__ */ Symbol();
@@ -3998,6 +4330,7 @@ const REACTION_IS_UPDATING = 1 << 21;
 const ASYNC = 1 << 22;
 const ERROR_VALUE = 1 << 23;
 const STATE_SYMBOL = /* @__PURE__ */ Symbol("$state");
+const LEGACY_PROPS = /* @__PURE__ */ Symbol("legacy props");
 const LOADING_ATTR_SYMBOL = /* @__PURE__ */ Symbol("");
 const STALE_REACTION = new class StaleReactionError extends Error {
   name = "StaleReactionError";
@@ -4031,6 +4364,11 @@ function effect_orphan(rune) {
 function effect_update_depth_exceeded() {
   {
     throw new Error(`https://svelte.dev/e/effect_update_depth_exceeded`);
+  }
+}
+function props_invalid_value(key) {
+  {
+    throw new Error(`https://svelte.dev/e/props_invalid_value`);
   }
 }
 function state_descriptors_fixed() {
@@ -5861,6 +6199,39 @@ function component_root(fn) {
 }
 function effect(fn) {
   return create_effect(EFFECT, fn, false);
+}
+function legacy_pre_effect(deps, fn) {
+  var context = (
+    /** @type {ComponentContextLegacy} */
+    component_context
+  );
+  var token = { effect: null, ran: false, deps };
+  context.l.$.push(token);
+  token.effect = render_effect(() => {
+    deps();
+    if (token.ran) return;
+    token.ran = true;
+    untrack(fn);
+  });
+}
+function legacy_pre_effect_reset() {
+  var context = (
+    /** @type {ComponentContextLegacy} */
+    component_context
+  );
+  render_effect(() => {
+    for (var token of context.l.$) {
+      token.deps();
+      var effect2 = token.effect;
+      if ((effect2.f & CLEAN) !== 0 && effect2.deps !== null) {
+        set_signal_status(effect2, MAYBE_DIRTY);
+      }
+      if (is_dirty(effect2)) {
+        update_effect(effect2);
+      }
+      token.ran = false;
+    }
+  });
 }
 function async_effect(fn) {
   return create_effect(ASYNC | EFFECT_PRESERVED, fn, true);
@@ -7962,6 +8333,7 @@ function get(store) {
   subscribe_to_store(store, (_2) => value = _2)();
   return value;
 }
+let is_store_binding = false;
 let IS_UNMOUNTED = /* @__PURE__ */ Symbol();
 function store_get(store, store_name, stores) {
   const entry = stores[store_name] ??= {
@@ -8008,7 +8380,19 @@ function setup_stores() {
   }
   return [stores, cleanup];
 }
+function capture_store_binding(fn) {
+  var previous_is_store_binding = is_store_binding;
+  try {
+    is_store_binding = false;
+    return [fn(), is_store_binding];
+  } finally {
+    is_store_binding = previous_is_store_binding;
+  }
+}
 function prop(props, key, flags2, fallback) {
+  var runes = !legacy_mode_flag || (flags2 & PROPS_IS_RUNES) !== 0;
+  var bindable = (flags2 & PROPS_IS_BINDABLE) !== 0;
+  var lazy = (flags2 & PROPS_IS_LAZY_INITIAL) !== 0;
   var fallback_value = (
     /** @type {V} */
     fallback
@@ -8017,21 +8401,41 @@ function prop(props, key, flags2, fallback) {
   var get_fallback = () => {
     if (fallback_dirty) {
       fallback_dirty = false;
-      fallback_value = /** @type {V} */
-      fallback;
+      fallback_value = lazy ? untrack(
+        /** @type {() => V} */
+        fallback
+      ) : (
+        /** @type {V} */
+        fallback
+      );
     }
     return fallback_value;
   };
+  var setter;
+  if (bindable) {
+    var is_entry_props = STATE_SYMBOL in props || LEGACY_PROPS in props;
+    setter = get_descriptor(props, key)?.set ?? (is_entry_props && key in props ? (v2) => props[key] = v2 : void 0);
+  }
   var initial_value;
-  {
+  var is_store_sub = false;
+  if (bindable) {
+    [initial_value, is_store_sub] = capture_store_binding(() => (
+      /** @type {V} */
+      props[key]
+    ));
+  } else {
     initial_value = /** @type {V} */
     props[key];
   }
   if (initial_value === void 0 && fallback !== void 0) {
     initial_value = get_fallback();
+    if (setter) {
+      if (runes) props_invalid_value();
+      setter(initial_value);
+    }
   }
   var getter;
-  {
+  if (runes) {
     getter = () => {
       var value = (
         /** @type {V} */
@@ -8041,10 +8445,65 @@ function prop(props, key, flags2, fallback) {
       fallback_dirty = true;
       return value;
     };
+  } else {
+    getter = () => {
+      var value = (
+        /** @type {V} */
+        props[key]
+      );
+      if (value !== void 0) {
+        fallback_value = /** @type {V} */
+        void 0;
+      }
+      return value === void 0 ? fallback_value : value;
+    };
   }
-  {
+  if (runes && (flags2 & PROPS_IS_UPDATED) === 0) {
     return getter;
   }
+  if (setter) {
+    var legacy_parent = props.$$legacy;
+    return (
+      /** @type {() => V} */
+      (function(value, mutation) {
+        if (arguments.length > 0) {
+          if (!runes || !mutation || legacy_parent || is_store_sub) {
+            setter(mutation ? getter() : value);
+          }
+          return value;
+        }
+        return getter();
+      })
+    );
+  }
+  var overridden = false;
+  var d2 = ((flags2 & PROPS_IS_IMMUTABLE) !== 0 ? derived$1 : derived_safe_equal)(() => {
+    overridden = false;
+    return getter();
+  });
+  if (bindable) get$1(d2);
+  var parent_effect = (
+    /** @type {Effect} */
+    active_effect
+  );
+  return (
+    /** @type {() => V} */
+    (function(value, mutation) {
+      if (arguments.length > 0) {
+        const new_value = mutation ? get$1(d2) : runes && bindable ? proxy(value) : value;
+        set(d2, new_value);
+        overridden = true;
+        if (fallback_value !== void 0) {
+          fallback_value = new_value;
+        }
+        return value;
+      }
+      if (is_destroying_effect && overridden || (parent_effect.f & DESTROYED) !== 0) {
+        return d2.v;
+      }
+      return get$1(d2);
+    })
+  );
 }
 const initialState$3 = {
   hass: null,
@@ -8055,20 +8514,32 @@ const initialState$3 = {
   showThinking: false,
   thinkingExpanded: false,
   agentName: "Homeclaw",
-  agentEmoji: ""
+  agentEmoji: "",
+  userName: ""
 };
 const appState = writable(initialState$3);
 const hasMessages = derived(appState, ($state) => $state.messages.length > 0);
 derived(appState, ($state) => $state.error !== null);
+function isValidAesthetic(value) {
+  return value === "warm" || value === "tech" || value === "ambient";
+}
 let _hostElement = null;
 function setHostElement(el) {
   _hostElement = el;
+  queueMicrotask(() => {
+    const state2 = get(uiState);
+    if (state2.theme !== "system") {
+      el.setAttribute("data-theme", state2.theme);
+    }
+    el.setAttribute("data-aesthetic", state2.aesthetic);
+  });
 }
 const initialState$2 = {
   sidebarOpen: typeof window !== "undefined" ? window.innerWidth > 768 : false,
   showProviderDropdown: false,
   settingsOpen: false,
-  theme: "system"
+  theme: "system",
+  aesthetic: "warm"
 };
 const uiState = writable(initialState$2);
 function isValidTheme(theme) {
@@ -8163,6 +8634,29 @@ function initTheme() {
   }
 }
 initTheme();
+function setAesthetic(aesthetic) {
+  uiState.update((s2) => ({ ...s2, aesthetic }));
+  applyAestheticToHost(aesthetic);
+  try {
+    localStorage.setItem("homeclaw-aesthetic", aesthetic);
+  } catch {
+  }
+}
+function applyAestheticToHost(aesthetic) {
+  const host = _hostElement || document.querySelector("homeclaw-panel");
+  if (!host) return;
+  host.setAttribute("data-aesthetic", aesthetic);
+}
+function initAesthetic() {
+  try {
+    const saved = localStorage.getItem("homeclaw-aesthetic");
+    const aesthetic = isValidAesthetic(saved) ? saved : "warm";
+    uiState.update((s2) => ({ ...s2, aesthetic }));
+    setTimeout(() => applyAestheticToHost(aesthetic), 0);
+  } catch {
+  }
+}
+initAesthetic();
 const ui = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   closeDropdowns,
@@ -8171,6 +8665,7 @@ const ui = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   cycleTheme,
   openSettings,
   openSidebar,
+  setAesthetic,
   setHostElement,
   setTheme,
   syncThemeFromPreferences,
@@ -14195,9 +14690,6 @@ function renderMarkdown(text2, sessionId) {
 function clearSessionCache(sessionId) {
   markdownCache.delete(sessionId);
 }
-function clearAllCaches() {
-  markdownCache.clear();
-}
 async function loadSessions(hass) {
   sessionState.update((s2) => ({ ...s2, sessionsLoading: true }));
   try {
@@ -14380,84 +14872,612 @@ async function generateSessionEmoji(hass, sessionId, title) {
   }
 }
 enable_legacy_mode_flag();
-var root_1$l = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`);
-var root_3$c = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`);
-var root_4$c = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`);
-var root$o = /* @__PURE__ */ from_html(`<div class="header svelte-1elxaub"><button class="header-btn back-btn svelte-1elxaub" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button> <div class="header-avatar svelte-1elxaub"><svg viewBox="0 0 24 24" fill="currentColor" class="svelte-1elxaub"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.07A7.001 7.001 0 0 1 7.07 19H6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h-1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zm-3 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm6 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"></path></svg></div> <div class="header-info svelte-1elxaub"><div class="header-title svelte-1elxaub"> </div> <div class="header-subtitle svelte-1elxaub">online</div></div> <div class="header-actions svelte-1elxaub"><button class="header-btn svelte-1elxaub" aria-label="Toggle theme"><!></button> <button class="header-btn svelte-1elxaub" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></button> <button class="header-btn delete-btn svelte-1elxaub" title="Clear chat" aria-label="Clear chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-1elxaub"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div></div>`);
-function Header($$anchor, $$props) {
-  push($$props, false);
-  const $activeSession = () => store_get(activeSession, "$activeSession", $$stores);
-  const $appState = () => store_get(appState, "$appState", $$stores);
-  const $uiState = () => store_get(uiState, "$uiState", $$stores);
-  const [$$stores, $$cleanup] = setup_stores();
-  async function clearChat() {
-    const currentAppState = get(appState);
-    const currentSessionState = get(sessionState);
-    if (!currentAppState.hass) return;
-    if (!currentSessionState.activeSessionId) return;
-    if (confirm("Clear this conversation?")) {
-      await deleteSession(currentAppState.hass, currentSessionState.activeSessionId);
-      clearAllCaches();
-    }
-  }
-  init();
-  var div = root$o();
-  var button = child(div);
-  button.__click = function(...$$args) {
-    toggleSidebar?.apply(this, $$args);
-  };
-  var div_1 = sibling(button, 4);
-  var div_2 = child(div_1);
-  var text2 = child(div_2);
-  var div_3 = sibling(div_1, 2);
-  var button_1 = child(div_3);
-  button_1.__click = function(...$$args) {
-    cycleTheme?.apply(this, $$args);
-  };
-  var node = child(button_1);
+var root_1$o = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>`);
+var root_3$f = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>`);
+var root_5$9 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 14-7-5 17-3-7-6-3z"></path></svg>`);
+var root_7$7 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>`);
+var root_9$4 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7L14 4.5a3.5 3.5 0 0 1 5 5L10.5 18a2 2 0 0 1-3-3L15 7.5"></path></svg>`);
+var root_11$3 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.5-2-3.4-2.4.7a7 7 0 0 0-2.3-1.3L13.7 3h-3.4l-.5 2.2a7 7 0 0 0-2.3 1.3l-2.4-.7-2 3.4 2 1.5a7 7 0 0 0 0 2.6l-2 1.5 2 3.4 2.4-.7a7 7 0 0 0 2.3 1.3l.5 2.2h3.4l.5-2.2a7 7 0 0 0 2.3-1.3l2.4.7 2-3.4-2-1.5c.1-.4.1-.9.1-1.3z"></path></svg>`);
+var root_13$3 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"></path></svg>`);
+var root_15$3 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>`);
+var root_17$2 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"></path><path d="M21 3v5h-5"></path></svg>`);
+var root_19$2 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 12 9-9 9 9v8a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"></path></svg>`);
+var root_21$2 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5 13.8 9l6.5 1.7-6.5 1.7L12 19l-1.8-6.5L3.7 10.7 10.2 9z"></path></svg>`);
+var root_23 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>`);
+var root_25 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg>`);
+var root_27 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>`);
+var root_29 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13c0-4 3-9 12-9 0 8-4 16-5 16zM4 20l8-8"></path></svg>`);
+var root_31 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M7 14l3-3 4 4 6-7"></path></svg>`);
+var root_33 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10c.7.7 1 1.6 1 2.5V17h6v-1.5c0-.9.3-1.8 1-2.5a6 6 0 0 0-4-10z"></path></svg>`);
+var root_35 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.8V4a2 2 0 1 0-4 0v10.8a4 4 0 1 0 4 0z"></path></svg>`);
+var root_37 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>`);
+var root_39 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></svg>`);
+var root_41 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2"></circle><path d="M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.3a6 6 0 0 1 0-8.5M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"></path></svg>`);
+var root_43 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>`);
+function Icon($$anchor, $$props) {
+  let name = prop($$props, "name", 8);
+  let size = prop($$props, "size", 8, 16);
+  var fragment = comment();
+  var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var svg2 = root_1$l();
+      var svg2 = root_1$o();
+      template_effect(() => {
+        set_attribute(svg2, "width", size());
+        set_attribute(svg2, "height", size());
+      });
       append($$anchor2, svg2);
     };
-    var alternate_1 = ($$anchor2) => {
-      var fragment = comment();
-      var node_1 = first_child(fragment);
+    var alternate_20 = ($$anchor2) => {
+      var fragment_1 = comment();
+      var node_1 = first_child(fragment_1);
       {
         var consequent_1 = ($$anchor3) => {
-          var svg_1 = root_3$c();
+          var svg_1 = root_3$f();
+          template_effect(() => {
+            set_attribute(svg_1, "width", size());
+            set_attribute(svg_1, "height", size());
+          });
           append($$anchor3, svg_1);
         };
-        var alternate = ($$anchor3) => {
-          var svg_2 = root_4$c();
-          append($$anchor3, svg_2);
+        var alternate_19 = ($$anchor3) => {
+          var fragment_2 = comment();
+          var node_2 = first_child(fragment_2);
+          {
+            var consequent_2 = ($$anchor4) => {
+              var svg_2 = root_5$9();
+              template_effect(() => {
+                set_attribute(svg_2, "width", size());
+                set_attribute(svg_2, "height", size());
+              });
+              append($$anchor4, svg_2);
+            };
+            var alternate_18 = ($$anchor4) => {
+              var fragment_3 = comment();
+              var node_3 = first_child(fragment_3);
+              {
+                var consequent_3 = ($$anchor5) => {
+                  var svg_3 = root_7$7();
+                  template_effect(() => {
+                    set_attribute(svg_3, "width", size());
+                    set_attribute(svg_3, "height", size());
+                  });
+                  append($$anchor5, svg_3);
+                };
+                var alternate_17 = ($$anchor5) => {
+                  var fragment_4 = comment();
+                  var node_4 = first_child(fragment_4);
+                  {
+                    var consequent_4 = ($$anchor6) => {
+                      var svg_4 = root_9$4();
+                      template_effect(() => {
+                        set_attribute(svg_4, "width", size());
+                        set_attribute(svg_4, "height", size());
+                      });
+                      append($$anchor6, svg_4);
+                    };
+                    var alternate_16 = ($$anchor6) => {
+                      var fragment_5 = comment();
+                      var node_5 = first_child(fragment_5);
+                      {
+                        var consequent_5 = ($$anchor7) => {
+                          var svg_5 = root_11$3();
+                          template_effect(() => {
+                            set_attribute(svg_5, "width", size());
+                            set_attribute(svg_5, "height", size());
+                          });
+                          append($$anchor7, svg_5);
+                        };
+                        var alternate_15 = ($$anchor7) => {
+                          var fragment_6 = comment();
+                          var node_6 = first_child(fragment_6);
+                          {
+                            var consequent_6 = ($$anchor8) => {
+                              var svg_6 = root_13$3();
+                              template_effect(() => {
+                                set_attribute(svg_6, "width", size());
+                                set_attribute(svg_6, "height", size());
+                              });
+                              append($$anchor8, svg_6);
+                            };
+                            var alternate_14 = ($$anchor8) => {
+                              var fragment_7 = comment();
+                              var node_7 = first_child(fragment_7);
+                              {
+                                var consequent_7 = ($$anchor9) => {
+                                  var svg_7 = root_15$3();
+                                  template_effect(() => {
+                                    set_attribute(svg_7, "width", size());
+                                    set_attribute(svg_7, "height", size());
+                                  });
+                                  append($$anchor9, svg_7);
+                                };
+                                var alternate_13 = ($$anchor9) => {
+                                  var fragment_8 = comment();
+                                  var node_8 = first_child(fragment_8);
+                                  {
+                                    var consequent_8 = ($$anchor10) => {
+                                      var svg_8 = root_17$2();
+                                      template_effect(() => {
+                                        set_attribute(svg_8, "width", size());
+                                        set_attribute(svg_8, "height", size());
+                                      });
+                                      append($$anchor10, svg_8);
+                                    };
+                                    var alternate_12 = ($$anchor10) => {
+                                      var fragment_9 = comment();
+                                      var node_9 = first_child(fragment_9);
+                                      {
+                                        var consequent_9 = ($$anchor11) => {
+                                          var svg_9 = root_19$2();
+                                          template_effect(() => {
+                                            set_attribute(svg_9, "width", size());
+                                            set_attribute(svg_9, "height", size());
+                                          });
+                                          append($$anchor11, svg_9);
+                                        };
+                                        var alternate_11 = ($$anchor11) => {
+                                          var fragment_10 = comment();
+                                          var node_10 = first_child(fragment_10);
+                                          {
+                                            var consequent_10 = ($$anchor12) => {
+                                              var svg_10 = root_21$2();
+                                              template_effect(() => {
+                                                set_attribute(svg_10, "width", size());
+                                                set_attribute(svg_10, "height", size());
+                                              });
+                                              append($$anchor12, svg_10);
+                                            };
+                                            var alternate_10 = ($$anchor12) => {
+                                              var fragment_11 = comment();
+                                              var node_11 = first_child(fragment_11);
+                                              {
+                                                var consequent_11 = ($$anchor13) => {
+                                                  var svg_11 = root_23();
+                                                  template_effect(() => {
+                                                    set_attribute(svg_11, "width", size());
+                                                    set_attribute(svg_11, "height", size());
+                                                  });
+                                                  append($$anchor13, svg_11);
+                                                };
+                                                var alternate_9 = ($$anchor13) => {
+                                                  var fragment_12 = comment();
+                                                  var node_12 = first_child(fragment_12);
+                                                  {
+                                                    var consequent_12 = ($$anchor14) => {
+                                                      var svg_12 = root_25();
+                                                      template_effect(() => {
+                                                        set_attribute(svg_12, "width", size());
+                                                        set_attribute(svg_12, "height", size());
+                                                      });
+                                                      append($$anchor14, svg_12);
+                                                    };
+                                                    var alternate_8 = ($$anchor14) => {
+                                                      var fragment_13 = comment();
+                                                      var node_13 = first_child(fragment_13);
+                                                      {
+                                                        var consequent_13 = ($$anchor15) => {
+                                                          var svg_13 = root_27();
+                                                          template_effect(() => {
+                                                            set_attribute(svg_13, "width", size());
+                                                            set_attribute(svg_13, "height", size());
+                                                          });
+                                                          append($$anchor15, svg_13);
+                                                        };
+                                                        var alternate_7 = ($$anchor15) => {
+                                                          var fragment_14 = comment();
+                                                          var node_14 = first_child(fragment_14);
+                                                          {
+                                                            var consequent_14 = ($$anchor16) => {
+                                                              var svg_14 = root_29();
+                                                              template_effect(() => {
+                                                                set_attribute(svg_14, "width", size());
+                                                                set_attribute(svg_14, "height", size());
+                                                              });
+                                                              append($$anchor16, svg_14);
+                                                            };
+                                                            var alternate_6 = ($$anchor16) => {
+                                                              var fragment_15 = comment();
+                                                              var node_15 = first_child(fragment_15);
+                                                              {
+                                                                var consequent_15 = ($$anchor17) => {
+                                                                  var svg_15 = root_31();
+                                                                  template_effect(() => {
+                                                                    set_attribute(svg_15, "width", size());
+                                                                    set_attribute(svg_15, "height", size());
+                                                                  });
+                                                                  append($$anchor17, svg_15);
+                                                                };
+                                                                var alternate_5 = ($$anchor17) => {
+                                                                  var fragment_16 = comment();
+                                                                  var node_16 = first_child(fragment_16);
+                                                                  {
+                                                                    var consequent_16 = ($$anchor18) => {
+                                                                      var svg_16 = root_33();
+                                                                      template_effect(() => {
+                                                                        set_attribute(svg_16, "width", size());
+                                                                        set_attribute(svg_16, "height", size());
+                                                                      });
+                                                                      append($$anchor18, svg_16);
+                                                                    };
+                                                                    var alternate_4 = ($$anchor18) => {
+                                                                      var fragment_17 = comment();
+                                                                      var node_17 = first_child(fragment_17);
+                                                                      {
+                                                                        var consequent_17 = ($$anchor19) => {
+                                                                          var svg_17 = root_35();
+                                                                          template_effect(() => {
+                                                                            set_attribute(svg_17, "width", size());
+                                                                            set_attribute(svg_17, "height", size());
+                                                                          });
+                                                                          append($$anchor19, svg_17);
+                                                                        };
+                                                                        var alternate_3 = ($$anchor19) => {
+                                                                          var fragment_18 = comment();
+                                                                          var node_18 = first_child(fragment_18);
+                                                                          {
+                                                                            var consequent_18 = ($$anchor20) => {
+                                                                              var svg_18 = root_37();
+                                                                              template_effect(() => {
+                                                                                set_attribute(svg_18, "width", size());
+                                                                                set_attribute(svg_18, "height", size());
+                                                                              });
+                                                                              append($$anchor20, svg_18);
+                                                                            };
+                                                                            var alternate_2 = ($$anchor20) => {
+                                                                              var fragment_19 = comment();
+                                                                              var node_19 = first_child(fragment_19);
+                                                                              {
+                                                                                var consequent_19 = ($$anchor21) => {
+                                                                                  var svg_19 = root_39();
+                                                                                  template_effect(() => {
+                                                                                    set_attribute(svg_19, "width", size());
+                                                                                    set_attribute(svg_19, "height", size());
+                                                                                  });
+                                                                                  append($$anchor21, svg_19);
+                                                                                };
+                                                                                var alternate_1 = ($$anchor21) => {
+                                                                                  var fragment_20 = comment();
+                                                                                  var node_20 = first_child(fragment_20);
+                                                                                  {
+                                                                                    var consequent_20 = ($$anchor22) => {
+                                                                                      var svg_20 = root_41();
+                                                                                      template_effect(() => {
+                                                                                        set_attribute(svg_20, "width", size());
+                                                                                        set_attribute(svg_20, "height", size());
+                                                                                      });
+                                                                                      append($$anchor22, svg_20);
+                                                                                    };
+                                                                                    var alternate = ($$anchor22) => {
+                                                                                      var fragment_21 = comment();
+                                                                                      var node_21 = first_child(fragment_21);
+                                                                                      {
+                                                                                        var consequent_21 = ($$anchor23) => {
+                                                                                          var svg_21 = root_43();
+                                                                                          template_effect(() => {
+                                                                                            set_attribute(svg_21, "width", size());
+                                                                                            set_attribute(svg_21, "height", size());
+                                                                                          });
+                                                                                          append($$anchor23, svg_21);
+                                                                                        };
+                                                                                        if_block(
+                                                                                          node_21,
+                                                                                          ($$render) => {
+                                                                                            if (name() === "menu") $$render(consequent_21);
+                                                                                          },
+                                                                                          true
+                                                                                        );
+                                                                                      }
+                                                                                      append($$anchor22, fragment_21);
+                                                                                    };
+                                                                                    if_block(
+                                                                                      node_20,
+                                                                                      ($$render) => {
+                                                                                        if (name() === "radio") $$render(consequent_20);
+                                                                                        else $$render(alternate, false);
+                                                                                      },
+                                                                                      true
+                                                                                    );
+                                                                                  }
+                                                                                  append($$anchor21, fragment_20);
+                                                                                };
+                                                                                if_block(
+                                                                                  node_19,
+                                                                                  ($$render) => {
+                                                                                    if (name() === "sliders") $$render(consequent_19);
+                                                                                    else $$render(alternate_1, false);
+                                                                                  },
+                                                                                  true
+                                                                                );
+                                                                              }
+                                                                              append($$anchor20, fragment_19);
+                                                                            };
+                                                                            if_block(
+                                                                              node_18,
+                                                                              ($$render) => {
+                                                                                if (name() === "lock") $$render(consequent_18);
+                                                                                else $$render(alternate_2, false);
+                                                                              },
+                                                                              true
+                                                                            );
+                                                                          }
+                                                                          append($$anchor19, fragment_18);
+                                                                        };
+                                                                        if_block(
+                                                                          node_17,
+                                                                          ($$render) => {
+                                                                            if (name() === "thermo") $$render(consequent_17);
+                                                                            else $$render(alternate_3, false);
+                                                                          },
+                                                                          true
+                                                                        );
+                                                                      }
+                                                                      append($$anchor18, fragment_17);
+                                                                    };
+                                                                    if_block(
+                                                                      node_16,
+                                                                      ($$render) => {
+                                                                        if (name() === "light") $$render(consequent_16);
+                                                                        else $$render(alternate_4, false);
+                                                                      },
+                                                                      true
+                                                                    );
+                                                                  }
+                                                                  append($$anchor17, fragment_16);
+                                                                };
+                                                                if_block(
+                                                                  node_15,
+                                                                  ($$render) => {
+                                                                    if (name() === "chart") $$render(consequent_15);
+                                                                    else $$render(alternate_5, false);
+                                                                  },
+                                                                  true
+                                                                );
+                                                              }
+                                                              append($$anchor16, fragment_15);
+                                                            };
+                                                            if_block(
+                                                              node_14,
+                                                              ($$render) => {
+                                                                if (name() === "leaf") $$render(consequent_14);
+                                                                else $$render(alternate_6, false);
+                                                              },
+                                                              true
+                                                            );
+                                                          }
+                                                          append($$anchor15, fragment_14);
+                                                        };
+                                                        if_block(
+                                                          node_13,
+                                                          ($$render) => {
+                                                            if (name() === "edit") $$render(consequent_13);
+                                                            else $$render(alternate_7, false);
+                                                          },
+                                                          true
+                                                        );
+                                                      }
+                                                      append($$anchor14, fragment_13);
+                                                    };
+                                                    if_block(
+                                                      node_12,
+                                                      ($$render) => {
+                                                        if (name() === "x") $$render(consequent_12);
+                                                        else $$render(alternate_8, false);
+                                                      },
+                                                      true
+                                                    );
+                                                  }
+                                                  append($$anchor13, fragment_12);
+                                                };
+                                                if_block(
+                                                  node_11,
+                                                  ($$render) => {
+                                                    if (name() === "check") $$render(consequent_11);
+                                                    else $$render(alternate_9, false);
+                                                  },
+                                                  true
+                                                );
+                                              }
+                                              append($$anchor12, fragment_11);
+                                            };
+                                            if_block(
+                                              node_10,
+                                              ($$render) => {
+                                                if (name() === "sparkle") $$render(consequent_10);
+                                                else $$render(alternate_10, false);
+                                              },
+                                              true
+                                            );
+                                          }
+                                          append($$anchor11, fragment_10);
+                                        };
+                                        if_block(
+                                          node_9,
+                                          ($$render) => {
+                                            if (name() === "home") $$render(consequent_9);
+                                            else $$render(alternate_11, false);
+                                          },
+                                          true
+                                        );
+                                      }
+                                      append($$anchor10, fragment_9);
+                                    };
+                                    if_block(
+                                      node_8,
+                                      ($$render) => {
+                                        if (name() === "refresh") $$render(consequent_8);
+                                        else $$render(alternate_12, false);
+                                      },
+                                      true
+                                    );
+                                  }
+                                  append($$anchor9, fragment_8);
+                                };
+                                if_block(
+                                  node_7,
+                                  ($$render) => {
+                                    if (name() === "sun") $$render(consequent_7);
+                                    else $$render(alternate_13, false);
+                                  },
+                                  true
+                                );
+                              }
+                              append($$anchor8, fragment_7);
+                            };
+                            if_block(
+                              node_6,
+                              ($$render) => {
+                                if (name() === "moon") $$render(consequent_6);
+                                else $$render(alternate_14, false);
+                              },
+                              true
+                            );
+                          }
+                          append($$anchor7, fragment_6);
+                        };
+                        if_block(
+                          node_5,
+                          ($$render) => {
+                            if (name() === "settings") $$render(consequent_5);
+                            else $$render(alternate_15, false);
+                          },
+                          true
+                        );
+                      }
+                      append($$anchor6, fragment_5);
+                    };
+                    if_block(
+                      node_4,
+                      ($$render) => {
+                        if (name() === "attach") $$render(consequent_4);
+                        else $$render(alternate_16, false);
+                      },
+                      true
+                    );
+                  }
+                  append($$anchor5, fragment_4);
+                };
+                if_block(
+                  node_3,
+                  ($$render) => {
+                    if (name() === "mic") $$render(consequent_3);
+                    else $$render(alternate_17, false);
+                  },
+                  true
+                );
+              }
+              append($$anchor4, fragment_3);
+            };
+            if_block(
+              node_2,
+              ($$render) => {
+                if (name() === "send") $$render(consequent_2);
+                else $$render(alternate_18, false);
+              },
+              true
+            );
+          }
+          append($$anchor3, fragment_2);
         };
         if_block(
           node_1,
           ($$render) => {
-            if ($uiState().theme === "dark") $$render(consequent_1);
-            else $$render(alternate, false);
+            if (name() === "search") $$render(consequent_1);
+            else $$render(alternate_19, false);
           },
           true
         );
       }
-      append($$anchor2, fragment);
+      append($$anchor2, fragment_1);
     };
     if_block(node, ($$render) => {
-      if ($uiState().theme === "light") $$render(consequent);
-      else $$render(alternate_1, false);
+      if (name() === "plus") $$render(consequent);
+      else $$render(alternate_20, false);
     });
   }
+  append($$anchor, fragment);
+}
+var root_1$n = /* @__PURE__ */ from_html(`<b class="svelte-h6bux4"> </b>`);
+var root_2$e = /* @__PURE__ */ from_html(`<span>·</span>`);
+var root_3$e = /* @__PURE__ */ from_html(`<span> </span>`);
+var root$p = /* @__PURE__ */ from_html(`<div class="hc-topbar svelte-h6bux4"><button class="hc-topbar-mobile svelte-h6bux4" aria-label="Toggle sidebar" title="Sessions"><!></button> <div class="hc-topbar-title svelte-h6bux4"> </div> <div class="hc-topbar-meta svelte-h6bux4"><!> <!> <!></div> <div class="hc-topbar-actions svelte-h6bux4"><button aria-label="Toggle theme" class="svelte-h6bux4"><!></button> <button aria-label="Settings" title="Settings" class="svelte-h6bux4"><!></button></div></div>`);
+function Topbar($$anchor, $$props) {
+  push($$props, true);
+  const $appState = () => store_get(appState, "$appState", $$stores);
+  const $uiState = () => store_get(uiState, "$uiState", $$stores);
+  const $activeSession = () => store_get(activeSession, "$activeSession", $$stores);
+  const $providerState = () => store_get(providerState, "$providerState", $$stores);
+  const [$$stores, $$cleanup] = setup_stores();
+  const entityCount = /* @__PURE__ */ user_derived(() => {
+    const states = $appState().hass?.states;
+    if (!states) return null;
+    return Object.keys(states).length;
+  });
+  const themeIcon = /* @__PURE__ */ user_derived(() => $uiState().theme === "dark" ? "moon" : $uiState().theme === "light" ? "sun" : "refresh");
+  var div = root$p();
+  var button = child(div);
+  button.__click = function(...$$args) {
+    toggleSidebar?.apply(this, $$args);
+  };
+  var node = child(button);
+  Icon(node, { name: "menu" });
+  var div_1 = sibling(button, 2);
+  var text2 = child(div_1);
+  var div_2 = sibling(div_1, 2);
+  var node_1 = child(div_2);
+  {
+    var consequent = ($$anchor2) => {
+      var b2 = root_1$n();
+      var text_1 = child(b2);
+      template_effect(() => set_text(text_1, $providerState().selectedModel));
+      append($$anchor2, b2);
+    };
+    if_block(node_1, ($$render) => {
+      if ($providerState().selectedModel) $$render(consequent);
+    });
+  }
+  var node_2 = sibling(node_1, 2);
+  {
+    var consequent_1 = ($$anchor2) => {
+      var span = root_2$e();
+      append($$anchor2, span);
+    };
+    if_block(node_2, ($$render) => {
+      if ($providerState().selectedModel && get$1(entityCount)) $$render(consequent_1);
+    });
+  }
+  var node_3 = sibling(node_2, 2);
+  {
+    var consequent_2 = ($$anchor2) => {
+      var span_1 = root_3$e();
+      var text_2 = child(span_1);
+      template_effect(() => set_text(text_2, `${get$1(entityCount) ?? ""} entities`));
+      append($$anchor2, span_1);
+    };
+    if_block(node_3, ($$render) => {
+      if (get$1(entityCount)) $$render(consequent_2);
+    });
+  }
+  var div_3 = sibling(div_2, 2);
+  var button_1 = child(div_3);
+  button_1.__click = function(...$$args) {
+    cycleTheme?.apply(this, $$args);
+  };
+  var node_4 = child(button_1);
+  Icon(node_4, {
+    get name() {
+      return get$1(themeIcon);
+    }
+  });
   var button_2 = sibling(button_1, 2);
   button_2.__click = function(...$$args) {
     toggleSettings?.apply(this, $$args);
   };
-  var button_3 = sibling(button_2, 2);
-  button_3.__click = clearChat;
+  var node_5 = child(button_2);
+  Icon(node_5, { name: "settings" });
   template_effect(() => {
     set_text(text2, $activeSession()?.title || $appState().agentName);
-    set_attribute(button_1, "title", `Toggle theme (${$uiState().theme ?? ""})`);
-    button_3.disabled = $appState().isLoading;
+    set_attribute(button_1, "title", `Theme: ${$uiState().theme ?? ""}`);
   });
   append($$anchor, div);
   pop();
@@ -14496,38 +15516,27 @@ function formatSessionTime(timestamp) {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
 }
-var root_1$k = /* @__PURE__ */ from_html(`<div class="voice-badge svelte-114uzds" title="Voice session" role="img" aria-label="Voice session"><svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10" class="svelte-114uzds"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"></path><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"></path></svg></div>`);
-var root$n = /* @__PURE__ */ from_html(`<div role="button" tabindex="0"><div class="session-avatar svelte-114uzds"><span> </span> <!></div> <div class="session-content svelte-114uzds"><div class="session-top-row svelte-114uzds"><span class="session-name svelte-114uzds"> </span> <span class="session-time svelte-114uzds"> </span></div> <div class="session-bottom-row svelte-114uzds"><span class="session-preview svelte-114uzds"> </span></div></div> <button class="session-delete svelte-114uzds" aria-label="Delete session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-114uzds"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div>`);
+var root_1$m = /* @__PURE__ */ from_html(`<span class="hc-session-voice svelte-114uzds" title="Voice session" aria-label="Voice session"><!></span>`);
+var root_3$d = /* @__PURE__ */ from_html(`<span class="hc-session-emoji svelte-114uzds" aria-hidden="true"> </span>`);
+var root_4$d = /* @__PURE__ */ from_html(`<div class="hc-session-preview svelte-114uzds"> </div>`);
+var root$o = /* @__PURE__ */ from_html(`<div role="button" tabindex="0"><div class="hc-session-row svelte-114uzds"><!> <div class="hc-session-title svelte-114uzds"> </div> <div class="hc-session-time svelte-114uzds"> </div> <button class="hc-session-del svelte-114uzds" aria-label="Delete session" title="Delete"><!></button></div> <!></div>`);
 function SessionItem($$anchor, $$props) {
   push($$props, true);
   const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   const isActive = /* @__PURE__ */ user_derived(() => $$props.session.session_id === $sessionState().activeSessionId);
-  const avatarColor = /* @__PURE__ */ user_derived(() => {
-    const title = $$props.session.title || "New";
-    let hash = 0;
-    for (let i2 = 0; i2 < title.length; i2++) {
-      hash = title.charCodeAt(i2) + ((hash << 5) - hash);
-    }
-    const colors = [
-      "#2AABEE",
-      "#F5A623",
-      "#E74C3C",
-      "#27AE60",
-      "#9B59B6",
-      "#1ABC9C",
-      "#E67E22",
-      "#3498DB"
-    ];
-    return colors[Math.abs(hash) % colors.length];
-  });
   const isVoice = /* @__PURE__ */ user_derived(() => $$props.session.title?.startsWith("Voice: ") ?? false);
   const displayTitle = /* @__PURE__ */ user_derived(() => get$1(isVoice) ? $$props.session.title.slice(7) : $$props.session.title);
-  const avatarText = /* @__PURE__ */ user_derived(() => $$props.session.emoji || (get$1(displayTitle) || "N")[0].toUpperCase());
   async function handleClick() {
     const hass = get(appState).hass;
     if (hass && !get$1(isActive)) {
       await selectSession(hass, $$props.session.session_id);
+    }
+  }
+  async function handleKeydown(e2) {
+    if (e2.key === "Enter" || e2.key === " ") {
+      e2.preventDefault();
+      await handleClick();
     }
   }
   async function handleDelete(e2) {
@@ -14538,41 +15547,69 @@ function SessionItem($$anchor, $$props) {
       await deleteSession(hass, $$props.session.session_id);
     }
   }
-  var div = root$n();
+  var div = root$o();
   let classes;
   div.__click = handleClick;
+  div.__keydown = handleKeydown;
   var div_1 = child(div);
-  var span = child(div_1);
-  var text2 = child(span);
-  var node = sibling(span, 2);
+  var node = child(div_1);
   {
     var consequent = ($$anchor2) => {
-      var div_2 = root_1$k();
-      append($$anchor2, div_2);
+      var span = root_1$m();
+      var node_1 = child(span);
+      Icon(node_1, { name: "mic", size: 11 });
+      append($$anchor2, span);
+    };
+    var alternate = ($$anchor2) => {
+      var fragment = comment();
+      var node_2 = first_child(fragment);
+      {
+        var consequent_1 = ($$anchor3) => {
+          var span_1 = root_3$d();
+          var text2 = child(span_1);
+          template_effect(() => set_text(text2, $$props.session.emoji));
+          append($$anchor3, span_1);
+        };
+        if_block(
+          node_2,
+          ($$render) => {
+            if ($$props.session.emoji) $$render(consequent_1);
+          },
+          true
+        );
+      }
+      append($$anchor2, fragment);
     };
     if_block(node, ($$render) => {
       if (get$1(isVoice)) $$render(consequent);
+      else $$render(alternate, false);
     });
   }
-  var div_3 = sibling(div_1, 2);
-  var div_4 = child(div_3);
-  var span_1 = child(div_4);
-  var text_1 = child(span_1);
-  var span_2 = sibling(span_1, 2);
-  var text_2 = child(span_2);
-  var div_5 = sibling(div_4, 2);
-  var span_3 = child(div_5);
-  var text_3 = child(span_3);
+  var div_2 = sibling(node, 2);
+  var text_1 = child(div_2);
+  var div_3 = sibling(div_2, 2);
+  var text_2 = child(div_3);
   var button = sibling(div_3, 2);
   button.__click = handleDelete;
+  var node_3 = child(button);
+  Icon(node_3, { name: "x", size: 12 });
+  var node_4 = sibling(div_1, 2);
+  {
+    var consequent_2 = ($$anchor2) => {
+      var div_4 = root_4$d();
+      var text_3 = child(div_4);
+      template_effect(() => set_text(text_3, $$props.session.preview));
+      append($$anchor2, div_4);
+    };
+    if_block(node_4, ($$render) => {
+      if ($$props.session.preview) $$render(consequent_2);
+    });
+  }
   template_effect(
     ($0) => {
-      classes = set_class(div, 1, "session-item svelte-114uzds", null, classes, { active: get$1(isActive) });
-      set_style(div_1, `background: ${get$1(avatarColor) ?? ""}`);
-      set_text(text2, get$1(avatarText));
-      set_text(text_1, get$1(displayTitle) || "New Conversation");
+      classes = set_class(div, 1, "hc-session svelte-114uzds", null, classes, { "is-active": get$1(isActive) });
+      set_text(text_1, get$1(displayTitle) || "New conversation");
       set_text(text_2, $0);
-      set_text(text_3, $$props.session.preview || "Start typing...");
     },
     [() => formatSessionTime($$props.session.updated_at)]
   );
@@ -14580,65 +15617,92 @@ function SessionItem($$anchor, $$props) {
   pop();
   $$cleanup();
 }
-delegate(["click"]);
-var root_2$b = /* @__PURE__ */ from_html(`<div class="session-skeleton svelte-1j5qstn"><div class="skeleton-line svelte-1j5qstn"></div> <div class="skeleton-line short svelte-1j5qstn"></div> <div class="skeleton-line tiny svelte-1j5qstn"></div></div>`);
-var root_4$b = /* @__PURE__ */ from_html(`<div class="empty-sessions svelte-1j5qstn"><svg viewBox="0 0 24 24" class="icon svelte-1j5qstn"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" class="svelte-1j5qstn"></path></svg> <p class="svelte-1j5qstn">No conversations yet</p></div>`);
-var root_6$a = /* @__PURE__ */ from_html(`<div class="empty-sessions svelte-1j5qstn"><p class="svelte-1j5qstn"> </p></div>`);
-var root$m = /* @__PURE__ */ from_html(`<div class="session-list svelte-1j5qstn"><!></div>`);
+delegate(["click", "keydown"]);
+var root_2$d = /* @__PURE__ */ from_html(`<div class="hc-session-skeleton svelte-1j5qstn"><div class="line svelte-1j5qstn"></div> <div class="line short svelte-1j5qstn"></div></div>`);
+var root_4$c = /* @__PURE__ */ from_html(`<div class="hc-empty-sessions svelte-1j5qstn">No conversations yet</div>`);
+var root_6$a = /* @__PURE__ */ from_html(`<div class="hc-empty-sessions svelte-1j5qstn"> </div>`);
+var root_8$7 = /* @__PURE__ */ from_html(`<div class="hc-section svelte-1j5qstn"> </div> <!>`, 1);
 function SessionList($$anchor, $$props) {
   push($$props, true);
   const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
   const $hasSessions = () => store_get(hasSessions, "$hasSessions", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   let searchQuery = prop($$props, "searchQuery", 3, "");
+  const GROUP_ORDER = ["Today", "Yesterday", "Earlier"];
+  function classify(timestamp) {
+    if (!timestamp) return "Earlier";
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return "Earlier";
+    const today = /* @__PURE__ */ new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date >= today) return "Today";
+    if (date >= yesterday) return "Yesterday";
+    return "Earlier";
+  }
   const filteredSessions = /* @__PURE__ */ user_derived(() => {
     const q2 = searchQuery().toLowerCase().trim();
     if (!q2) return $sessionState().sessions;
     return $sessionState().sessions.filter((s2) => s2.title.toLowerCase().includes(q2) || s2.preview.toLowerCase().includes(q2));
   });
+  const grouped = /* @__PURE__ */ user_derived(() => {
+    const buckets = { Today: [], Yesterday: [], Earlier: [] };
+    for (const s2 of get$1(filteredSessions)) {
+      buckets[classify(s2.updated_at)].push(s2);
+    }
+    return GROUP_ORDER.map((name) => ({ name, items: buckets[name] })).filter((g2) => g2.items.length > 0);
+  });
   const skeletonCount = 3;
-  var div = root$m();
-  var node = child(div);
+  var fragment = comment();
+  var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var fragment = comment();
-      var node_1 = first_child(fragment);
+      var fragment_1 = comment();
+      var node_1 = first_child(fragment_1);
       each(node_1, 17, () => Array(skeletonCount), index, ($$anchor3, _2) => {
-        var div_1 = root_2$b();
-        append($$anchor3, div_1);
+        var div = root_2$d();
+        append($$anchor3, div);
       });
-      append($$anchor2, fragment);
+      append($$anchor2, fragment_1);
     };
     var alternate_2 = ($$anchor2) => {
-      var fragment_1 = comment();
-      var node_2 = first_child(fragment_1);
+      var fragment_2 = comment();
+      var node_2 = first_child(fragment_2);
       {
         var consequent_1 = ($$anchor3) => {
-          var div_2 = root_4$b();
-          append($$anchor3, div_2);
+          var div_1 = root_4$c();
+          append($$anchor3, div_1);
         };
         var alternate_1 = ($$anchor3) => {
-          var fragment_2 = comment();
-          var node_3 = first_child(fragment_2);
+          var fragment_3 = comment();
+          var node_3 = first_child(fragment_3);
           {
             var consequent_2 = ($$anchor4) => {
-              var div_3 = root_6$a();
-              var p2 = child(div_3);
-              var text2 = child(p2);
-              template_effect(() => set_text(text2, `No results for "${searchQuery() ?? ""}"`));
-              append($$anchor4, div_3);
+              var div_2 = root_6$a();
+              var text2 = child(div_2);
+              template_effect(() => set_text(text2, `No results for “${searchQuery() ?? ""}”`));
+              append($$anchor4, div_2);
             };
             var alternate = ($$anchor4) => {
-              var fragment_3 = comment();
-              var node_4 = first_child(fragment_3);
-              each(node_4, 17, () => get$1(filteredSessions), (session) => session.session_id, ($$anchor5, session) => {
-                SessionItem($$anchor5, {
-                  get session() {
-                    return get$1(session);
-                  }
+              var fragment_4 = comment();
+              var node_4 = first_child(fragment_4);
+              each(node_4, 17, () => get$1(grouped), (g2) => g2.name, ($$anchor5, g2) => {
+                var fragment_5 = root_8$7();
+                var div_3 = first_child(fragment_5);
+                var text_1 = child(div_3);
+                var node_5 = sibling(div_3, 2);
+                each(node_5, 17, () => get$1(g2).items, (session) => session.session_id, ($$anchor6, session) => {
+                  SessionItem($$anchor6, {
+                    get session() {
+                      return get$1(session);
+                    }
+                  });
                 });
+                template_effect(() => set_text(text_1, get$1(g2).name));
+                append($$anchor5, fragment_5);
               });
-              append($$anchor4, fragment_3);
+              append($$anchor4, fragment_4);
             };
             if_block(
               node_3,
@@ -14649,7 +15713,7 @@ function SessionList($$anchor, $$props) {
               true
             );
           }
-          append($$anchor3, fragment_2);
+          append($$anchor3, fragment_3);
         };
         if_block(
           node_2,
@@ -14660,18 +15724,18 @@ function SessionList($$anchor, $$props) {
           true
         );
       }
-      append($$anchor2, fragment_1);
+      append($$anchor2, fragment_2);
     };
     if_block(node, ($$render) => {
       if ($sessionState().sessionsLoading) $$render(consequent);
       else $$render(alternate_2, false);
     });
   }
-  append($$anchor, div);
+  append($$anchor, fragment);
   pop();
   $$cleanup();
 }
-var root$l = /* @__PURE__ */ from_html(`<button class="fab svelte-19p7jpv" title="New chat" aria-label="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="svelte-19p7jpv"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>`);
+var root$n = /* @__PURE__ */ from_html(`<button class="hc-newchat svelte-19p7jpv"><!> <span class="svelte-19p7jpv">New conversation</span></button>`);
 function NewChatButton($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -14698,28 +15762,37 @@ function NewChatButton($$anchor, $$props) {
     await createSession($appState().hass, startProvider);
   }
   init();
-  var button = root$l();
+  var button = root$n();
   button.__click = handleNewChat;
+  var node = child(button);
+  Icon(node, { name: "plus" });
   template_effect(() => button.disabled = !$appState().hass);
   append($$anchor, button);
   pop();
   $$cleanup();
 }
 delegate(["click"]);
-var root_1$j = /* @__PURE__ */ from_html(`<div class="sidebar-overlay svelte-ou1367"></div>`);
-var root$k = /* @__PURE__ */ from_html(`<!> <aside><div class="search-container svelte-ou1367"><div class="search-bar svelte-ou1367"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-ou1367"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> <input type="text" placeholder="Search conversations..." aria-label="Search conversations" class="svelte-ou1367"/></div></div> <!> <!></aside>`, 1);
+var root_1$l = /* @__PURE__ */ from_html(`<div class="hc-sidebar-overlay svelte-ou1367"></div>`);
+var root_2$c = /* @__PURE__ */ from_html(`<small class="svelte-ou1367"> </small>`);
+var root$m = /* @__PURE__ */ from_html(`<!> <aside><div class="hc-sidebar-head svelte-ou1367"><div class="hc-mark svelte-ou1367"><!></div> <div class="hc-brand svelte-ou1367"> </div></div> <!> <div class="hc-search svelte-ou1367"><!> <input placeholder="Search conversations" aria-label="Search conversations" class="svelte-ou1367"/></div> <div class="hc-sessions svelte-ou1367"><!></div> <div class="hc-sidebar-foot svelte-ou1367"><div class="hc-status-pulse svelte-ou1367"></div> <div class="hc-status-text svelte-ou1367"> <!></div> <button aria-label="Toggle theme" class="svelte-ou1367"><!></button> <button title="Settings" aria-label="Settings" class="svelte-ou1367"><!></button></div></aside>`, 1);
 function Sidebar($$anchor, $$props) {
   push($$props, true);
   const $uiState = () => store_get(uiState, "$uiState", $$stores);
+  const $appState = () => store_get(appState, "$appState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   let searchQuery = /* @__PURE__ */ state("");
-  const sidebarClass = /* @__PURE__ */ user_derived(() => isMobile() ? $uiState().sidebarOpen ? "sidebar open" : "sidebar hidden" : $uiState().sidebarOpen ? "sidebar" : "sidebar hidden");
+  const sidebarClass = /* @__PURE__ */ user_derived(() => isMobile() ? $uiState().sidebarOpen ? "hc-sidebar open" : "hc-sidebar hidden" : $uiState().sidebarOpen ? "hc-sidebar" : "hc-sidebar hidden");
   const showOverlay = /* @__PURE__ */ user_derived(() => $uiState().sidebarOpen && isMobile());
-  var fragment = root$k();
+  const entityCount = /* @__PURE__ */ user_derived(() => {
+    const states = $appState().hass?.states;
+    return states ? Object.keys(states).length : null;
+  });
+  const themeIcon = /* @__PURE__ */ user_derived(() => $uiState().theme === "dark" ? "moon" : $uiState().theme === "light" ? "sun" : "refresh");
+  var fragment = root$m();
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var div = root_1$j();
+      var div = root_1$l();
       div.__click = function(...$$args) {
         closeSidebar?.apply(this, $$args);
       };
@@ -14732,16 +15805,61 @@ function Sidebar($$anchor, $$props) {
   var aside = sibling(node, 2);
   var div_1 = child(aside);
   var div_2 = child(div_1);
-  var input = sibling(child(div_2), 2);
-  var node_1 = sibling(div_1, 2);
-  SessionList(node_1, {
+  var node_1 = child(div_2);
+  Icon(node_1, { name: "home", size: 16 });
+  var div_3 = sibling(div_2, 2);
+  var text2 = child(div_3);
+  var node_2 = sibling(div_1, 2);
+  NewChatButton(node_2, {});
+  var div_4 = sibling(node_2, 2);
+  var node_3 = child(div_4);
+  Icon(node_3, { name: "search", size: 14 });
+  var input = sibling(node_3, 2);
+  var div_5 = sibling(div_4, 2);
+  var node_4 = child(div_5);
+  SessionList(node_4, {
     get searchQuery() {
       return get$1(searchQuery);
     }
   });
-  var node_2 = sibling(node_1, 2);
-  NewChatButton(node_2, {});
-  template_effect(() => set_class(aside, 1, clsx(get$1(sidebarClass)), "svelte-ou1367"));
+  var div_6 = sibling(div_5, 2);
+  var div_7 = sibling(child(div_6), 2);
+  var text_1 = child(div_7);
+  var node_5 = sibling(text_1);
+  {
+    var consequent_1 = ($$anchor2) => {
+      var small = root_2$c();
+      var text_2 = child(small);
+      template_effect(() => set_text(text_2, `${get$1(entityCount) ?? ""} entities`));
+      append($$anchor2, small);
+    };
+    if_block(node_5, ($$render) => {
+      if (get$1(entityCount)) $$render(consequent_1);
+    });
+  }
+  var button = sibling(div_7, 2);
+  button.__click = function(...$$args) {
+    cycleTheme?.apply(this, $$args);
+  };
+  var node_6 = child(button);
+  Icon(node_6, {
+    get name() {
+      return get$1(themeIcon);
+    },
+    size: 15
+  });
+  var button_1 = sibling(button, 2);
+  button_1.__click = function(...$$args) {
+    toggleSettings?.apply(this, $$args);
+  };
+  var node_7 = child(button_1);
+  Icon(node_7, { name: "settings", size: 15 });
+  template_effect(() => {
+    set_class(aside, 1, clsx(get$1(sidebarClass)), "svelte-ou1367");
+    set_text(text2, $appState().agentName || "Homeclaw");
+    set_text(text_1, `${$appState().hass ? "Connected" : "Disconnected"} `);
+    set_attribute(button, "title", `Theme: ${$uiState().theme ?? ""}`);
+  });
   bind_value(input, () => get$1(searchQuery), ($$value) => set(searchQuery, $$value));
   append($$anchor, fragment);
   pop();
@@ -14860,13 +15978,13 @@ function parseAIResponse(content) {
   }
   return { text: content };
 }
-var root_3$b = /* @__PURE__ */ from_html(`<span class="da-spinner svelte-1rmnfr5"></span>`);
-var root_1$i = /* @__PURE__ */ from_html(`<span> <!> <!></span>`);
+var root_3$c = /* @__PURE__ */ from_html(`<span class="da-spinner svelte-1rmnfr5"></span>`);
+var root_1$k = /* @__PURE__ */ from_html(`<span> <!> <!></span>`);
 var root_5$8 = /* @__PURE__ */ from_html(`<div class="da-stats svelte-1rmnfr5"> </div>`);
-var root_7$7 = /* @__PURE__ */ from_html(`<div class="da-yaml-label svelte-1rmnfr5">Current:</div> <pre class="svelte-1rmnfr5"><code> </code></pre> <div class="da-yaml-label svelte-1rmnfr5">New:</div>`, 1);
+var root_7$6 = /* @__PURE__ */ from_html(`<div class="da-yaml-label svelte-1rmnfr5">Current:</div> <pre class="svelte-1rmnfr5"><code> </code></pre> <div class="da-yaml-label svelte-1rmnfr5">New:</div>`, 1);
 var root_6$9 = /* @__PURE__ */ from_html(`<details open class="svelte-1rmnfr5"><summary class="svelte-1rmnfr5">Show YAML preview</summary> <div class="da-yaml svelte-1rmnfr5"><!> <pre class="svelte-1rmnfr5"><code> </code></pre></div></details>`);
-var root_4$a = /* @__PURE__ */ from_html(`<!> <!> <div class="da-buttons svelte-1rmnfr5"><button>Zatwierdź</button> <button class="da-btn da-btn-reject svelte-1rmnfr5">Odrzuć</button></div>`, 1);
-var root$j = /* @__PURE__ */ from_html(`<div><div class="da-header svelte-1rmnfr5"><span class="da-icon svelte-1rmnfr5"> </span> <span class="da-title svelte-1rmnfr5"> </span> <!></div> <!></div>`);
+var root_4$b = /* @__PURE__ */ from_html(`<!> <!> <div class="da-buttons svelte-1rmnfr5"><button>Zatwierdź</button> <button class="da-btn da-btn-reject svelte-1rmnfr5">Odrzuć</button></div>`, 1);
+var root$l = /* @__PURE__ */ from_html(`<div><div class="da-header svelte-1rmnfr5"><span class="da-icon svelte-1rmnfr5"> </span> <span class="da-title svelte-1rmnfr5"> </span> <!></div> <!></div>`);
 function DashboardAction($$anchor, $$props) {
   push($$props, true);
   let status = prop($$props, "status", 3, "preview");
@@ -14899,7 +16017,7 @@ function DashboardAction($$anchor, $$props) {
     });
     $$props.onStatusChange("rejected");
   }
-  var div = root$j();
+  var div = root$l();
   let classes;
   var div_1 = child(div);
   var span = child(div_1);
@@ -14909,7 +16027,7 @@ function DashboardAction($$anchor, $$props) {
   var node = sibling(span_1, 2);
   {
     var consequent_2 = ($$anchor2) => {
-      var span_2 = root_1$i();
+      var span_2 = root_1$k();
       let classes_1;
       var text_2 = child(span_2);
       var node_1 = sibling(text_2);
@@ -14925,7 +16043,7 @@ function DashboardAction($$anchor, $$props) {
       var node_2 = sibling(node_1, 2);
       {
         var consequent_1 = ($$anchor3) => {
-          var span_3 = root_3$b();
+          var span_3 = root_3$c();
           append($$anchor3, span_3);
         };
         if_block(node_2, ($$render) => {
@@ -14945,7 +16063,7 @@ function DashboardAction($$anchor, $$props) {
   var node_3 = sibling(div_1, 2);
   {
     var consequent_6 = ($$anchor2) => {
-      var fragment = root_4$a();
+      var fragment = root_4$b();
       var node_4 = first_child(fragment);
       {
         var consequent_3 = ($$anchor3) => {
@@ -14966,7 +16084,7 @@ function DashboardAction($$anchor, $$props) {
           var node_6 = child(div_3);
           {
             var consequent_4 = ($$anchor4) => {
-              var fragment_1 = root_7$7();
+              var fragment_1 = root_7$6();
               var pre = sibling(first_child(fragment_1), 2);
               var code = child(pre);
               var text_5 = child(code);
@@ -15012,21 +16130,105 @@ function DashboardAction($$anchor, $$props) {
   pop();
 }
 delegate(["click"]);
-var root_4$9 = /* @__PURE__ */ from_html(`<img class="attached-image svelte-cu3vo4" loading="lazy"/>`);
-var root_6$8 = /* @__PURE__ */ from_html(`<img class="attached-image svelte-cu3vo4" loading="lazy"/>`);
-var root_7$6 = /* @__PURE__ */ from_html(`<div class="image-placeholder svelte-cu3vo4"><svg viewBox="0 0 24 24" class="svelte-cu3vo4"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" class="svelte-cu3vo4"></path></svg> <span class="svelte-cu3vo4"> </span></div>`);
-var root_2$a = /* @__PURE__ */ from_html(`<div class="image-attachments svelte-cu3vo4"></div>`);
-var root_10$3 = /* @__PURE__ */ from_svg(`<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z" class="svelte-cu3vo4"></path>`);
-var root_11$2 = /* @__PURE__ */ from_svg(`<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" class="svelte-cu3vo4"></path>`);
-var root_9$3 = /* @__PURE__ */ from_html(`<div class="file-chip svelte-cu3vo4"><svg viewBox="0 0 24 24" class="file-icon svelte-cu3vo4"><!></svg> <span class="file-name svelte-cu3vo4"> </span> <span class="file-size svelte-cu3vo4"> </span></div>`);
-var root_8$6 = /* @__PURE__ */ from_html(`<div class="file-attachments svelte-cu3vo4"></div>`);
-var root_1$h = /* @__PURE__ */ from_html(`<div class="attachments svelte-cu3vo4"><!> <!></div>`);
-var root_13$2 = /* @__PURE__ */ from_html(`<span class="streaming-cursor svelte-cu3vo4">&#9611;</span>`);
-var root_12$2 = /* @__PURE__ */ from_html(`<!> <!>`, 1);
-var root_19$2 = /* @__PURE__ */ from_html(`<span class="bubble-time svelte-cu3vo4"> </span>`);
-var root$i = /* @__PURE__ */ from_html(`<div><div class="bubble svelte-cu3vo4"><!> <!> <!> <!></div></div>`);
+var root_1$j = /* @__PURE__ */ from_html(`<span class="hc-avatar-emoji svelte-112qgxv"> </span>`);
+var root_4$a = /* @__PURE__ */ from_html(`<span class="hc-avatar-initial svelte-112qgxv"> </span>`);
+var root$k = /* @__PURE__ */ from_html(`<div aria-hidden="true"><!></div>`);
+function Avatar($$anchor, $$props) {
+  push($$props, false);
+  const initial = /* @__PURE__ */ mutable_source();
+  const firstEmoji = /* @__PURE__ */ mutable_source();
+  const emojiFontSize = /* @__PURE__ */ mutable_source();
+  let from = prop($$props, "from", 8, "bot");
+  let name = prop($$props, "name", 8, "");
+  let emoji = prop($$props, "emoji", 8, "");
+  let size = prop($$props, "size", 8, 28);
+  legacy_pre_effect(() => deep_read_state(name()), () => {
+    set(initial, (name() || "?").trim().charAt(0).toUpperCase());
+  });
+  legacy_pre_effect(() => deep_read_state(emoji()), () => {
+    set(firstEmoji, emoji() ? Array.from(emoji().trim())[0] || "" : "");
+  });
+  legacy_pre_effect(() => deep_read_state(size()), () => {
+    set(emojiFontSize, Math.round(size() * 0.55));
+  });
+  legacy_pre_effect_reset();
+  init();
+  var div = root$k();
+  let classes;
+  var node = child(div);
+  {
+    var consequent = ($$anchor2) => {
+      var span = root_1$j();
+      var text2 = child(span);
+      template_effect(() => {
+        set_style(span, `font-size: ${get$1(emojiFontSize) ?? ""}px;`);
+        set_text(text2, get$1(firstEmoji));
+      });
+      append($$anchor2, span);
+    };
+    var alternate_1 = ($$anchor2) => {
+      var fragment = comment();
+      var node_1 = first_child(fragment);
+      {
+        var consequent_1 = ($$anchor3) => {
+          {
+            let $0 = /* @__PURE__ */ derived_safe_equal(() => (deep_read_state(size()), untrack(() => Math.round(size() * 0.55))));
+            Icon($$anchor3, {
+              name: "home",
+              get size() {
+                return get$1($0);
+              }
+            });
+          }
+        };
+        var alternate = ($$anchor3) => {
+          var span_1 = root_4$a();
+          var text_1 = child(span_1);
+          template_effect(() => set_text(text_1, get$1(initial)));
+          append($$anchor3, span_1);
+        };
+        if_block(
+          node_1,
+          ($$render) => {
+            if (from() === "bot") $$render(consequent_1);
+            else $$render(alternate, false);
+          },
+          true
+        );
+      }
+      append($$anchor2, fragment);
+    };
+    if_block(node, ($$render) => {
+      if (get$1(firstEmoji)) $$render(consequent);
+      else $$render(alternate_1, false);
+    });
+  }
+  template_effect(() => {
+    classes = set_class(div, 1, "hc-avatar svelte-112qgxv", null, classes, { "is-user": from() === "user", "is-bot": from() === "bot" });
+    set_style(div, `width: ${size() ?? ""}px; height: ${size() ?? ""}px; min-width: ${size() ?? ""}px; min-height: ${size() ?? ""}px;`);
+  });
+  append($$anchor, div);
+  pop();
+}
+var root_1$i = /* @__PURE__ */ from_html(`<span class="hc-msg-name-emoji svelte-cu3vo4" aria-hidden="true"> </span>`);
+var root_2$b = /* @__PURE__ */ from_html(`<span class="hc-msg-time svelte-cu3vo4"> </span>`);
+var root_6$8 = /* @__PURE__ */ from_html(`<img class="hc-attached-image svelte-cu3vo4" loading="lazy"/>`);
+var root_8$6 = /* @__PURE__ */ from_html(`<img class="hc-attached-image svelte-cu3vo4" loading="lazy"/>`);
+var root_9$3 = /* @__PURE__ */ from_html(`<div class="hc-image-placeholder svelte-cu3vo4"><svg viewBox="0 0 24 24" class="svelte-cu3vo4"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" class="svelte-cu3vo4"></path></svg> <span class="svelte-cu3vo4"> </span></div>`);
+var root_4$9 = /* @__PURE__ */ from_html(`<div class="hc-image-attachments svelte-cu3vo4"></div>`);
+var root_12$2 = /* @__PURE__ */ from_svg(`<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z" class="svelte-cu3vo4"></path>`);
+var root_13$2 = /* @__PURE__ */ from_svg(`<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" class="svelte-cu3vo4"></path>`);
+var root_11$2 = /* @__PURE__ */ from_html(`<div class="hc-file-chip svelte-cu3vo4"><svg viewBox="0 0 24 24" class="hc-file-icon svelte-cu3vo4"><!></svg> <span class="hc-file-name svelte-cu3vo4"> </span> <span class="hc-file-size svelte-cu3vo4"> </span></div>`);
+var root_10$3 = /* @__PURE__ */ from_html(`<div class="hc-file-attachments svelte-cu3vo4"></div>`);
+var root_3$b = /* @__PURE__ */ from_html(`<div class="hc-attachments svelte-cu3vo4"><!> <!></div>`);
+var root_16$1 = /* @__PURE__ */ from_html(`<span class="hc-streaming-cursor svelte-cu3vo4">&#9611;</span>`);
+var root_15$2 = /* @__PURE__ */ from_html(`<!> <!>`, 1);
+var root_14$2 = /* @__PURE__ */ from_html(`<div class="hc-bubble svelte-cu3vo4"><!></div>`);
+var root$j = /* @__PURE__ */ from_html(`<div><!> <div class="hc-msg-body svelte-cu3vo4"><div class="hc-msg-meta svelte-cu3vo4"><span class="hc-msg-name svelte-cu3vo4"> </span> <!> <!></div> <!> <!> <!></div></div>`);
 function MessageBubble($$anchor, $$props) {
   push($$props, true);
+  const $appState = () => store_get(appState, "$appState", $$stores);
+  const [$$stores, $$cleanup] = setup_stores();
   const renderedContent = /* @__PURE__ */ user_derived(() => $$props.message.type === "assistant" ? renderMarkdown($$props.message.text, get(sessionState).activeSessionId || void 0) : $$props.message.text);
   const formattedTime = /* @__PURE__ */ user_derived(() => {
     if (!$$props.message.timestamp) return "";
@@ -15043,6 +16245,9 @@ function MessageBubble($$anchor, $$props) {
       return "";
     }
   });
+  const isUser = /* @__PURE__ */ user_derived(() => $$props.message.type === "user");
+  const senderName = /* @__PURE__ */ user_derived(() => get$1(isUser) ? "You" : $appState().agentName || "Homeclaw");
+  const senderEmoji = /* @__PURE__ */ user_derived(() => "");
   const hasAttachments = /* @__PURE__ */ user_derived(() => $$props.message.attachments && $$props.message.attachments.length > 0);
   const imageAttachments = /* @__PURE__ */ user_derived(() => ($$props.message.attachments || []).filter((a2) => a2.is_image));
   const fileAttachments = /* @__PURE__ */ user_derived(() => ($$props.message.attachments || []).filter((a2) => !a2.is_image));
@@ -15060,23 +16265,63 @@ function MessageBubble($$anchor, $$props) {
       } : msg)
     }));
   }
-  var div = root$i();
+  var div = root$j();
   let classes;
-  var div_1 = child(div);
-  var node = child(div_1);
+  var node = child(div);
   {
-    var consequent_5 = ($$anchor2) => {
-      var div_2 = root_1$h();
-      var node_1 = child(div_2);
+    let $0 = /* @__PURE__ */ user_derived(() => get$1(isUser) ? "user" : "bot");
+    Avatar(node, {
+      get from() {
+        return get$1($0);
+      },
+      get name() {
+        return get$1(senderName);
+      },
+      emoji: get$1(senderEmoji)
+    });
+  }
+  var div_1 = sibling(node, 2);
+  var div_2 = child(div_1);
+  var span = child(div_2);
+  var text2 = child(span);
+  var node_1 = sibling(span, 2);
+  {
+    var consequent = ($$anchor2) => {
+      var span_1 = root_1$i();
+      var text_1 = child(span_1);
+      template_effect(() => set_text(text_1, $appState().agentEmoji));
+      append($$anchor2, span_1);
+    };
+    if_block(node_1, ($$render) => {
+      if (!get$1(isUser) && $appState().agentEmoji) $$render(consequent);
+    });
+  }
+  var node_2 = sibling(node_1, 2);
+  {
+    var consequent_1 = ($$anchor2) => {
+      var span_2 = root_2$b();
+      var text_2 = child(span_2);
+      template_effect(() => set_text(text_2, get$1(formattedTime)));
+      append($$anchor2, span_2);
+    };
+    if_block(node_2, ($$render) => {
+      if (get$1(formattedTime)) $$render(consequent_1);
+    });
+  }
+  var node_3 = sibling(div_2, 2);
+  {
+    var consequent_7 = ($$anchor2) => {
+      var div_3 = root_3$b();
+      var node_4 = child(div_3);
       {
-        var consequent_2 = ($$anchor3) => {
-          var div_3 = root_2$a();
-          each(div_3, 21, () => get$1(imageAttachments), (att) => att.file_id, ($$anchor4, att) => {
+        var consequent_4 = ($$anchor3) => {
+          var div_4 = root_4$9();
+          each(div_4, 21, () => get$1(imageAttachments), (att) => att.file_id, ($$anchor4, att) => {
             var fragment = comment();
-            var node_2 = first_child(fragment);
+            var node_5 = first_child(fragment);
             {
-              var consequent = ($$anchor5) => {
-                var img = root_4$9();
+              var consequent_2 = ($$anchor5) => {
+                var img = root_6$8();
                 template_effect(() => {
                   set_attribute(img, "src", get$1(att).data_url);
                   set_attribute(img, "alt", get$1(att).filename);
@@ -15085,10 +16330,10 @@ function MessageBubble($$anchor, $$props) {
               };
               var alternate_1 = ($$anchor5) => {
                 var fragment_1 = comment();
-                var node_3 = first_child(fragment_1);
+                var node_6 = first_child(fragment_1);
                 {
-                  var consequent_1 = ($$anchor6) => {
-                    var img_1 = root_6$8();
+                  var consequent_3 = ($$anchor6) => {
+                    var img_1 = root_8$6();
                     template_effect(() => {
                       set_attribute(img_1, "src", `data:${get$1(att).mime_type};base64,${get$1(att).thumbnail_b64}`);
                       set_attribute(img_1, "alt", get$1(att).filename);
@@ -15096,16 +16341,16 @@ function MessageBubble($$anchor, $$props) {
                     append($$anchor6, img_1);
                   };
                   var alternate = ($$anchor6) => {
-                    var div_4 = root_7$6();
-                    var span = sibling(child(div_4), 2);
-                    var text2 = child(span);
-                    template_effect(() => set_text(text2, get$1(att).filename));
-                    append($$anchor6, div_4);
+                    var div_5 = root_9$3();
+                    var span_3 = sibling(child(div_5), 2);
+                    var text_3 = child(span_3);
+                    template_effect(() => set_text(text_3, get$1(att).filename));
+                    append($$anchor6, div_5);
                   };
                   if_block(
-                    node_3,
+                    node_6,
                     ($$render) => {
-                      if (get$1(att).thumbnail_b64) $$render(consequent_1);
+                      if (get$1(att).thumbnail_b64) $$render(consequent_3);
                       else $$render(alternate, false);
                     },
                     true
@@ -15113,119 +16358,129 @@ function MessageBubble($$anchor, $$props) {
                 }
                 append($$anchor5, fragment_1);
               };
-              if_block(node_2, ($$render) => {
-                if (get$1(att).data_url) $$render(consequent);
+              if_block(node_5, ($$render) => {
+                if (get$1(att).data_url) $$render(consequent_2);
                 else $$render(alternate_1, false);
               });
             }
             append($$anchor4, fragment);
           });
-          append($$anchor3, div_3);
+          append($$anchor3, div_4);
         };
-        if_block(node_1, ($$render) => {
-          if (get$1(imageAttachments).length > 0) $$render(consequent_2);
+        if_block(node_4, ($$render) => {
+          if (get$1(imageAttachments).length > 0) $$render(consequent_4);
         });
       }
-      var node_4 = sibling(node_1, 2);
+      var node_7 = sibling(node_4, 2);
       {
-        var consequent_4 = ($$anchor3) => {
-          var div_5 = root_8$6();
-          each(div_5, 21, () => get$1(fileAttachments), (att) => att.file_id, ($$anchor4, att) => {
-            var div_6 = root_9$3();
-            var svg2 = child(div_6);
-            var node_5 = child(svg2);
+        var consequent_6 = ($$anchor3) => {
+          var div_6 = root_10$3();
+          each(div_6, 21, () => get$1(fileAttachments), (att) => att.file_id, ($$anchor4, att) => {
+            var div_7 = root_11$2();
+            var svg2 = child(div_7);
+            var node_8 = child(svg2);
             {
-              var consequent_3 = ($$anchor5) => {
-                var path = root_10$3();
+              var consequent_5 = ($$anchor5) => {
+                var path = root_12$2();
                 append($$anchor5, path);
               };
               var alternate_2 = ($$anchor5) => {
-                var path_1 = root_11$2();
+                var path_1 = root_13$2();
                 append($$anchor5, path_1);
               };
-              if_block(node_5, ($$render) => {
-                if (get$1(att).mime_type === "application/pdf") $$render(consequent_3);
+              if_block(node_8, ($$render) => {
+                if (get$1(att).mime_type === "application/pdf") $$render(consequent_5);
                 else $$render(alternate_2, false);
               });
             }
-            var span_1 = sibling(svg2, 2);
-            var text_1 = child(span_1);
-            var span_2 = sibling(span_1, 2);
-            var text_2 = child(span_2);
+            var span_4 = sibling(svg2, 2);
+            var text_4 = child(span_4);
+            var span_5 = sibling(span_4, 2);
+            var text_5 = child(span_5);
             template_effect(
               ($0) => {
-                set_attribute(span_1, "title", get$1(att).filename);
-                set_text(text_1, get$1(att).filename);
-                set_text(text_2, $0);
+                set_attribute(span_4, "title", get$1(att).filename);
+                set_text(text_4, get$1(att).filename);
+                set_text(text_5, $0);
               },
               [() => formatSize(get$1(att).size)]
             );
-            append($$anchor4, div_6);
+            append($$anchor4, div_7);
           });
-          append($$anchor3, div_5);
+          append($$anchor3, div_6);
         };
-        if_block(node_4, ($$render) => {
-          if (get$1(fileAttachments).length > 0) $$render(consequent_4);
+        if_block(node_7, ($$render) => {
+          if (get$1(fileAttachments).length > 0) $$render(consequent_6);
         });
       }
-      append($$anchor2, div_2);
+      append($$anchor2, div_3);
     };
-    if_block(node, ($$render) => {
-      if (get$1(hasAttachments)) $$render(consequent_5);
+    if_block(node_3, ($$render) => {
+      if (get$1(hasAttachments)) $$render(consequent_7);
     });
   }
-  var node_6 = sibling(node, 2);
+  var node_9 = sibling(node_3, 2);
   {
-    var consequent_7 = ($$anchor2) => {
-      var fragment_2 = root_12$2();
-      var node_7 = first_child(fragment_2);
-      html$2(node_7, () => get$1(renderedContent));
-      var node_8 = sibling(node_7, 2);
+    var consequent_11 = ($$anchor2) => {
+      var div_8 = root_14$2();
+      var node_10 = child(div_8);
       {
-        var consequent_6 = ($$anchor3) => {
-          var span_3 = root_13$2();
-          append($$anchor3, span_3);
+        var consequent_9 = ($$anchor3) => {
+          var fragment_2 = root_15$2();
+          var node_11 = first_child(fragment_2);
+          html$2(node_11, () => get$1(renderedContent));
+          var node_12 = sibling(node_11, 2);
+          {
+            var consequent_8 = ($$anchor4) => {
+              var span_6 = root_16$1();
+              append($$anchor4, span_6);
+            };
+            if_block(node_12, ($$render) => {
+              if ($$props.message.isStreaming) $$render(consequent_8);
+            });
+          }
+          append($$anchor3, fragment_2);
         };
-        if_block(node_8, ($$render) => {
-          if ($$props.message.isStreaming) $$render(consequent_6);
+        var alternate_3 = ($$anchor3) => {
+          var fragment_3 = comment();
+          var node_13 = first_child(fragment_3);
+          {
+            var consequent_10 = ($$anchor4) => {
+              var text_6 = text$1();
+              template_effect(() => set_text(text_6, $$props.message.text));
+              append($$anchor4, text_6);
+            };
+            if_block(
+              node_13,
+              ($$render) => {
+                if ($$props.message.text) $$render(consequent_10);
+              },
+              true
+            );
+          }
+          append($$anchor3, fragment_3);
+        };
+        if_block(node_10, ($$render) => {
+          if ($$props.message.type === "assistant") $$render(consequent_9);
+          else $$render(alternate_3, false);
         });
       }
-      append($$anchor2, fragment_2);
+      append($$anchor2, div_8);
     };
-    var alternate_3 = ($$anchor2) => {
-      var fragment_3 = comment();
-      var node_9 = first_child(fragment_3);
-      {
-        var consequent_8 = ($$anchor3) => {
-          var text_3 = text$1();
-          template_effect(() => set_text(text_3, $$props.message.text));
-          append($$anchor3, text_3);
-        };
-        if_block(
-          node_9,
-          ($$render) => {
-            if ($$props.message.text) $$render(consequent_8);
-          },
-          true
-        );
-      }
-      append($$anchor2, fragment_3);
-    };
-    if_block(node_6, ($$render) => {
-      if ($$props.message.type === "assistant") $$render(consequent_7);
-      else $$render(alternate_3, false);
+    if_block(node_9, ($$render) => {
+      if ($$props.message.text || $$props.message.type === "assistant") $$render(consequent_11);
     });
   }
-  var node_10 = sibling(node_6, 2);
+  var node_14 = sibling(node_9, 2);
   {
-    var consequent_10 = ($$anchor2) => {
+    var consequent_13 = ($$anchor2) => {
       var fragment_5 = comment();
-      var node_11 = first_child(fragment_5);
-      each(node_11, 17, () => $$props.message.toolResults, (tr) => tr.toolCallId, ($$anchor3, tr) => {
+      var node_15 = first_child(fragment_5);
+      each(node_15, 17, () => $$props.message.toolResults, (tr) => tr.toolCallId, ($$anchor3, tr) => {
         var fragment_6 = comment();
-        var node_12 = first_child(fragment_6);
+        var node_16 = first_child(fragment_6);
         {
-          var consequent_9 = ($$anchor4) => {
+          var consequent_12 = ($$anchor4) => {
             {
               let $0 = /* @__PURE__ */ user_derived(() => get(sessionState).activeSessionId || "");
               DashboardAction($$anchor4, {
@@ -15251,97 +16506,189 @@ function MessageBubble($$anchor, $$props) {
               });
             }
           };
-          if_block(node_12, ($$render) => {
-            if (get$1(tr).result?.ui_type === "dashboard_action") $$render(consequent_9);
+          if_block(node_16, ($$render) => {
+            if (get$1(tr).result?.ui_type === "dashboard_action") $$render(consequent_12);
           });
         }
         append($$anchor3, fragment_6);
       });
       append($$anchor2, fragment_5);
     };
-    if_block(node_10, ($$render) => {
-      if ($$props.message.toolResults?.length) $$render(consequent_10);
+    if_block(node_14, ($$render) => {
+      if ($$props.message.toolResults?.length) $$render(consequent_13);
     });
   }
-  var node_13 = sibling(node_10, 2);
-  {
-    var consequent_11 = ($$anchor2) => {
-      var span_4 = root_19$2();
-      var text_4 = child(span_4);
-      template_effect(() => set_text(text_4, get$1(formattedTime)));
-      append($$anchor2, span_4);
-    };
-    if_block(node_13, ($$render) => {
-      if (get$1(formattedTime)) $$render(consequent_11);
+  template_effect(() => {
+    classes = set_class(div, 1, "hc-msg svelte-cu3vo4", null, classes, {
+      "is-user": get$1(isUser),
+      "is-bot": !get$1(isUser),
+      streaming: $$props.message.isStreaming
     });
-  }
-  template_effect(() => classes = set_class(div, 1, "message svelte-cu3vo4", null, classes, {
-    user: $$props.message.type === "user",
-    assistant: $$props.message.type === "assistant",
-    streaming: $$props.message.isStreaming
-  }));
+    set_text(text2, get$1(senderName));
+  });
   append($$anchor, div);
   pop();
+  $$cleanup();
 }
-var root$h = /* @__PURE__ */ from_html(`<div class="typing-indicator svelte-174ds4q"><div class="typing-bubble svelte-174ds4q"><div class="typing-dot svelte-174ds4q"></div> <div class="typing-dot svelte-174ds4q"></div> <div class="typing-dot svelte-174ds4q"></div></div></div>`);
+var root$i = /* @__PURE__ */ from_html(`<div class="typing-indicator svelte-174ds4q"><div class="typing-bubble svelte-174ds4q"><div class="typing-dot svelte-174ds4q"></div> <div class="typing-dot svelte-174ds4q"></div> <div class="typing-dot svelte-174ds4q"></div></div></div>`);
 function LoadingIndicator($$anchor) {
-  var div = root$h();
+  var div = root$i();
   append($$anchor, div);
 }
-var root_1$g = /* @__PURE__ */ from_html(`<span class="emoji-icon svelte-euh035"> </span>`);
-var root_2$9 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="currentColor" class="svelte-euh035"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.07A7.001 7.001 0 0 1 7.07 19H6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h-1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zm-3 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm6 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" class="svelte-euh035"></path></svg>`);
-var root_3$a = /* @__PURE__ */ from_html(`<button class="suggestion-chip svelte-euh035"> </button>`);
-var root$g = /* @__PURE__ */ from_html(`<div class="empty-state svelte-euh035"><div class="empty-icon svelte-euh035"><!></div> <h2 class="svelte-euh035"> </h2> <p class="svelte-euh035">Your AI-powered Home Assistant companion. Ask me anything about your smart home.</p> <div class="suggestions svelte-euh035"></div></div>`);
+var root_2$a = /* @__PURE__ */ from_html(`<div class="hc-rail-chip svelte-euh035"><span class="dot svelte-euh035"></span> </div>`);
+var root_1$h = /* @__PURE__ */ from_html(`<div class="hc-empty-rail svelte-euh035"><span class="hc-rail-label svelte-euh035">RIGHT NOW</span> <!></div>`);
+var root_3$a = /* @__PURE__ */ from_html(`<button class="hc-suggest svelte-euh035"><div class="hc-suggest-icon svelte-euh035"><!></div> <div class="hc-suggest-title svelte-euh035"> </div> <div class="hc-suggest-sub svelte-euh035"> </div></button>`);
+var root$h = /* @__PURE__ */ from_html(`<div class="hc-empty svelte-euh035"><!> <h1 class="hc-empty-greet svelte-euh035"> <em class="svelte-euh035">What should the house do?</em></h1> <p class="hc-empty-sub svelte-euh035">Ask in plain language. I can read sensors, control devices, and propose
+    automations — you approve before anything is saved.</p> <div class="hc-empty-grid svelte-euh035"></div></div>`);
 function EmptyState($$anchor, $$props) {
-  push($$props, false);
+  push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
-  const suggestions = [
-    "Turn off all lights",
-    "Create a morning routine",
-    "Show energy usage",
-    "Set up motion sensors"
-  ];
-  function handleSuggestion(text2) {
-    appState.update((s2) => ({ ...s2, pendingSuggestion: text2 }));
+  function greeting() {
+    const h2 = (/* @__PURE__ */ new Date()).getHours();
+    if (h2 < 5) return "Up late";
+    if (h2 < 12) return "Good morning";
+    if (h2 < 18) return "Good afternoon";
+    return "Good evening";
   }
-  init();
-  var div = root$g();
-  var div_1 = child(div);
-  var node = child(div_1);
+  const statusChips = /* @__PURE__ */ user_derived(() => {
+    const states = $appState().hass?.states;
+    if (!states) return [];
+    const ids = Object.keys(states);
+    const chips = [];
+    const lightsOn = ids.filter((id) => id.startsWith("light.") && states[id]?.state === "on").length;
+    if (lightsOn > 0) {
+      chips.push({
+        tone: "good",
+        label: `${lightsOn} light${lightsOn === 1 ? "" : "s"} on`
+      });
+    }
+    for (const id of ids) {
+      if (!id.startsWith("climate.")) continue;
+      const s2 = states[id];
+      const mode = s2?.state;
+      const current = s2?.attributes?.current_temperature;
+      if (current == null || mode === "off") continue;
+      const unit = $appState().hass?.config?.unit_system?.temperature || "°";
+      const verb = mode === "cool" ? "Cooling" : mode === "heat" ? "Heating" : "Climate";
+      const tone = mode === "cool" ? "cool" : mode === "heat" ? "warn" : "ink";
+      chips.push({ tone, label: `${verb} · ${Math.round(current)}${unit}` });
+      break;
+    }
+    const lockIds = ids.filter((id) => id.startsWith("lock."));
+    if (lockIds.length > 0) {
+      const unlocked = lockIds.filter((id) => states[id]?.state === "unlocked").length;
+      if (unlocked === 0) {
+        chips.push({ tone: "good", label: "Doors locked" });
+      } else {
+        chips.push({ tone: "warn", label: `${unlocked} unlocked` });
+      }
+    }
+    const openCovers = ids.filter((id) => id.startsWith("cover.") && states[id]?.state === "open");
+    if (openCovers.length > 0) {
+      const first = openCovers[0];
+      const friendly = states[first]?.attributes?.friendly_name || first.split(".")[1];
+      chips.push({
+        tone: "warn",
+        label: openCovers.length === 1 ? `${friendly} open` : `${openCovers.length} covers open`
+      });
+    }
+    return chips.slice(0, 4);
+  });
+  const userName = /* @__PURE__ */ user_derived(() => ($appState().userName || "").trim());
+  const suggestions = [
+    {
+      icon: "sparkle",
+      title: "Set up a sunset routine",
+      sub: "Lights, blinds, and music when the sun goes down."
+    },
+    {
+      icon: "chart",
+      title: "Why did energy spike yesterday?",
+      sub: "Compare to last week and find the culprit."
+    },
+    {
+      icon: "leaf",
+      title: "Make the house more efficient",
+      sub: "Audit always-on devices and propose changes."
+    },
+    {
+      icon: "home",
+      title: "Build a 'leaving home' scene",
+      sub: "Locks, thermostat, lights — one tap on the way out."
+    }
+  ];
+  function toneVar(t2) {
+    switch (t2) {
+      case "good":
+        return "var(--hc-good)";
+      case "warn":
+        return "var(--hc-warn)";
+      case "cool":
+        return "var(--hc-cool)";
+      default:
+        return "var(--hc-ink-3)";
+    }
+  }
+  function handleSuggestion(text2) {
+    window.dispatchEvent(new CustomEvent("homeclaw-suggest", { detail: text2 }));
+  }
+  var div = root$h();
+  var node = child(div);
   {
     var consequent = ($$anchor2) => {
-      var span = root_1$g();
-      var text_1 = child(span);
-      template_effect(() => set_text(text_1, $appState().agentEmoji));
-      append($$anchor2, span);
-    };
-    var alternate = ($$anchor2) => {
-      var svg2 = root_2$9();
-      append($$anchor2, svg2);
+      var div_1 = root_1$h();
+      var node_1 = sibling(child(div_1), 2);
+      each(node_1, 17, () => get$1(statusChips), index, ($$anchor3, s2) => {
+        var div_2 = root_2$a();
+        var span = child(div_2);
+        var text_1 = sibling(span);
+        template_effect(
+          ($0) => {
+            set_style(span, `background: ${$0 ?? ""};`);
+            set_text(text_1, ` ${get$1(s2).label ?? ""}`);
+          },
+          [() => toneVar(get$1(s2).tone)]
+        );
+        append($$anchor3, div_2);
+      });
+      append($$anchor2, div_1);
     };
     if_block(node, ($$render) => {
-      if ($appState().agentEmoji) $$render(consequent);
-      else $$render(alternate, false);
+      if (get$1(statusChips).length > 0) $$render(consequent);
     });
   }
-  var h2 = sibling(div_1, 2);
-  var text_2 = child(h2);
-  var div_2 = sibling(h2, 4);
-  each(div_2, 5, () => suggestions, index, ($$anchor2, text2) => {
+  var h1 = sibling(node, 2);
+  var text_2 = child(h1);
+  var div_3 = sibling(h1, 4);
+  each(div_3, 21, () => suggestions, index, ($$anchor2, s2) => {
     var button = root_3$a();
-    button.__click = () => handleSuggestion(get$1(text2));
-    var text_3 = child(button);
-    template_effect(() => set_text(text_3, get$1(text2)));
+    button.__click = () => handleSuggestion(get$1(s2).title);
+    var div_4 = child(button);
+    var node_2 = child(div_4);
+    Icon(node_2, {
+      get name() {
+        return get$1(s2).icon;
+      },
+      size: 14
+    });
+    var div_5 = sibling(div_4, 2);
+    var text_3 = child(div_5);
+    var div_6 = sibling(div_5, 2);
+    var text_4 = child(div_6);
+    template_effect(() => {
+      set_text(text_3, get$1(s2).title);
+      set_text(text_4, get$1(s2).sub);
+    });
     append($$anchor2, button);
   });
-  template_effect(() => set_text(text_2, `Welcome to ${$appState().agentName ?? ""}`));
+  template_effect(($0) => set_text(text_2, `${$0 ?? ""}${get$1(userName) ? `, ${get$1(userName)}` : ""}. `), [greeting]);
   append($$anchor, div);
   pop();
   $$cleanup();
 }
 delegate(["click"]);
-var root_1$f = /* @__PURE__ */ from_html(`<div class="error svelte-sualbq"><svg viewBox="0 0 24 24" class="icon svelte-sualbq"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg> <span class="error-message svelte-sualbq"> </span> <button class="error-dismiss svelte-sualbq" aria-label="Dismiss error"><svg viewBox="0 0 24 24" class="close-icon svelte-sualbq"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button></div>`);
+var root_1$g = /* @__PURE__ */ from_html(`<div class="error svelte-sualbq"><svg viewBox="0 0 24 24" class="icon svelte-sualbq"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg> <span class="error-message svelte-sualbq"> </span> <button class="error-dismiss svelte-sualbq" aria-label="Dismiss error"><svg viewBox="0 0 24 24" class="close-icon svelte-sualbq"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button></div>`);
 function ErrorMessage($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -15354,7 +16701,7 @@ function ErrorMessage($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var div = root_1$f();
+      var div = root_1$g();
       var span = sibling(child(div), 2);
       var text2 = child(span);
       var button = sibling(span, 2);
@@ -15372,7 +16719,7 @@ function ErrorMessage($$anchor, $$props) {
 }
 delegate(["click"]);
 var root_4$8 = /* @__PURE__ */ from_html(`<button class="scroll-bottom-btn svelte-hiq0w4" aria-label="Scroll to bottom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-hiq0w4"><polyline points="6 9 12 15 18 9"></polyline></svg></button>`);
-var root$f = /* @__PURE__ */ from_html(`<div class="chat-wrapper svelte-hiq0w4"><div class="messages svelte-hiq0w4"><!> <div class="messages-inner svelte-hiq0w4"><!> <!></div> <!></div> <!></div>`);
+var root$g = /* @__PURE__ */ from_html(`<div class="chat-wrapper svelte-hiq0w4"><div class="messages svelte-hiq0w4"><!> <div class="messages-inner svelte-hiq0w4"><!> <!></div> <!></div> <!></div>`);
 function ChatArea($$anchor, $$props) {
   push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -15398,7 +16745,7 @@ function ChatArea($$anchor, $$props) {
   function scrollDown() {
     scrollToBottom(messagesContainer);
   }
-  var div = root$f();
+  var div = root$g();
   var div_1 = child(div);
   var node = child(div_1);
   {
@@ -15450,8 +16797,8 @@ function ChatArea($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root_1$e = /* @__PURE__ */ from_html(`<div class="drop-overlay svelte-5grvz8"><span class="drop-label svelte-5grvz8">Drop files here</span></div>`);
-var root$e = /* @__PURE__ */ from_html(`<div role="textbox" tabindex="-1"><textarea placeholder="Ask me anything about your Home Assistant..." class="svelte-5grvz8"></textarea> <!></div>`);
+var root_1$f = /* @__PURE__ */ from_html(`<div class="drop-overlay svelte-5grvz8"><span class="drop-label svelte-5grvz8">Drop files here</span></div>`);
+var root$f = /* @__PURE__ */ from_html(`<div role="textbox" tabindex="-1"><textarea placeholder="Ask me anything about your Home Assistant..." class="svelte-5grvz8"></textarea> <!></div>`);
 function MessageInput($$anchor, $$props) {
   push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -15459,6 +16806,21 @@ function MessageInput($$anchor, $$props) {
   let textarea;
   let value = /* @__PURE__ */ state("");
   let isDragOver = /* @__PURE__ */ state(false);
+  onMount(() => {
+    const onSuggest = (e2) => {
+      const detail = e2.detail;
+      if (typeof detail !== "string") return;
+      set(value, detail, true);
+      queueMicrotask(() => {
+        if (textarea) {
+          textarea.focus();
+          autoResize(textarea);
+        }
+      });
+    };
+    window.addEventListener("homeclaw-suggest", onSuggest);
+    return () => window.removeEventListener("homeclaw-suggest", onSuggest);
+  });
   function handleInput(e2) {
     const target = e2.target;
     set(value, target.value, true);
@@ -15525,7 +16887,7 @@ function MessageInput($$anchor, $$props) {
     }
   }
   var $$exports = { getValue, clear };
-  var div = root$e();
+  var div = root$f();
   let classes;
   var textarea_1 = child(div);
   textarea_1.__input = handleInput;
@@ -15534,7 +16896,7 @@ function MessageInput($$anchor, $$props) {
   var node = sibling(textarea_1, 2);
   {
     var consequent = ($$anchor2) => {
-      var div_1 = root_1$e();
+      var div_1 = root_1$f();
       append($$anchor2, div_1);
     };
     if_block(node, ($$render) => {
@@ -15556,8 +16918,8 @@ function MessageInput($$anchor, $$props) {
   return $$pop;
 }
 delegate(["input", "keydown"]);
-var root_2$8 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_1$d = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-6zrmqv"><span class="provider-label svelte-6zrmqv">Provider:</span> <select class="provider-button svelte-6zrmqv"></select></div>`);
+var root_2$9 = /* @__PURE__ */ from_html(`<option> </option>`);
+var root_1$e = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-6zrmqv"><span class="provider-label svelte-6zrmqv">Provider:</span> <select class="provider-button svelte-6zrmqv"></select></div>`);
 var root_3$9 = /* @__PURE__ */ from_html(`<div class="no-providers svelte-6zrmqv">No providers configured</div>`);
 function ProviderSelector($$anchor, $$props) {
   push($$props, true);
@@ -15583,11 +16945,11 @@ function ProviderSelector($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var div = root_1$d();
+      var div = root_1$e();
       var select = sibling(child(div), 2);
       select.__change = handleChange;
       each(select, 5, () => $providerState().availableProviders, index, ($$anchor3, provider) => {
-        var option = root_2$8();
+        var option = root_2$9();
         var text2 = child(option);
         var option_value = {};
         template_effect(() => {
@@ -15623,9 +16985,9 @@ function ProviderSelector($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["change"]);
-var root_2$7 = /* @__PURE__ */ from_html(`<span class="default-star svelte-1whqbkb" title="Your default model">&#9733;</span>`);
+var root_2$8 = /* @__PURE__ */ from_html(`<span class="default-star svelte-1whqbkb" title="Your default model">&#9733;</span>`);
 var root_3$8 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_1$c = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-1whqbkb"><span class="provider-label svelte-1whqbkb">Model:</span> <!> <select class="provider-button svelte-1whqbkb"></select></div>`);
+var root_1$d = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-1whqbkb"><span class="provider-label svelte-1whqbkb">Model:</span> <!> <select class="provider-button svelte-1whqbkb"></select></div>`);
 function ModelSelector($$anchor, $$props) {
   push($$props, true);
   const $providerState = () => store_get(providerState, "$providerState", $$stores);
@@ -15641,11 +17003,11 @@ function ModelSelector($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent_1 = ($$anchor2) => {
-      var div = root_1$c();
+      var div = root_1$d();
       var node_1 = sibling(child(div), 2);
       {
         var consequent = ($$anchor3) => {
-          var span = root_2$7();
+          var span = root_2$8();
           append($$anchor3, span);
         };
         if_block(node_1, ($$render) => {
@@ -15686,14 +17048,14 @@ function ModelSelector($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["change"]);
-var root$d = /* @__PURE__ */ from_html(`<button class="send-button svelte-1lpj1oh"><svg viewBox="0 0 24 24" class="icon svelte-1lpj1oh"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>`);
+var root$e = /* @__PURE__ */ from_html(`<button class="send-button svelte-1lpj1oh"><svg viewBox="0 0 24 24" class="icon svelte-1lpj1oh"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>`);
 function SendButton($$anchor, $$props) {
   push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
   const $hasProviders = () => store_get(hasProviders, "$hasProviders", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   const disabled = /* @__PURE__ */ user_derived(() => $appState().isLoading || !$hasProviders());
-  var button = root$d();
+  var button = root$e();
   button.__click = function(...$$args) {
     $$props.onclick?.apply(this, $$args);
   };
@@ -15703,7 +17065,7 @@ function SendButton($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root$c = /* @__PURE__ */ from_html(`<label class="thinking-toggle svelte-1ahnk03"><input type="checkbox" class="svelte-1ahnk03"/> <span class="label svelte-1ahnk03">Debug Mode</span></label>`);
+var root$d = /* @__PURE__ */ from_html(`<label class="thinking-toggle svelte-1ahnk03"><input type="checkbox" class="svelte-1ahnk03"/> <span class="label svelte-1ahnk03">Debug Mode</span></label>`);
 function ThinkingToggle($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -15712,7 +17074,7 @@ function ThinkingToggle($$anchor, $$props) {
     appState.update((s2) => ({ ...s2, showThinking: !s2.showThinking }));
   }
   init();
-  var label = root$c();
+  var label = root$d();
   var input = child(label);
   input.__change = toggle;
   template_effect(() => set_checked(input, $appState().showThinking));
@@ -15721,7 +17083,7 @@ function ThinkingToggle($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["change"]);
-var root$b = /* @__PURE__ */ from_html(`<input type="file" multiple class="hidden-input svelte-nfbktg"/> <button class="attach-button svelte-nfbktg" title="Attach file"><svg viewBox="0 0 24 24" class="icon svelte-nfbktg"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"></path></svg></button>`, 1);
+var root$c = /* @__PURE__ */ from_html(`<input type="file" multiple class="hidden-input svelte-nfbktg"/> <button class="attach-button svelte-nfbktg" title="Attach file"><svg viewBox="0 0 24 24" class="icon svelte-nfbktg"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"></path></svg></button>`, 1);
 function AttachButton($$anchor, $$props) {
   push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -15768,7 +17130,7 @@ function AttachButton($$anchor, $$props) {
       input.value = "";
     }
   }
-  var fragment = root$b();
+  var fragment = root$c();
   var input_1 = first_child(fragment);
   input_1.__change = handleChange;
   bind_this(input_1, ($$value) => fileInput = $$value, () => fileInput);
@@ -15788,8 +17150,8 @@ var root_5$7 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" class="svelte-
 var root_6$7 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" class="svelte-fchx1w"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"></path></svg>`);
 var root_4$7 = /* @__PURE__ */ from_html(`<div><!></div>`);
 var root_7$5 = /* @__PURE__ */ from_html(`<div class="status-overlay svelte-fchx1w"><div class="spinner svelte-fchx1w"></div></div>`);
-var root_2$6 = /* @__PURE__ */ from_html(`<div><!> <div class="attachment-info svelte-fchx1w"><span class="filename svelte-fchx1w"> </span> <span class="filesize svelte-fchx1w"> </span></div> <button class="remove-btn svelte-fchx1w" title="Remove"><svg viewBox="0 0 24 24" class="svelte-fchx1w"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button> <!></div>`);
-var root_1$b = /* @__PURE__ */ from_html(`<div class="attachment-preview svelte-fchx1w"></div>`);
+var root_2$7 = /* @__PURE__ */ from_html(`<div><!> <div class="attachment-info svelte-fchx1w"><span class="filename svelte-fchx1w"> </span> <span class="filesize svelte-fchx1w"> </span></div> <button class="remove-btn svelte-fchx1w" title="Remove"><svg viewBox="0 0 24 24" class="svelte-fchx1w"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button> <!></div>`);
+var root_1$c = /* @__PURE__ */ from_html(`<div class="attachment-preview svelte-fchx1w"></div>`);
 function AttachmentPreview($$anchor, $$props) {
   push($$props, true);
   function formatSize(bytes) {
@@ -15806,9 +17168,9 @@ function AttachmentPreview($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent_3 = ($$anchor2) => {
-      var div = root_1$b();
+      var div = root_1$c();
       each(div, 21, () => $$props.attachments, (att) => att.file_id, ($$anchor3, att) => {
-        var div_1 = root_2$6();
+        var div_1 = root_2$7();
         let classes;
         var node_1 = child(div_1);
         {
@@ -15887,7 +17249,7 @@ function AttachmentPreview($$anchor, $$props) {
   pop();
 }
 delegate(["click"]);
-var root$a = /* @__PURE__ */ from_html(`<div class="input-container svelte-f7ebxa"><!> <div class="input-main svelte-f7ebxa"><!></div> <div class="input-footer svelte-f7ebxa"><!> <!> <!> <!> <!></div></div>`);
+var root$b = /* @__PURE__ */ from_html(`<div class="input-container svelte-f7ebxa"><!> <div class="input-main svelte-f7ebxa"><!></div> <div class="input-footer svelte-f7ebxa"><!> <!> <!> <!> <!></div></div>`);
 function InputArea($$anchor, $$props) {
   push($$props, true);
   const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
@@ -16117,7 +17479,7 @@ _${status}_` } : msg)
       }));
     }
   }
-  var div = root$a();
+  var div = root$b();
   var node = child(div);
   {
     var consequent = ($$anchor2) => {
@@ -16164,13 +17526,13 @@ _${status}_` } : msg)
   pop();
   $$cleanup();
 }
-var root_2$5 = /* @__PURE__ */ from_html(`<span class="thinking-subtitle svelte-wqn4rm"> </span>`);
+var root_2$6 = /* @__PURE__ */ from_html(`<span class="thinking-subtitle svelte-wqn4rm"> </span>`);
 var root_3$6 = /* @__PURE__ */ from_svg(`<path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"></path>`);
 var root_4$6 = /* @__PURE__ */ from_svg(`<path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>`);
 var root_6$6 = /* @__PURE__ */ from_html(`<div class="thinking-empty svelte-wqn4rm">No trace captured.</div>`);
 var root_8$5 = /* @__PURE__ */ from_html(`<div class="thinking-entry svelte-wqn4rm"><div class="badge svelte-wqn4rm"> </div> <pre class="svelte-wqn4rm"> </pre></div>`);
 var root_5$6 = /* @__PURE__ */ from_html(`<div class="thinking-body svelte-wqn4rm"><!></div>`);
-var root_1$a = /* @__PURE__ */ from_html(`<div class="thinking-panel svelte-wqn4rm"><div class="thinking-header svelte-wqn4rm" role="button" tabindex="0"><div><span class="thinking-title svelte-wqn4rm">Thinking trace</span> <!></div> <svg viewBox="0 0 24 24" class="icon svelte-wqn4rm"><!></svg></div> <!></div>`);
+var root_1$b = /* @__PURE__ */ from_html(`<div class="thinking-panel svelte-wqn4rm"><div class="thinking-header svelte-wqn4rm" role="button" tabindex="0"><div><span class="thinking-title svelte-wqn4rm">Thinking trace</span> <!></div> <svg viewBox="0 0 24 24" class="icon svelte-wqn4rm"><!></svg></div> <!></div>`);
 function ThinkingPanel($$anchor, $$props) {
   push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -16191,14 +17553,14 @@ function ThinkingPanel($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent_4 = ($$anchor2) => {
-      var div = root_1$a();
+      var div = root_1$b();
       var div_1 = child(div);
       div_1.__click = toggleExpanded;
       var div_2 = child(div_1);
       var node_1 = sibling(child(div_2), 2);
       {
         var consequent = ($$anchor3) => {
-          var span = root_2$5();
+          var span = root_2$6();
           var text2 = child(span);
           template_effect(($0) => set_text(text2, $0), [() => get$1(subtitle)()]);
           append($$anchor3, span);
@@ -16272,6 +17634,80 @@ function ThinkingPanel($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
+var root_1$a = /* @__PURE__ */ from_html(`<button type="button"><div class="hc-aesthetic-swatch svelte-1ty8kd9"><span class="sw-bg svelte-1ty8kd9"></span> <span class="sw-card svelte-1ty8kd9"></span> <span class="sw-ink svelte-1ty8kd9"></span></div> <div class="hc-aesthetic-text svelte-1ty8kd9"><div class="hc-aesthetic-name svelte-1ty8kd9"> </div> <div class="hc-aesthetic-sub svelte-1ty8kd9"> </div></div></button>`);
+var root$a = /* @__PURE__ */ from_html(`<div class="hc-section-block svelte-1ty8kd9"><div class="hc-set-eyebrow svelte-1ty8kd9">Theme</div> <div class="hc-set-row svelte-1ty8kd9"><div class="hc-set-row-text svelte-1ty8kd9"><div class="hc-set-row-title svelte-1ty8kd9">Color mode</div> <div class="hc-set-row-sub svelte-1ty8kd9">Light, dark, or follow system preference.</div></div> <select class="hc-pill-select svelte-1ty8kd9"><option>Light</option><option>Dark</option><option>System</option></select></div></div> <div class="hc-section-block svelte-1ty8kd9"><div class="hc-set-eyebrow svelte-1ty8kd9">Aesthetic</div> <div class="hc-aesthetic-grid svelte-1ty8kd9"></div></div>`, 1);
+function AppearanceEditor($$anchor, $$props) {
+  push($$props, false);
+  const $uiState = () => store_get(uiState, "$uiState", $$stores);
+  const [$$stores, $$cleanup] = setup_stores();
+  function onThemeChange(e2) {
+    const value = e2.target.value;
+    setTheme(value);
+  }
+  function onAestheticPick(value) {
+    setAesthetic(value);
+  }
+  const aesthetics = [
+    {
+      id: "warm",
+      name: "Warm",
+      sub: "Paper-tone, editorial serif."
+    },
+    {
+      id: "tech",
+      name: "Tech",
+      sub: "High-contrast, dense, monospaced."
+    },
+    {
+      id: "ambient",
+      name: "Ambient",
+      sub: "Always dark, gold accent glow."
+    }
+  ];
+  init();
+  var fragment = root$a();
+  var div = first_child(fragment);
+  var div_1 = sibling(child(div), 2);
+  var select = sibling(child(div_1), 2);
+  select.__change = onThemeChange;
+  var option = child(select);
+  option.value = option.__value = "light";
+  var option_1 = sibling(option);
+  option_1.value = option_1.__value = "dark";
+  var option_2 = sibling(option_1);
+  option_2.value = option_2.__value = "system";
+  var select_value;
+  init_select(select);
+  var div_2 = sibling(div, 2);
+  var div_3 = sibling(child(div_2), 2);
+  each(div_3, 5, () => aesthetics, index, ($$anchor2, a2) => {
+    var button = root_1$a();
+    let classes;
+    button.__click = () => onAestheticPick(get$1(a2).id);
+    var div_4 = child(button);
+    var div_5 = sibling(div_4, 2);
+    var div_6 = child(div_5);
+    var text2 = child(div_6);
+    var div_7 = sibling(div_6, 2);
+    var text_1 = child(div_7);
+    template_effect(() => {
+      classes = set_class(button, 1, "hc-aesthetic svelte-1ty8kd9", null, classes, { selected: $uiState().aesthetic === get$1(a2).id });
+      set_attribute(div_4, "data-id", get$1(a2).id);
+      set_text(text2, get$1(a2).name);
+      set_text(text_1, get$1(a2).sub);
+    });
+    append($$anchor2, button);
+  });
+  template_effect(() => {
+    if (select_value !== (select_value = $uiState().theme)) {
+      select.value = (select.__value = $uiState().theme) ?? "", select_option(select, $uiState().theme);
+    }
+  });
+  append($$anchor, fragment);
+  pop();
+  $$cleanup();
+}
+delegate(["change", "click"]);
 async function getModelsConfig(hass, forceReload = false) {
   const result = await hass.callWS({
     type: "homeclaw/config/models/get",
@@ -16288,7 +17724,7 @@ async function updateProviderModels(hass, provider, data) {
   return result.config;
 }
 var root_1$9 = /* @__PURE__ */ from_html(`<div> </div>`);
-var root_2$4 = /* @__PURE__ */ from_html(`<div class="loading svelte-fraw8h">Loading configuration...</div>`);
+var root_2$5 = /* @__PURE__ */ from_html(`<div class="loading svelte-fraw8h">Loading configuration...</div>`);
 var root_7$4 = /* @__PURE__ */ from_svg(`<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"></path>`);
 var root_8$4 = /* @__PURE__ */ from_svg(`<path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"></path>`);
 var root_6$5 = /* @__PURE__ */ from_html(`<div class="model-row svelte-fraw8h"><div class="model-fields svelte-fraw8h"><input class="input small svelte-fraw8h" placeholder="ID (e.g. gpt-4o)"/> <input class="input svelte-fraw8h" placeholder="Display Name"/> <input class="input wide svelte-fraw8h" placeholder="Description (optional)"/></div> <div class="model-actions svelte-fraw8h"><button><svg viewBox="0 0 24 24" class="star-icon svelte-fraw8h"><!></svg></button> <button class="icon-btn danger svelte-fraw8h" title="Remove model"><svg viewBox="0 0 24 24" class="svelte-fraw8h"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path></svg></button></div></div>`);
@@ -16404,7 +17840,7 @@ function ModelsEditor($$anchor, $$props) {
   var node_1 = sibling(node, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      var div_2 = root_2$4();
+      var div_2 = root_2$5();
       append($$anchor2, div_2);
     };
     var alternate_1 = ($$anchor2) => {
@@ -16518,7 +17954,7 @@ function ModelsEditor($$anchor, $$props) {
 }
 delegate(["click", "input"]);
 var root_1$8 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_2$3 = /* @__PURE__ */ from_html(`<div class="loading-text svelte-1udswlp">Loading models...</div>`);
+var root_2$4 = /* @__PURE__ */ from_html(`<div class="loading-text svelte-1udswlp">Loading models...</div>`);
 var root_4$4 = /* @__PURE__ */ from_html(`<option> </option>`);
 var root_3$4 = /* @__PURE__ */ from_html(`<select id="default-model" class="select svelte-1udswlp"><option>-- Provider default --</option><!></select>`);
 var root_6$4 = /* @__PURE__ */ from_html(`<span class="badge svelte-1udswlp"> </span>`);
@@ -16643,7 +18079,7 @@ function DefaultsEditor($$anchor, $$props) {
   var node_1 = sibling(child(div_2), 2);
   {
     var consequent = ($$anchor2) => {
-      var div_3 = root_2$3();
+      var div_3 = root_2$4();
       append($$anchor2, div_3);
     };
     var alternate = ($$anchor2) => {
@@ -16776,7 +18212,7 @@ function formatExpiresAt(expiresAt) {
   }
   return `${Math.round(daysLeft)}d left`;
 }
-var root_2$2 = /* @__PURE__ */ from_html(`<button class="btn text btn-sm svelte-1lsjbvq">Edit</button>`);
+var root_2$3 = /* @__PURE__ */ from_html(`<button class="btn text btn-sm svelte-1lsjbvq">Edit</button>`);
 var root_3$3 = /* @__PURE__ */ from_html(`<div class="identity-form svelte-1lsjbvq"><div class="form-group svelte-1lsjbvq"><label for="id-agent-name" class="svelte-1lsjbvq">Agent Name</label> <input id="id-agent-name" type="text" placeholder="e.g. Jarvis" class="svelte-1lsjbvq"/></div> <div class="form-group svelte-1lsjbvq"><label for="id-agent-personality" class="svelte-1lsjbvq">Personality</label> <textarea id="id-agent-personality" placeholder="e.g. Friendly, witty, concise" rows="2" class="svelte-1lsjbvq"></textarea></div> <div class="form-group svelte-1lsjbvq"><label for="id-agent-emoji" class="svelte-1lsjbvq">Emoji</label> <input id="id-agent-emoji" type="text" placeholder="e.g. 🤖" maxlength="4" class="emoji-input svelte-1lsjbvq"/></div> <div class="form-group svelte-1lsjbvq"><label for="id-user-name" class="svelte-1lsjbvq">Your Name</label> <input id="id-user-name" type="text" placeholder="e.g. Adam" class="svelte-1lsjbvq"/></div> <div class="form-group svelte-1lsjbvq"><label for="id-user-info" class="svelte-1lsjbvq">About You</label> <textarea id="id-user-info" placeholder="e.g. Lives in Warsaw, works from home, has 2 cats" rows="3" class="svelte-1lsjbvq"></textarea></div> <div class="form-group svelte-1lsjbvq"><label for="id-language" class="svelte-1lsjbvq">Language</label> <select id="id-language" class="svelte-1lsjbvq"><option>Auto-detect</option><option>Polski</option><option>English</option><option>Deutsch</option><option>Français</option><option>Español</option><option>Italiano</option><option>Nederlands</option><option>Українська</option></select></div> <div class="form-actions svelte-1lsjbvq"><button class="btn primary svelte-1lsjbvq"> </button> <button class="btn text svelte-1lsjbvq">Cancel</button></div></div>`);
 var root_4$3 = /* @__PURE__ */ from_html(`<div class="kv-grid svelte-1lsjbvq"><span class="k svelte-1lsjbvq">Name</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Personality</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">User</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Language</span><span class="v svelte-1lsjbvq"> </span> <span class="k svelte-1lsjbvq">Onboarded</span><span class="v svelte-1lsjbvq"> </span></div>`);
 var root_1$7 = /* @__PURE__ */ from_html(`<div class="card svelte-1lsjbvq"><div class="card-header svelte-1lsjbvq"><h3 class="svelte-1lsjbvq">Agent Identity</h3> <!></div> <!></div>`);
@@ -16847,7 +18283,7 @@ function RagOverview($$anchor, $$props) {
       var node_1 = sibling(child(div_2), 2);
       {
         var consequent = ($$anchor3) => {
-          var button = root_2$2();
+          var button = root_2$3();
           button.__click = startEditingIdentity;
           append($$anchor3, button);
         };
@@ -17930,7 +19366,7 @@ function RagOptimize($$anchor, $$props) {
 }
 delegate(["change", "click"]);
 var root_1$2 = /* @__PURE__ */ from_html(`<div> </div>`);
-var root_2$1 = /* @__PURE__ */ from_html(`<div class="loading svelte-1djclk2">Loading RAG data...</div>`);
+var root_2$2 = /* @__PURE__ */ from_html(`<div class="loading svelte-1djclk2">Loading RAG data...</div>`);
 var root_4$1 = /* @__PURE__ */ from_html(`<div class="not-initialized svelte-1djclk2">RAG system is not initialized. Enable it in the integration config.</div>`);
 var root$2 = /* @__PURE__ */ from_html(`<div class="rag-viewer svelte-1djclk2"><!> <div class="section-nav svelte-1djclk2"><button>Overview</button> <button>Memories</button> <button>Sessions</button> <button>Search</button> <button>Optimize</button></div> <!></div>`);
 function RagViewer($$anchor, $$props) {
@@ -18000,7 +19436,7 @@ function RagViewer($$anchor, $$props) {
   var node_1 = sibling(div_2, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      var div_3 = root_2$1();
+      var div_3 = root_2$2();
       append($$anchor2, div_3);
     };
     var alternate_5 = ($$anchor2) => {
@@ -18134,7 +19570,7 @@ function RagViewer($$anchor, $$props) {
 }
 delegate(["click"]);
 var root_1$1 = /* @__PURE__ */ from_html(`<div> </div>`);
-var root_2 = /* @__PURE__ */ from_html(`<div class="loading svelte-7zsr1v">Loading scheduler...</div>`);
+var root_2$1 = /* @__PURE__ */ from_html(`<div class="loading svelte-7zsr1v">Loading scheduler...</div>`);
 var root_4 = /* @__PURE__ */ from_html(`<div class="not-available svelte-7zsr1v">Scheduler is not initialized. It starts automatically with the integration.</div>`);
 var root_7 = /* @__PURE__ */ from_html(`<div class="status-bar svelte-7zsr1v"><span> </span> <span class="dot svelte-7zsr1v">&#183;</span> <span> </span> <span class="dot svelte-7zsr1v">&#183;</span> <span> </span></div>`);
 var root_8 = /* @__PURE__ */ from_html(`<div class="empty svelte-7zsr1v">No scheduled jobs yet. Ask the assistant to create one, e.g. <em class="svelte-7zsr1v">"Remind me to check energy at 8pm every day"</em></div>`);
@@ -18309,7 +19745,7 @@ function SchedulerPanel($$anchor, $$props) {
   var node_1 = sibling(div_2, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      var div_3 = root_2();
+      var div_3 = root_2$1();
       append($$anchor2, div_3);
     };
     var alternate_4 = ($$anchor2) => {
@@ -18593,16 +20029,24 @@ function SchedulerPanel($$anchor, $$props) {
   pop();
 }
 delegate(["click", "change"]);
-var root_1 = /* @__PURE__ */ from_html(`<div class="settings-backdrop svelte-nsapwt"></div> <div class="settings-panel svelte-nsapwt"><div class="settings-header svelte-nsapwt"><h2 class="svelte-nsapwt">Settings</h2> <button class="close-btn svelte-nsapwt" aria-label="Close settings"><svg viewBox="0 0 24 24" class="icon svelte-nsapwt"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button></div> <div class="tabs svelte-nsapwt"><button>Defaults</button> <button>Models</button> <button>RAG</button> <button>Scheduler</button></div> <div class="settings-content svelte-nsapwt"><!></div></div>`, 1);
+var root_2 = /* @__PURE__ */ from_html(`<button> </button>`);
+var root_1 = /* @__PURE__ */ from_html(`<div class="hc-drawer-scrim svelte-nsapwt" role="presentation"></div> <div class="hc-drawer svelte-nsapwt"><div class="hc-drawer-head svelte-nsapwt"><h2 class="svelte-nsapwt">Settings</h2> <button class="hc-drawer-close svelte-nsapwt" aria-label="Close settings"><!></button></div> <div class="hc-drawer-tabs svelte-nsapwt"></div> <div class="hc-drawer-body svelte-nsapwt"><!></div></div>`, 1);
 function SettingsPanel($$anchor, $$props) {
   push($$props, true);
   const $uiState = () => store_get(uiState, "$uiState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
-  let activeTab = /* @__PURE__ */ state("defaults");
+  let activeTab = /* @__PURE__ */ state("appearance");
+  const tabs = [
+    { id: "appearance", label: "Appearance" },
+    { id: "defaults", label: "Defaults" },
+    { id: "models", label: "Models" },
+    { id: "rag", label: "RAG" },
+    { id: "scheduler", label: "Scheduler" }
+  ];
   var fragment = comment();
   var node = first_child(fragment);
   {
-    var consequent_4 = ($$anchor2) => {
+    var consequent_5 = ($$anchor2) => {
       var fragment_1 = root_1();
       var div = first_child(fragment_1);
       div.__click = function(...$$args) {
@@ -18614,50 +20058,69 @@ function SettingsPanel($$anchor, $$props) {
       button.__click = function(...$$args) {
         closeSettings?.apply(this, $$args);
       };
+      var node_1 = child(button);
+      Icon(node_1, { name: "x", size: 16 });
       var div_3 = sibling(div_2, 2);
-      var button_1 = child(div_3);
-      let classes;
-      button_1.__click = () => set(activeTab, "defaults");
-      var button_2 = sibling(button_1, 2);
-      let classes_1;
-      button_2.__click = () => set(activeTab, "models");
-      var button_3 = sibling(button_2, 2);
-      let classes_2;
-      button_3.__click = () => set(activeTab, "rag");
-      var button_4 = sibling(button_3, 2);
-      let classes_3;
-      button_4.__click = () => set(activeTab, "scheduler");
+      each(div_3, 21, () => tabs, index, ($$anchor3, t2) => {
+        var button_1 = root_2();
+        let classes;
+        button_1.__click = () => set(activeTab, get$1(t2).id, true);
+        var text2 = child(button_1);
+        template_effect(() => {
+          classes = set_class(button_1, 1, "hc-drawer-tab svelte-nsapwt", null, classes, { active: get$1(activeTab) === get$1(t2).id });
+          set_text(text2, get$1(t2).label);
+        });
+        append($$anchor3, button_1);
+      });
       var div_4 = sibling(div_3, 2);
-      var node_1 = child(div_4);
+      var node_2 = child(div_4);
       {
         var consequent = ($$anchor3) => {
-          DefaultsEditor($$anchor3, {});
+          AppearanceEditor($$anchor3, {});
         };
-        var alternate_2 = ($$anchor3) => {
+        var alternate_3 = ($$anchor3) => {
           var fragment_3 = comment();
-          var node_2 = first_child(fragment_3);
+          var node_3 = first_child(fragment_3);
           {
             var consequent_1 = ($$anchor4) => {
-              ModelsEditor($$anchor4, {});
+              DefaultsEditor($$anchor4, {});
             };
-            var alternate_1 = ($$anchor4) => {
+            var alternate_2 = ($$anchor4) => {
               var fragment_5 = comment();
-              var node_3 = first_child(fragment_5);
+              var node_4 = first_child(fragment_5);
               {
                 var consequent_2 = ($$anchor5) => {
-                  RagViewer($$anchor5, {});
+                  ModelsEditor($$anchor5, {});
                 };
-                var alternate = ($$anchor5) => {
+                var alternate_1 = ($$anchor5) => {
                   var fragment_7 = comment();
-                  var node_4 = first_child(fragment_7);
+                  var node_5 = first_child(fragment_7);
                   {
                     var consequent_3 = ($$anchor6) => {
-                      SchedulerPanel($$anchor6, {});
+                      RagViewer($$anchor6, {});
+                    };
+                    var alternate = ($$anchor6) => {
+                      var fragment_9 = comment();
+                      var node_6 = first_child(fragment_9);
+                      {
+                        var consequent_4 = ($$anchor7) => {
+                          SchedulerPanel($$anchor7, {});
+                        };
+                        if_block(
+                          node_6,
+                          ($$render) => {
+                            if (get$1(activeTab) === "scheduler") $$render(consequent_4);
+                          },
+                          true
+                        );
+                      }
+                      append($$anchor6, fragment_9);
                     };
                     if_block(
-                      node_4,
+                      node_5,
                       ($$render) => {
-                        if (get$1(activeTab) === "scheduler") $$render(consequent_3);
+                        if (get$1(activeTab) === "rag") $$render(consequent_3);
+                        else $$render(alternate, false);
                       },
                       true
                     );
@@ -18665,10 +20128,10 @@ function SettingsPanel($$anchor, $$props) {
                   append($$anchor5, fragment_7);
                 };
                 if_block(
-                  node_3,
+                  node_4,
                   ($$render) => {
-                    if (get$1(activeTab) === "rag") $$render(consequent_2);
-                    else $$render(alternate, false);
+                    if (get$1(activeTab) === "models") $$render(consequent_2);
+                    else $$render(alternate_1, false);
                   },
                   true
                 );
@@ -18676,31 +20139,25 @@ function SettingsPanel($$anchor, $$props) {
               append($$anchor4, fragment_5);
             };
             if_block(
-              node_2,
+              node_3,
               ($$render) => {
-                if (get$1(activeTab) === "models") $$render(consequent_1);
-                else $$render(alternate_1, false);
+                if (get$1(activeTab) === "defaults") $$render(consequent_1);
+                else $$render(alternate_2, false);
               },
               true
             );
           }
           append($$anchor3, fragment_3);
         };
-        if_block(node_1, ($$render) => {
-          if (get$1(activeTab) === "defaults") $$render(consequent);
-          else $$render(alternate_2, false);
+        if_block(node_2, ($$render) => {
+          if (get$1(activeTab) === "appearance") $$render(consequent);
+          else $$render(alternate_3, false);
         });
       }
-      template_effect(() => {
-        classes = set_class(button_1, 1, "tab svelte-nsapwt", null, classes, { active: get$1(activeTab) === "defaults" });
-        classes_1 = set_class(button_2, 1, "tab svelte-nsapwt", null, classes_1, { active: get$1(activeTab) === "models" });
-        classes_2 = set_class(button_3, 1, "tab svelte-nsapwt", null, classes_2, { active: get$1(activeTab) === "rag" });
-        classes_3 = set_class(button_4, 1, "tab svelte-nsapwt", null, classes_3, { active: get$1(activeTab) === "scheduler" });
-      });
       append($$anchor2, fragment_1);
     };
     if_block(node, ($$render) => {
-      if ($uiState().settingsOpen) $$render(consequent_4);
+      if ($uiState().settingsOpen) $$render(consequent_5);
     });
   }
   append($$anchor, fragment);
@@ -18708,7 +20165,7 @@ function SettingsPanel($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root = /* @__PURE__ */ from_html(`<div><!> <div class="main-container svelte-j6syiu"><!> <div class="content-area svelte-j6syiu"><div class="chat-container svelte-j6syiu"><!> <!></div> <!></div></div> <!></div>`);
+var root = /* @__PURE__ */ from_html(`<div><!> <div class="hc-main svelte-j6syiu"><!> <div class="hc-chat-region svelte-j6syiu"><!> <!></div> <!></div> <!></div>`);
 function HomeclawPanel$1($$anchor, $$props) {
   push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -18722,7 +20179,8 @@ function HomeclawPanel$1($$anchor, $$props) {
         appState.update((s2) => ({
           ...s2,
           agentName: identity.agent_name || "Homeclaw",
-          agentEmoji: identity.agent_emoji || ""
+          agentEmoji: identity.agent_emoji || "",
+          userName: identity.user_name || ""
         }));
       }
     } catch {
@@ -18751,9 +20209,9 @@ function HomeclawPanel$1($$anchor, $$props) {
       }
     })();
     const handleResize = () => {
-      const isMobile3 = window.innerWidth <= 768;
+      const isMobileNow = window.innerWidth <= 768;
       const currentUiState = get(uiState);
-      if (!isMobile3 && currentUiState.sidebarOpen) ;
+      if (!isMobileNow && currentUiState.sidebarOpen) ;
     };
     window.addEventListener("resize", handleResize);
     handleResize();
@@ -18766,13 +20224,12 @@ function HomeclawPanel$1($$anchor, $$props) {
   var div = root();
   let classes;
   var node = child(div);
-  Header(node, {});
+  Sidebar(node, {});
   var div_1 = sibling(node, 2);
   var node_1 = child(div_1);
-  Sidebar(node_1, {});
+  Topbar(node_1, {});
   var div_2 = sibling(node_1, 2);
-  var div_3 = child(div_2);
-  var node_2 = child(div_3);
+  var node_2 = child(div_2);
   ChatArea(node_2, {
     get hass() {
       return $$props.hass;
@@ -18787,11 +20244,11 @@ function HomeclawPanel$1($$anchor, $$props) {
       if (get$1(showThinkingPanel)) $$render(consequent);
     });
   }
-  var node_4 = sibling(div_3, 2);
+  var node_4 = sibling(div_2, 2);
   InputArea(node_4, {});
   var node_5 = sibling(div_1, 2);
   SettingsPanel(node_5, {});
-  template_effect(() => classes = set_class(div, 1, "homeclaw-panel svelte-j6syiu", null, classes, { narrow: get$1(isMobile2) }));
+  template_effect(() => classes = set_class(div, 1, "hc-app svelte-j6syiu", null, classes, { narrow: get$1(isMobile2) }));
   append($$anchor, div);
   pop();
   $$cleanup();

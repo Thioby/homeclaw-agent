@@ -1,63 +1,51 @@
 <script lang="ts">
   import { uiState, closeSettings } from '$lib/stores/ui';
+  import Icon from '../Icon.svelte';
+  import AppearanceEditor from './AppearanceEditor.svelte';
   import ModelsEditor from './ModelsEditor.svelte';
   import DefaultsEditor from './DefaultsEditor.svelte';
   import RagViewer from './RagViewer.svelte';
   import SchedulerPanel from './SchedulerPanel.svelte';
 
-  let activeTab = $state<'defaults' | 'models' | 'rag' | 'scheduler'>('defaults');
+  type Tab = 'appearance' | 'defaults' | 'models' | 'rag' | 'scheduler';
+  let activeTab = $state<Tab>('appearance');
+
+  const tabs: Array<{ id: Tab; label: string }> = [
+    { id: 'appearance', label: 'Appearance' },
+    { id: 'defaults', label: 'Defaults' },
+    { id: 'models', label: 'Models' },
+    { id: 'rag', label: 'RAG' },
+    { id: 'scheduler', label: 'Scheduler' },
+  ];
 </script>
 
 {#if $uiState.settingsOpen}
-  <!-- Backdrop -->
-  <div class="settings-backdrop" onclick={closeSettings}></div>
+  <div class="hc-drawer-scrim" onclick={closeSettings} role="presentation"></div>
 
-  <!-- Panel -->
-  <div class="settings-panel">
-    <div class="settings-header">
+  <div class="hc-drawer">
+    <div class="hc-drawer-head">
       <h2>Settings</h2>
-      <button class="close-btn" onclick={closeSettings} aria-label="Close settings">
-        <svg viewBox="0 0 24 24" class="icon">
-          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-        </svg>
+      <button class="hc-drawer-close" onclick={closeSettings} aria-label="Close settings">
+        <Icon name="x" size={16} />
       </button>
     </div>
 
-    <!-- Tabs -->
-    <div class="tabs">
-      <button
-        class="tab"
-        class:active={activeTab === 'defaults'}
-        onclick={() => (activeTab = 'defaults')}
-      >
-        Defaults
-      </button>
-      <button
-        class="tab"
-        class:active={activeTab === 'models'}
-        onclick={() => (activeTab = 'models')}
-      >
-        Models
-      </button>
-      <button
-        class="tab"
-        class:active={activeTab === 'rag'}
-        onclick={() => (activeTab = 'rag')}
-      >
-        RAG
-      </button>
-      <button
-        class="tab"
-        class:active={activeTab === 'scheduler'}
-        onclick={() => (activeTab = 'scheduler')}
-      >
-        Scheduler
-      </button>
+    <div class="hc-drawer-tabs">
+      {#each tabs as t}
+        <button
+          class="hc-drawer-tab"
+          class:active={activeTab === t.id}
+          onclick={() => (activeTab = t.id)}
+        >
+          {t.label}
+        </button>
+      {/each}
     </div>
 
-    <!-- Tab content -->
-    <div class="settings-content">
-      {#if activeTab === 'defaults'}
+    <div class="hc-drawer-body">
+      {#if activeTab === 'appearance'}
+        <AppearanceEditor />
+      {:else if activeTab === 'defaults'}
         <DefaultsEditor />
       {:else if activeTab === 'models'}
         <ModelsEditor />
@@ -71,112 +59,136 @@
 {/if}
 
 <style>
-  .settings-backdrop {
+  .hc-drawer-scrim {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 200;
+    background: rgba(20, 16, 10, 0.32);
+    backdrop-filter: blur(2px);
+    z-index: 50;
+    animation: scrimFadeIn 0.18s ease-out;
   }
 
-  .settings-panel {
+  @keyframes scrimFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .hc-drawer {
     position: fixed;
-    top: 0;
     right: 0;
+    top: 0;
     bottom: 0;
-    width: min(480px, 100vw);
-    background: var(--primary-background-color);
-    z-index: 201;
+    width: min(520px, 100vw);
+    background: var(--hc-bg);
+    border-left: 1px solid var(--hc-line);
+    z-index: 51;
     display: flex;
     flex-direction: column;
-    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
-    animation: slideIn 0.2s ease-out;
+    color: var(--hc-ink);
+    animation: drawerSlideIn 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  @keyframes slideIn {
-    from {
-      transform: translateX(100%);
-    }
-    to {
-      transform: translateX(0);
-    }
+  @keyframes drawerSlideIn {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
   }
 
-  .settings-header {
+  .hc-drawer-head {
+    height: 60px;
+    padding: 0 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--divider-color);
+    border-bottom: 1px solid var(--hc-line);
+    flex-shrink: 0;
   }
 
-  .settings-header h2 {
+  .hc-drawer-head h2 {
+    font-family: var(--hc-font-display);
+    font-size: 22px;
+    font-weight: 500;
     margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--primary-text-color);
+    letter-spacing: -0.01em;
+    color: var(--hc-ink);
   }
 
-  .close-btn {
-    width: 36px;
-    height: 36px;
-    border: none;
+  .hc-drawer-close {
+    width: 32px;
+    height: 32px;
     background: transparent;
+    border: 0;
+    color: var(--hc-ink-3);
+    border-radius: 8px;
     cursor: pointer;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s;
+    padding: 0;
   }
 
-  .close-btn:hover {
-    background: var(--secondary-background-color);
+  .hc-drawer-close:hover {
+    background: var(--hc-bg-sunken);
+    color: var(--hc-ink);
   }
 
-  .icon {
-    width: 20px;
-    height: 20px;
-    fill: var(--secondary-text-color);
-  }
-
-  .tabs {
+  .hc-drawer-tabs {
     display: flex;
-    border-bottom: 1px solid var(--divider-color);
-    padding: 0 20px;
+    border-bottom: 1px solid var(--hc-line);
+    padding: 0 16px;
+    overflow-x: auto;
+    flex-shrink: 0;
   }
 
-  .tab {
-    padding: 10px 16px;
-    border: none;
-    background: none;
+  .hc-drawer-tabs::-webkit-scrollbar {
+    height: 0;
+  }
+
+  .hc-drawer-tab {
+    padding: 12px 14px;
+    border: 0;
+    background: transparent;
     cursor: pointer;
-    font-size: 14px;
+    font: inherit;
+    font-size: 13px;
     font-weight: 500;
-    color: var(--secondary-text-color);
+    color: var(--hc-ink-3);
     border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-    font-family: inherit;
+    transition: color 0.12s, border-color 0.12s;
+    white-space: nowrap;
   }
 
-  .tab.active {
-    color: var(--primary-color);
-    border-bottom-color: var(--primary-color);
+  .hc-drawer-tab:hover {
+    color: var(--hc-ink);
   }
 
-  .tab:hover:not(.active) {
-    color: var(--primary-text-color);
-    background: var(--secondary-background-color);
+  .hc-drawer-tab.active {
+    color: var(--hc-ink);
+    border-bottom-color: var(--hc-ink);
   }
 
-  .settings-content {
+  .hc-drawer-body {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
+    padding: 24px;
+  }
+
+  /* Override legacy backgrounds inside settings sub-panels so they pick up
+     paper-tone hc tokens. Sub-panel internals stay as-is. */
+  .hc-drawer-body :global(.tab-content),
+  .hc-drawer-body :global(.editor-section),
+  .hc-drawer-body :global(.section) {
+    background: transparent !important;
   }
 
   @media (max-width: 768px) {
-    .settings-panel {
+    .hc-drawer {
       width: 100vw;
+    }
+    .hc-drawer-head {
+      padding: 0 16px;
+    }
+    .hc-drawer-body {
+      padding: 16px;
     }
   }
 </style>

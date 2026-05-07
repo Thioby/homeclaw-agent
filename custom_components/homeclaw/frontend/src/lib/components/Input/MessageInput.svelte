@@ -1,6 +1,7 @@
 <script lang="ts">
   import { appState } from '$lib/stores/appState';
   import { get } from 'svelte/store';
+  import { onMount } from 'svelte';
   import { autoResize } from '$lib/utils/dom';
 
   let {
@@ -14,6 +15,23 @@
   let textarea: HTMLTextAreaElement;
   let value = $state('');
   let isDragOver = $state(false);
+
+  // Listen for prompts dispatched by EmptyState suggestion cards.
+  onMount(() => {
+    const onSuggest = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (typeof detail !== 'string') return;
+      value = detail;
+      queueMicrotask(() => {
+        if (textarea) {
+          textarea.focus();
+          autoResize(textarea);
+        }
+      });
+    };
+    window.addEventListener('homeclaw-suggest', onSuggest);
+    return () => window.removeEventListener('homeclaw-suggest', onSuggest);
+  });
 
   function handleInput(e: Event) {
     const target = e.target as HTMLTextAreaElement;

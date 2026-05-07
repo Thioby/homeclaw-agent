@@ -14,6 +14,7 @@ export interface AppStateType {
   thinkingExpanded: boolean;
   agentName: string;
   agentEmoji: string;
+  userName: string;
 }
 
 const initialState: AppStateType = {
@@ -26,6 +27,7 @@ const initialState: AppStateType = {
   thinkingExpanded: false,
   agentName: 'Homeclaw',
   agentEmoji: '',
+  userName: '',
 };
 
 export const appState = writable<AppStateType>(initialState);

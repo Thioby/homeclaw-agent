@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { appState } from "$lib/stores/appState"
-  import { providerState } from "$lib/stores/providers"
+  import { appState } from '$lib/stores/appState';
+  import { providerState } from '$lib/stores/providers';
   import { createSession } from '$lib/services/session.service';
   import { fetchModels } from '$lib/services/provider.service';
+  import Icon from '../Icon.svelte';
 
   async function handleNewChat() {
     if (!$appState.hass) {
@@ -33,49 +34,46 @@
   }
 </script>
 
-<button class="fab" onclick={handleNewChat} title="New chat" aria-label="New chat" disabled={!$appState.hass}>
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 20h9"/>
-    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-  </svg>
+<button class="hc-newchat" onclick={handleNewChat} disabled={!$appState.hass}>
+  <Icon name="plus" />
+  <span>New conversation</span>
 </button>
 
 <style>
-  .fab {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    width: 54px;
-    height: 54px;
-    border-radius: 50%;
-    background: var(--accent, var(--primary-color));
-    color: #fff;
-    border: none;
-    cursor: pointer;
+  .hc-newchat {
+    margin: 12px;
+    padding: 10px 12px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    box-shadow: var(--fab-shadow, 0 4px 16px rgba(3, 169, 244, 0.35));
-    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
-    z-index: 5;
+    gap: 10px;
+    background: var(--hc-card-bg);
+    border: 1px solid var(--hc-line);
+    border-radius: var(--hc-radius-sm);
+    cursor: pointer;
+    font: inherit;
+    color: var(--hc-ink);
+    transition: border-color 0.12s, background 0.12s;
+    text-align: left;
   }
 
-  .fab:hover:not(:disabled) {
-    transform: scale(1.05);
-    background: var(--accent-hover, var(--primary-color));
+  .hc-newchat:hover:not(:disabled) {
+    border-color: var(--hc-line-strong);
   }
 
-  .fab:active:not(:disabled) {
-    transform: scale(0.95);
-  }
-
-  .fab:disabled {
+  .hc-newchat:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
-  .fab svg {
-    width: 24px;
-    height: 24px;
+  .hc-newchat :global(svg) {
+    width: 14px;
+    height: 14px;
+    color: var(--hc-ink-2);
+  }
+
+  .hc-newchat span {
+    flex: 1;
+    font-weight: 500;
+    font-size: 13.5px;
   }
 </style>
