@@ -5,15 +5,23 @@
   import { toggleSidebar, toggleSettings, cycleTheme, uiState } from '$lib/stores/ui';
   import { deleteSession } from '$lib/services/session.service';
   import { clearAllCaches } from '$lib/services/markdown.service';
+  import { confirmDialog } from '$lib/stores/dialog';
 
   async function clearChat() {
     const currentAppState = get(appState);
     const currentSessionState = get(sessionState);
-    
+
     if (!currentAppState.hass) return;
     if (!currentSessionState.activeSessionId) return;
 
-    if (confirm('Clear this conversation?')) {
+    const ok = await confirmDialog({
+      title: 'Clear conversation',
+      message: 'This will permanently delete the current conversation. Continue?',
+      confirmText: 'Clear',
+      cancelText: 'Cancel',
+      destructive: true,
+    });
+    if (ok) {
       await deleteSession(currentAppState.hass, currentSessionState.activeSessionId);
       clearAllCaches();
     }

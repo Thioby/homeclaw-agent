@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getHass } from './Rag/rag-helpers';
+  import { confirmDialog } from '$lib/stores/dialog';
 
   interface ScheduledJob {
     job_id: string;
@@ -106,7 +107,14 @@
   }
 
   async function removeJob(jobId: string, jobName: string) {
-    if (!confirm(`Remove "${jobName}"?`)) return;
+    const ok = await confirmDialog({
+      title: 'Remove scheduled job',
+      message: `"${jobName}" will be removed and stop running.`,
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+      destructive: true,
+    });
+    if (!ok) return;
     const hass = getHass();
     if (!hass) return;
     try {

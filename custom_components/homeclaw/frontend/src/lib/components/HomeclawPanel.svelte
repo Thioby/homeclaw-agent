@@ -14,6 +14,7 @@
   import InputArea from './Input/InputArea.svelte';
   import ThinkingPanel from './Debug/ThinkingPanel.svelte';
   import SettingsPanel from './Settings/SettingsPanel.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
 
   // Props
   let { hass, narrow = false }: { hass: HomeAssistant; narrow?: boolean; panel?: boolean } = $props();
@@ -98,6 +99,7 @@
   </div>
 
   <SettingsPanel />
+  <ConfirmDialog />
 </div>
 
 <style>

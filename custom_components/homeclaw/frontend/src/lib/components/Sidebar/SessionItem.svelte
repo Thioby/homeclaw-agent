@@ -5,6 +5,7 @@
   import { sessionState } from '$lib/stores/sessions';
   import { selectSession, deleteSession } from '$lib/services/session.service';
   import { formatSessionTime } from '$lib/utils/time';
+  import { confirmDialog } from '$lib/stores/dialog';
   import Icon from '../Icon.svelte';
 
   let { session }: { session: SessionListItem } = $props();
@@ -34,7 +35,14 @@
     const hass = get(appState).hass;
     if (!hass) return;
 
-    if (confirm('Delete this conversation?')) {
+    const ok = await confirmDialog({
+      title: 'Delete conversation',
+      message: `"${displayTitle || 'New conversation'}" will be permanently removed. This can't be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      destructive: true,
+    });
+    if (ok) {
       await deleteSession(hass, session.session_id);
     }
   }
