@@ -186,14 +186,16 @@ export async function fetchModels(
     });
 
     const models = [...(result.models || [])];
+
+    if (preferredModel && !models.find((m: any) => m.id === preferredModel)) {
+      models.unshift({ id: preferredModel, name: preferredModel });
+    }
+
     console.log('[Provider] Models received:', models);
     providerState.update((s) => ({ ...s, availableModels: models }));
 
-    // Use preferred model if it's valid for this provider
-    const hasPreferred = preferredModel && models.find((m: any) => m.id === preferredModel);
     let selectedModel: string | null;
-
-    if (hasPreferred) {
+    if (preferredModel && models.find((m: any) => m.id === preferredModel)) {
       selectedModel = preferredModel;
       console.log('[Provider] Using preferred model:', preferredModel);
     } else {

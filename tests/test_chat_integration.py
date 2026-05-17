@@ -329,3 +329,92 @@ class TestChatFlowIntegration:
         # User A cannot access User B's session
         with pytest.raises(ValueError):
             await storage_user_a.get_session_messages(session_b.session_id)
+
+
+class TestReasoningStreaming:
+    """Reasoning events flow from provider stream → WS stream_reasoning_chunk."""
+
+    @pytest.mark.asyncio
+    async def test_reasoning_event_triggers_callback(self) -> None:
+        """on_reasoning should be invoked for each ReasoningEvent yielded."""
+        from custom_components.homeclaw.core.events import (
+            CompletionEvent,
+            ReasoningEvent,
+            TextEvent,
+        )
+        from custom_components.homeclaw.ws_handlers.chat import _run_agent_stream
+        from unittest.mock import MagicMock, patch
+
+        async def fake_stream(*args, **kwargs):
+            yield ReasoningEvent(content="step 1 ")
+            yield ReasoningEvent(content="step 2")
+            yield TextEvent(content="Final answer")
+            yield CompletionEvent(messages=[])
+
+        captured_reasoning: list[str] = []
+
+        hass = MagicMock()
+        storage = MagicMock()
+
+        with patch(
+            "custom_components.homeclaw.ws_handlers.chat.MessageIntake"
+        ) as mock_intake_cls:
+            mock_intake = MagicMock()
+            mock_intake.process_message_stream = fake_stream
+            mock_intake_cls.return_value = mock_intake
+
+            text, error, _ = await _run_agent_stream(
+                hass,
+                storage=storage,
+                user_text="hi",
+                user_id="u1",
+                session_id="s1",
+                provider="openrouter",
+                model="deepseek/deepseek-r1",
+                conversation_history=[],
+                attachments=[],
+                on_reasoning=lambda chunk: captured_reasoning.append(chunk),
+            )
+
+        assert captured_reasoning == ["step 1 ", "step 2"]
+        assert text == "Final answer"
+        assert error is None
+
+    @pytest.mark.asyncio
+    async def test_reasoning_only_no_content_returns_error(self) -> None:
+        """If model emits only reasoning and zero content, set stream_error."""
+        from custom_components.homeclaw.core.events import (
+            CompletionEvent,
+            ReasoningEvent,
+        )
+        from custom_components.homeclaw.ws_handlers.chat import _run_agent_stream
+        from unittest.mock import MagicMock, patch
+
+        async def fake_stream(*args, **kwargs):
+            yield ReasoningEvent(content="thinking...")
+            yield CompletionEvent(messages=[])
+
+        hass = MagicMock()
+        storage = MagicMock()
+
+        with patch(
+            "custom_components.homeclaw.ws_handlers.chat.MessageIntake"
+        ) as mock_intake_cls:
+            mock_intake = MagicMock()
+            mock_intake.process_message_stream = fake_stream
+            mock_intake_cls.return_value = mock_intake
+
+            text, error, _ = await _run_agent_stream(
+                hass,
+                storage=storage,
+                user_text="hi",
+                user_id="u1",
+                session_id="s1",
+                provider="openrouter",
+                model="deepseek/deepseek-v4-flash:free",
+                conversation_history=[],
+                attachments=[],
+            )
+
+        assert text == ""
+        assert error == "Model returned no content (only reasoning). Try a different model."

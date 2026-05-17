@@ -69,16 +69,19 @@ export async function selectSession(hass: HomeAssistant, sessionId: string): Pro
 
     appState.update((s) => ({ ...s, messages }));
 
-    // Mirror the session's provider in the selector so the user sees what
-    // will actually be used. For sessions with messages the selector is
-    // read-only (provider locked server-side). For empty sessions the user
-    // can still change it via updateSessionProvider.
+    // Mirror the session's provider + model in the selector so the user sees
+    // what will actually be used. Provider is locked server-side once the
+    // session has messages; model can be changed at any time.
     const sessionProvider = result.session?.provider;
+    const sessionModel = result.session?.model || null;
     if (sessionProvider) {
-      const currentProvider = get(providerState).selectedProvider;
-      if (currentProvider !== sessionProvider) {
+      const currentState = get(providerState);
+      const providerChanged = currentState.selectedProvider !== sessionProvider;
+      if (providerChanged) {
         providerState.update((s) => ({ ...s, selectedProvider: sessionProvider }));
-        await fetchModels(hass, sessionProvider);
+        await fetchModels(hass, sessionProvider, sessionModel);
+      } else if (sessionModel && currentState.selectedModel !== sessionModel) {
+        providerState.update((s) => ({ ...s, selectedModel: sessionModel }));
       }
     }
 

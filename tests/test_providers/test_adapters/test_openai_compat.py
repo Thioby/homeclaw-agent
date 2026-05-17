@@ -558,3 +558,49 @@ class TestExtractStreamEvents:
         assert len(chunks) == 1
         assert chunks[0]["type"] == "tool_call"
         assert chunks[0]["name"] == "act"
+
+    def test_reasoning_delta_emitted(self, adapter: OpenAICompatAdapter) -> None:
+        event = {
+            "choices": [
+                {"delta": {"reasoning": "Let me think..."}, "finish_reason": None}
+            ]
+        }
+        acc = ToolAccumulator()
+        chunks = adapter.extract_stream_events(event, acc)
+        assert chunks == [{"type": "reasoning", "content": "Let me think..."}]
+
+    def test_reasoning_content_alias_emitted(self, adapter: OpenAICompatAdapter) -> None:
+        event = {
+            "choices": [
+                {"delta": {"reasoning_content": "step 1"}, "finish_reason": None}
+            ]
+        }
+        acc = ToolAccumulator()
+        chunks = adapter.extract_stream_events(event, acc)
+        assert chunks == [{"type": "reasoning", "content": "step 1"}]
+
+    def test_empty_reasoning_skipped(self, adapter: OpenAICompatAdapter) -> None:
+        event = {
+            "choices": [{"delta": {"reasoning": ""}, "finish_reason": None}]
+        }
+        acc = ToolAccumulator()
+        chunks = adapter.extract_stream_events(event, acc)
+        assert chunks == []
+
+    def test_content_and_reasoning_both_emitted(
+        self, adapter: OpenAICompatAdapter
+    ) -> None:
+        event = {
+            "choices": [
+                {
+                    "delta": {"content": "Answer", "reasoning": "thought"},
+                    "finish_reason": None,
+                }
+            ]
+        }
+        acc = ToolAccumulator()
+        chunks = adapter.extract_stream_events(event, acc)
+        assert chunks == [
+            {"type": "reasoning", "content": "thought"},
+            {"type": "text", "content": "Answer"},
+        ]

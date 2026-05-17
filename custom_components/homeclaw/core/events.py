@@ -61,6 +61,18 @@ class StatusEvent(AgentEvent):
 
 
 @dataclass
+class ReasoningEvent(AgentEvent):
+    """Event emitted when a reasoning model streams chain-of-thought.
+
+    Distinct from TextEvent because reasoning is ephemeral — shown live in the
+    loading UI, never persisted to message history, never sent back to the LLM.
+    """
+
+    content: str
+    type: Literal["reasoning"] = "reasoning"
+
+
+@dataclass
 class ErrorEvent(AgentEvent):
     """Event emitted when a generic error occurs."""
 

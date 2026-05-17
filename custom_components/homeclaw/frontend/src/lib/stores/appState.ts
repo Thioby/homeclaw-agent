@@ -15,6 +15,9 @@ export interface AppStateType {
   agentName: string;
   agentEmoji: string;
   userName: string;
+  // Live reasoning text from the current stream. Ephemeral — cleared when the
+  // first content chunk arrives or the stream ends. Not persisted to storage.
+  streamingReasoning: string;
 }
 
 const initialState: AppStateType = {
@@ -28,6 +31,7 @@ const initialState: AppStateType = {
   agentName: 'Homeclaw',
   agentEmoji: '',
   userName: '',
+  streamingReasoning: '',
 };
 
 export const appState = writable<AppStateType>(initialState);

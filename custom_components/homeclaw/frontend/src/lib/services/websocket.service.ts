@@ -62,6 +62,7 @@ export async function sendMessageStream(
   callbacks: {
     onStart?: (messageId: string) => void;
     onChunk?: (chunk: string) => void;
+    onReasoning?: (chunk: string) => void;
     onStatus?: (status: string) => void;
     onToolCall?: (name: string, args: any) => void;
     onToolResult?: (name: string, result: any, toolCallId: string) => void;
@@ -114,6 +115,10 @@ export async function sendMessageStream(
 
         case 'stream_chunk':
           callbacks.onChunk?.(event.chunk);
+          break;
+
+        case 'stream_reasoning_chunk':
+          callbacks.onReasoning?.(event.chunk);
           break;
 
         case 'status':

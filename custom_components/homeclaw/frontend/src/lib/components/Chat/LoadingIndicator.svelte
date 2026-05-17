@@ -3,6 +3,16 @@
   import Avatar from '../Avatar.svelte';
 
   const senderName = $derived($appState.agentName || 'Homeclaw');
+  const reasoning = $derived($appState.streamingReasoning);
+
+  let reasoningEl: HTMLDivElement | undefined = $state();
+
+  $effect(() => {
+    void reasoning;
+    if (reasoningEl) {
+      reasoningEl.scrollTop = reasoningEl.scrollHeight;
+    }
+  });
 </script>
 
 <div class="hc-msg hc-loading">
@@ -13,9 +23,14 @@
       <span class="hc-msg-thinking">thinking</span>
     </div>
     <div class="hc-bubble hc-bubble-loading" aria-live="polite" aria-label="Assistant is thinking">
-      <span class="dot"></span>
-      <span class="dot"></span>
-      <span class="dot"></span>
+      <div class="dots">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+      {#if reasoning}
+        <div class="reasoning" bind:this={reasoningEl}>{reasoning}</div>
+      {/if}
     </div>
   </div>
 </div>
@@ -63,10 +78,17 @@
     border: 1px solid var(--hc-line);
     border-radius: var(--hc-radius);
     padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .dots {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    width: fit-content;
   }
 
   .dot {
@@ -78,6 +100,30 @@
   }
   .dot:nth-child(2) { animation-delay: 0.18s; }
   .dot:nth-child(3) { animation-delay: 0.36s; }
+
+  .reasoning {
+    font-family: var(--hc-font-mono);
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--hc-ink-3);
+    opacity: 0.75;
+    max-height: 120px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding-top: 8px;
+    border-top: 1px solid var(--hc-line);
+  }
+
+  .reasoning::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .reasoning::-webkit-scrollbar-thumb {
+    background: var(--hc-ink-3);
+    border-radius: 2px;
+    opacity: 0.4;
+  }
 
   @keyframes hcDot {
     0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }

@@ -369,6 +369,11 @@ async def _prepare_chat_request(
             )
             session.provider = override_provider
 
+    chosen_model = msg.get("model")
+    if chosen_model and chosen_model != session.model:
+        await storage.update_session_model(session_id, chosen_model)
+        session.model = chosen_model
+
     processed_attachments = []
     raw_attachments = msg.get("attachments", [])
     if raw_attachments:
@@ -429,6 +434,7 @@ async def _run_agent_stream(
     attachments: list[Any],
     on_text: Callable[[str], None] | None = None,
     on_status: Callable[[str], None] | None = None,
+    on_reasoning: Callable[[str], None] | None = None,
     on_tool_result: Callable[[str, Any, str], None] | None = None,
     tool_timestamp_factory: Callable[[], str] | None = None,
     error_log_prefix: str = "AI streaming error",
@@ -436,6 +442,7 @@ async def _run_agent_stream(
     """Execute the shared streaming event loop and return final text/error/completion_messages."""
     intake = MessageIntake(hass)
     accumulated_text = ""
+    any_reasoning_seen = False
     stream_error: str | None = None
     completion_messages: list[dict[str, Any]] = []
     timestamp_factory = tool_timestamp_factory or _now_iso
@@ -458,6 +465,12 @@ async def _run_agent_stream(
                     accumulated_text += content
                     if on_text:
                         on_text(content)
+            elif event_type == "reasoning":
+                reasoning_chunk = getattr(event, "content", "")
+                if reasoning_chunk:
+                    any_reasoning_seen = True
+                    if on_reasoning:
+                        on_reasoning(reasoning_chunk)
             elif event_type == "status":
                 if on_status:
                     on_status(getattr(event, "message", ""))
@@ -487,6 +500,11 @@ async def _run_agent_stream(
     except Exception as ai_err:
         _LOGGER.error("%s for session %s: %s", error_log_prefix, session_id, ai_err)
         stream_error = str(ai_err)
+
+    if not stream_error and not accumulated_text and any_reasoning_seen:
+        stream_error = (
+            "Model returned no content (only reasoning). Try a different model."
+        )
 
     return accumulated_text, stream_error, completion_messages
 
@@ -722,6 +740,19 @@ async def ws_send_message_stream(
                 }
             )
 
+        def _send_reasoning(chunk: str) -> None:
+            connection.send_message(
+                {
+                    "id": request_id,
+                    "type": "event",
+                    "event": {
+                        "type": "stream_reasoning_chunk",
+                        "message_id": assistant_message_id,
+                        "chunk": chunk,
+                    },
+                }
+            )
+
         def _send_tool_result(
             tool_name: str, raw_result: Any, tool_call_id: str
         ) -> None:
@@ -772,6 +803,7 @@ async def ws_send_message_stream(
             attachments=prepared.processed_attachments,
             on_text=_send_stream_chunk,
             on_status=_send_status,
+            on_reasoning=_send_reasoning,
             on_tool_result=_send_tool_result,
         )
 

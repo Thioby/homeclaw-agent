@@ -174,6 +174,12 @@ class OpenAICompatAdapter(ProviderAdapter):
 
         chunks: list[dict[str, Any]] = []
 
+        # Reasoning delta (chain-of-thought from reasoning models).
+        # OpenRouter uses "reasoning"; some providers use "reasoning_content".
+        reasoning_text = delta.get("reasoning") or delta.get("reasoning_content")
+        if reasoning_text:
+            chunks.append({"type": "reasoning", "content": reasoning_text})
+
         # Text delta
         text_content = delta.get("content")
         if text_content:

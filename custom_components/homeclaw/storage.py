@@ -81,6 +81,7 @@ class Session:
     created_at: str
     updated_at: str
     provider: str
+    model: str = ""
     message_count: int = 0
     preview: str = ""
     emoji: str = ""
@@ -688,6 +689,30 @@ class SessionStorage:
             await self._save()
             return "ok"
         return "not_found"
+
+    async def update_session_model(self, session_id: str, model: str) -> bool:
+        """Remember the model last used in a session so refresh restores it.
+
+        Unlike provider, model is not locked — user can switch mid-conversation.
+
+        Args:
+            session_id: The session ID.
+            model: The model identifier (e.g. "gpt-4o", "deepseek/deepseek-v4:free").
+                   Empty string clears it.
+
+        Returns:
+            True if updated, False if session not found.
+        """
+        data = await self._load()
+        for session in data["sessions"]:
+            if session["session_id"] != session_id:
+                continue
+            if session.get("model", "") == model:
+                return True
+            session["model"] = model
+            await self._save()
+            return True
+        return False
 
     async def get_preferences(self) -> dict[str, Any]:
         """Get user preferences (default provider, model, etc.).

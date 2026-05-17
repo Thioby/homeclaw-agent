@@ -191,9 +191,18 @@
               streamedText += chunk;
               appState.update((s) => ({
                 ...s,
+                isLoading: false,
+                streamingReasoning: '',
                 messages: s.messages.map((msg) =>
                   msg.id === assistantMessageId ? { ...msg, text: streamedText } : msg
                 ),
+              }));
+            },
+
+            onReasoning: (chunk: string) => {
+              appState.update((s) => ({
+                ...s,
+                streamingReasoning: s.streamingReasoning + chunk,
               }));
             },
 
@@ -241,6 +250,7 @@
               appState.update((s) => ({
                 ...s,
                 isLoading: false,
+                streamingReasoning: '',
                 messages: s.messages.map((msg) =>
                   msg.id === assistantMessageId
                     ? {
@@ -274,6 +284,7 @@
               appState.update((s) => ({
                 ...s,
                 isLoading: false,
+                streamingReasoning: '',
                 error: error,
                 messages: s.messages.map((msg) =>
                   msg.id === assistantMessageId
@@ -358,6 +369,7 @@
       appState.update((s) => ({
         ...s,
         isLoading: false,
+        streamingReasoning: '',
         error: errorMessage,
         messages: [
           ...s.messages,
