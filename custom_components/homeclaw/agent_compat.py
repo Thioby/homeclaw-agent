@@ -148,20 +148,10 @@ class HomeclawAgent:
         return config
 
     def _get_default_model(self, provider: str) -> str:
-        """Get default model for provider."""
-        defaults = {
-            "openai": "gpt-4",
-            "gemini": "gemini-2.5-flash",
-            "gemini_oauth": "gemini-3-pro-preview",
-            "anthropic": "claude-sonnet-4-5-20250929",
-            "anthropic_oauth": "claude-sonnet-4-5-20250929",
-            "groq": "llama-3.3-70b-versatile",
-            "openrouter": "tencent/hy3-preview:free",
-            "zai": "glm-4-flash",
-            "xiaomi": "mimo-v2-flash",
-            "local": "llama2",
-        }
-        return defaults.get(provider, "gpt-4")
+        """Get default model for provider from models_config.json."""
+        from .models import get_default_model
+
+        return get_default_model(provider) or "gpt-4o"
 
     def _setup_agent(self) -> None:
         """Create new Agent orchestrator."""

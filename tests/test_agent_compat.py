@@ -474,15 +474,15 @@ class TestHomeclawAgentCompat:
 
         agent = HomeclawAgent(hass, config)
 
-        assert agent._get_default_model("openai") == "gpt-4"
-        assert agent._get_default_model("anthropic") == "claude-sonnet-4-5-20250929"
+        assert agent._get_default_model("openai") == "gpt-4o"
+        assert agent._get_default_model("anthropic") == "claude-sonnet-4-20250514"
         assert (
-            agent._get_default_model("anthropic_oauth") == "claude-sonnet-4-5-20250929"
+            agent._get_default_model("anthropic_oauth") == "claude-sonnet-4-20250514"
         )
         assert agent._get_default_model("gemini") == "gemini-2.5-flash"
         assert agent._get_default_model("gemini_oauth") == "gemini-3-pro-preview"
         assert agent._get_default_model("groq") == "llama-3.3-70b-versatile"
-        assert agent._get_default_model("unknown") == "gpt-4"
+        assert agent._get_default_model("unknown") == "gpt-4o"
 
     @patch("custom_components.homeclaw.agent_compat.ProviderRegistry")
     def test_build_provider_config(self, mock_registry, patch_managers, hass, config):
@@ -583,5 +583,5 @@ class TestHomeclawAgentCompat:
         call_args = mock_registry.create.call_args
         assert call_args[0][0] == "anthropic_oauth"
         provider_config = call_args[0][2]
-        assert provider_config["model"] == "claude-sonnet-4-5-20250929"
+        assert provider_config["model"] == "claude-sonnet-4-20250514"
         assert provider_config["config_entry"] == config_entry
