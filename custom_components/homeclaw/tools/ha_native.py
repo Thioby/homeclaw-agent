@@ -390,6 +390,21 @@ class CallService(Tool):
                 output="Home Assistant instance not available", success=False
             )
 
+        # Validate target entity_id(s): HA logs a warning but does NOT raise when
+        # entities are missing or unavailable, so without this check the LLM would
+        # see a false success for hallucinated or offline entities.
+        if target and "entity_id" in target:
+            raw = target["entity_id"]
+            entity_ids = [raw] if isinstance(raw, str) else list(raw or [])
+            for eid in entity_ids:
+                state = self.hass.states.get(eid)
+                if state is None:
+                    msg = f"Entity {eid} not found"
+                    return ToolResult(output=msg, error=msg, success=False)
+                if state.state in ("unavailable", "unknown"):
+                    msg = f"Entity {eid} is {state.state}"
+                    return ToolResult(output=msg, error=msg, success=False)
+
         try:
             # Prepare service call data
             call_data: Dict[str, Any] = {}

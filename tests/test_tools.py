@@ -1730,6 +1730,7 @@ class TestHaNativeCallService:
         """Test execute calls hass.services.async_call and returns success."""
         from pytest_homeassistant_custom_component.common import async_mock_service
 
+        hass.states.async_set("light.test", "off")
         calls = async_mock_service(hass, "light", "turn_on")
 
         result = await tool.execute(
@@ -1746,6 +1747,7 @@ class TestHaNativeCallService:
         """Test service call with service_data merges into call_data."""
         from pytest_homeassistant_custom_component.common import async_mock_service
 
+        hass.states.async_set("light.test", "off")
         calls = async_mock_service(hass, "light", "turn_on")
 
         result = await tool.execute(
@@ -1762,6 +1764,7 @@ class TestHaNativeCallService:
     @pytest.mark.asyncio
     async def test_execute_service_not_found(self, tool, hass):
         """Test execute handles missing service gracefully."""
+        hass.states.async_set("light.test", "off")
         # Don't mock any service - it won't exist
         result = await tool.execute(
             domain="nonexistent",
@@ -1783,6 +1786,95 @@ class TestHaNativeCallService:
 
         assert result.success is False
         assert "not available" in result.output.lower()
+
+    @pytest.mark.asyncio
+    async def test_execute_entity_not_found(self, tool, hass):
+        """Hallucinated entity_id is rejected before calling the service."""
+        from pytest_homeassistant_custom_component.common import async_mock_service
+
+        calls = async_mock_service(hass, "light", "turn_on")
+
+        result = await tool.execute(
+            domain="light",
+            service="turn_on",
+            target={"entity_id": "light.imaginary"},
+        )
+
+        assert result.success is False
+        assert "not found" in result.output
+        assert len(calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_execute_entity_unavailable(self, tool, hass):
+        """Unavailable entity is rejected so the LLM does not see false success."""
+        from pytest_homeassistant_custom_component.common import async_mock_service
+
+        hass.states.async_set("switch.broken", "unavailable")
+        calls = async_mock_service(hass, "switch", "turn_off")
+
+        result = await tool.execute(
+            domain="switch",
+            service="turn_off",
+            target={"entity_id": "switch.broken"},
+        )
+
+        assert result.success is False
+        assert "unavailable" in result.output
+        assert len(calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_execute_entity_unknown(self, tool, hass):
+        """Entity in 'unknown' state is rejected."""
+        from pytest_homeassistant_custom_component.common import async_mock_service
+
+        hass.states.async_set("sensor.flaky", "unknown")
+        calls = async_mock_service(hass, "homeassistant", "update_entity")
+
+        result = await tool.execute(
+            domain="homeassistant",
+            service="update_entity",
+            target={"entity_id": "sensor.flaky"},
+        )
+
+        assert result.success is False
+        assert "unknown" in result.output
+        assert len(calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_execute_entity_id_list(self, tool, hass):
+        """entity_id as list: every entity must exist and be available."""
+        from pytest_homeassistant_custom_component.common import async_mock_service
+
+        hass.states.async_set("light.a", "on")
+        hass.states.async_set("light.b", "unavailable")
+        calls = async_mock_service(hass, "light", "turn_off")
+
+        result = await tool.execute(
+            domain="light",
+            service="turn_off",
+            target={"entity_id": ["light.a", "light.b"]},
+        )
+
+        assert result.success is False
+        assert "light.b" in result.output
+        assert len(calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_execute_area_target_skips_entity_check(self, tool, hass):
+        """Targets without entity_id (area_id, device_id) skip per-entity validation."""
+        from pytest_homeassistant_custom_component.common import async_mock_service
+
+        calls = async_mock_service(hass, "light", "turn_off")
+
+        result = await tool.execute(
+            domain="light",
+            service="turn_off",
+            target={"area_id": "kitchen"},
+        )
+
+        assert result.success is True
+        assert len(calls) == 1
+        assert calls[0].data == {"area_id": "kitchen"}
 
 
 class TestHaNativeGetEntitiesByDeviceClass:
