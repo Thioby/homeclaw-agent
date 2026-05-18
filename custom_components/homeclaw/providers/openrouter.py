@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .openai import OpenAIProvider
 from .registry import ProviderRegistry
@@ -48,3 +48,11 @@ class OpenRouterProvider(OpenAIProvider):
             "HTTP-Referer": "https://home-assistant.io",
             "X-Title": "Homeclaw",
         }
+
+    def _build_payload(
+        self, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> dict[str, Any]:
+        payload = super()._build_payload(messages, **kwargs)
+        payload.pop("reasoning_effort", None)
+        payload["reasoning"] = {"enabled": bool(kwargs.get("reasoning"))}
+        return payload

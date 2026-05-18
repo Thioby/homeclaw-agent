@@ -37,7 +37,7 @@ export async function sendMessage(
     session_id: session.activeSessionId,
     message: message,
     provider: provider.selectedProvider,
-    debug: app.showThinking,
+    reasoning: app.reasoningEnabled,
   };
 
   // Add model if selected
@@ -84,7 +84,7 @@ export async function sendMessageStream(
     session_id: session.activeSessionId,
     message: message,
     provider: provider.selectedProvider,
-    debug: app.showThinking,
+    reasoning: app.reasoningEnabled,
   };
 
   // Add model if selected

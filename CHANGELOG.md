@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.6.0 — Reasoning toggle for OpenAI-compatible providers
+
+### Added
+- **Reasoning toggle** in the composer (replaces the unused Debug Mode checkbox). Off by default.
+- **OpenRouter** reasoning control — sends `reasoning: {enabled: true/false}` so reasoning-first models like Poolside Laguna stop streaming chain-of-thought when the toggle is off.
+- **z.ai** reasoning control — sends `thinking: {type: enabled/disabled}` for GLM models.
+- **Groq** reasoning control — sends `reasoning_format: parsed/hidden` for DeepSeek-style reasoning models.
+- **OpenAI** reasoning control — adds `reasoning_effort: medium` for o-series and gpt-5 models when the toggle is on.
+- **Multi-turn reasoning continuity** — assistant `reasoning_details` payload is persisted on the message and replayed on the next turn so OpenRouter models can keep their chain-of-thought across messages.
+
+### Removed
+- Dead Debug Mode panel and `debugInfo` state (the panel never received any data).
+
 ## v1.5.0 — Panel UI redesign and OpenRouter free models
 
 ### Added

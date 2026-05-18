@@ -11,6 +11,7 @@ from .context_builder import recompact_if_needed
 from .events import (
     CompletionEvent,
     ErrorEvent,
+    ReasoningDetailsEvent,
     ReasoningEvent,
     StatusEvent,
     TextEvent,
@@ -100,6 +101,10 @@ async def run_tool_loop_stream(
                 reasoning_text = chunk.get("content", "")
                 if reasoning_text:
                     yield ReasoningEvent(content=reasoning_text)
+            elif chunk.get("type") == "reasoning_details":
+                details = chunk.get("details") or []
+                if details:
+                    yield ReasoningDetailsEvent(details=details)
             elif chunk.get("type") == "tool_call":
                 accumulated_tool_calls.append(chunk)
                 _LOGGER.debug("Tool call detected in stream: %s", chunk.get("name"))

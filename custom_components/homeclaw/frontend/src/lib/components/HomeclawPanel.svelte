@@ -12,7 +12,6 @@
   import Sidebar from './Sidebar/Sidebar.svelte';
   import ChatArea from './Chat/ChatArea.svelte';
   import InputArea from './Input/InputArea.svelte';
-  import ThinkingPanel from './Debug/ThinkingPanel.svelte';
   import SettingsPanel from './Settings/SettingsPanel.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
 
@@ -79,7 +78,6 @@
   });
 
   const isMobile = $derived(narrow || window.innerWidth <= 768);
-  const showThinkingPanel = $derived($appState.showThinking && $appState.debugInfo?.length > 0);
 </script>
 
 <div class="hc-app" class:narrow={isMobile}>
@@ -90,9 +88,6 @@
 
     <div class="hc-chat-region">
       <ChatArea {hass} />
-      {#if showThinkingPanel}
-        <ThinkingPanel />
-      {/if}
     </div>
 
     <InputArea />

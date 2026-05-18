@@ -58,3 +58,13 @@ class ZaiProvider(OpenAIProvider):
             The z.ai chat completions endpoint URL based on endpoint type.
         """
         return ZAI_ENDPOINTS.get(self._endpoint_type, ZAI_ENDPOINTS["general"])
+
+    def _build_payload(
+        self, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> dict[str, Any]:
+        payload = super()._build_payload(messages, **kwargs)
+        payload.pop("reasoning_effort", None)
+        payload["thinking"] = {
+            "type": "enabled" if kwargs.get("reasoning") else "disabled",
+        }
+        return payload

@@ -2618,100 +2618,6 @@ const componentCss = `
     }
   }
 
-  .thinking-panel.svelte-wqn4rm {
-    border: 1px dashed var(--divider-color);
-    border-radius: 10px;
-    padding: 10px 12px;
-    margin: 12px 0;
-    background: var(--secondary-background-color);
-  }
-
-  .thinking-header.svelte-wqn4rm {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    gap: 10px;
-  }
-
-  .thinking-title.svelte-wqn4rm {
-    font-weight: 600;
-    color: var(--primary-text-color);
-    font-size: 14px;
-  }
-
-  .thinking-subtitle.svelte-wqn4rm {
-    display: block;
-    font-size: 12px;
-    color: var(--secondary-text-color);
-    margin-top: 2px;
-    font-weight: normal;
-  }
-
-  .icon.svelte-wqn4rm {
-    width: 20px;
-    height: 20px;
-    fill: var(--secondary-text-color);
-    flex-shrink: 0;
-  }
-
-  .thinking-body.svelte-wqn4rm {
-    margin-top: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-height: 240px;
-    overflow-y: auto;
-  }
-
-  .thinking-body.svelte-wqn4rm::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .thinking-body.svelte-wqn4rm::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .thinking-body.svelte-wqn4rm::-webkit-scrollbar-thumb {
-    background-color: var(--divider-color);
-    border-radius: 3px;
-  }
-
-  .thinking-entry.svelte-wqn4rm {
-    border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    padding: 8px;
-    background: var(--primary-background-color);
-  }
-
-  .badge.svelte-wqn4rm {
-    display: inline-block;
-    background: var(--secondary-background-color);
-    color: var(--secondary-text-color);
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 6px;
-    margin-bottom: 6px;
-    font-weight: 500;
-    text-transform: uppercase;
-  }
-
-  .thinking-entry.svelte-wqn4rm pre:where(.svelte-wqn4rm) {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-size: 12px;
-    font-family: 'SF Mono', Monaco, Consolas, monospace;
-    color: var(--primary-text-color);
-  }
-
-  .thinking-empty.svelte-wqn4rm {
-    color: var(--secondary-text-color);
-    font-size: 12px;
-    text-align: center;
-    padding: 16px;
-  }
-
   .hc-section-block.svelte-1ty8kd9 {
     margin-bottom: 28px;
   }
@@ -8963,9 +8869,7 @@ const initialState$3 = {
   messages: [],
   isLoading: false,
   error: null,
-  debugInfo: null,
-  showThinking: false,
-  thinkingExpanded: false,
+  reasoningEnabled: false,
   agentName: "Homeclaw",
   agentEmoji: "",
   userName: "",
@@ -15360,9 +15264,9 @@ function countSmartEntities(states) {
   return n2;
 }
 enable_legacy_mode_flag();
-var root_1$r = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>`);
-var root_3$g = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>`);
-var root_5$9 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 14-7-5 17-3-7-6-3z"></path></svg>`);
+var root_1$q = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>`);
+var root_3$f = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>`);
+var root_5$8 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 14-7-5 17-3-7-6-3z"></path></svg>`);
 var root_7$7 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>`);
 var root_9$4 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5 12.5 20a5 5 0 0 1-7-7L14 4.5a3.5 3.5 0 0 1 5 5L10.5 18a2 2 0 0 1-3-3L15 7.5"></path></svg>`);
 var root_11$3 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.5-2-3.4-2.4.7a7 7 0 0 0-2.3-1.3L13.7 3h-3.4l-.5 2.2a7 7 0 0 0-2.3 1.3l-2.4-.7-2 3.4 2 1.5a7 7 0 0 0 0 2.6l-2 1.5 2 3.4 2.4-.7a7 7 0 0 0 2.3 1.3l.5 2.2h3.4l.5-2.2a7 7 0 0 0 2.3-1.3l2.4.7 2-3.4-2-1.5c.1-.4.1-.9.1-1.3z"></path></svg>`);
@@ -15389,7 +15293,7 @@ function Icon($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var svg2 = root_1$r();
+      var svg2 = root_1$q();
       template_effect(() => {
         set_attribute(svg2, "width", size());
         set_attribute(svg2, "height", size());
@@ -15401,7 +15305,7 @@ function Icon($$anchor, $$props) {
       var node_1 = first_child(fragment_1);
       {
         var consequent_1 = ($$anchor3) => {
-          var svg_1 = root_3$g();
+          var svg_1 = root_3$f();
           template_effect(() => {
             set_attribute(svg_1, "width", size());
             set_attribute(svg_1, "height", size());
@@ -15413,7 +15317,7 @@ function Icon($$anchor, $$props) {
           var node_2 = first_child(fragment_2);
           {
             var consequent_2 = ($$anchor4) => {
-              var svg_2 = root_5$9();
+              var svg_2 = root_5$8();
               template_effect(() => {
                 set_attribute(svg_2, "width", size());
                 set_attribute(svg_2, "height", size());
@@ -15885,9 +15789,9 @@ function Icon($$anchor, $$props) {
   }
   append($$anchor, fragment);
 }
-var root_1$q = /* @__PURE__ */ from_html(`<b class="svelte-h6bux4"> </b>`);
-var root_2$f = /* @__PURE__ */ from_html(`<span>·</span>`);
-var root_3$f = /* @__PURE__ */ from_html(`<span> </span>`);
+var root_1$p = /* @__PURE__ */ from_html(`<b class="svelte-h6bux4"> </b>`);
+var root_2$e = /* @__PURE__ */ from_html(`<span>·</span>`);
+var root_3$e = /* @__PURE__ */ from_html(`<span> </span>`);
 var root$p = /* @__PURE__ */ from_html(`<div class="hc-topbar svelte-h6bux4"><button class="hc-topbar-mobile svelte-h6bux4" aria-label="Toggle sidebar" title="Sessions"><!></button> <div class="hc-topbar-title svelte-h6bux4"> </div> <div class="hc-topbar-meta svelte-h6bux4"><!> <!> <!></div> <div class="hc-topbar-actions svelte-h6bux4"><button aria-label="Toggle theme" class="svelte-h6bux4"><!></button> <button aria-label="Settings" title="Settings" class="svelte-h6bux4"><!></button></div></div>`);
 function Topbar($$anchor, $$props) {
   push($$props, true);
@@ -15914,7 +15818,7 @@ function Topbar($$anchor, $$props) {
   var node_1 = child(div_2);
   {
     var consequent = ($$anchor2) => {
-      var b2 = root_1$q();
+      var b2 = root_1$p();
       var text_1 = child(b2);
       template_effect(() => set_text(text_1, $providerState().selectedModel));
       append($$anchor2, b2);
@@ -15926,7 +15830,7 @@ function Topbar($$anchor, $$props) {
   var node_2 = sibling(node_1, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      var span = root_2$f();
+      var span = root_2$e();
       append($$anchor2, span);
     };
     if_block(node_2, ($$render) => {
@@ -15936,7 +15840,7 @@ function Topbar($$anchor, $$props) {
   var node_3 = sibling(node_2, 2);
   {
     var consequent_2 = ($$anchor2) => {
-      var span_1 = root_3$f();
+      var span_1 = root_3$e();
       var text_2 = child(span_1);
       template_effect(() => set_text(text_2, `${get$1(entityCount) ?? ""} entities`));
       append($$anchor2, span_1);
@@ -16015,9 +15919,9 @@ function resolveConfirmDialog(confirmed) {
     return null;
   });
 }
-var root_1$p = /* @__PURE__ */ from_html(`<span class="hc-session-voice svelte-114uzds" title="Voice session" aria-label="Voice session"><!></span>`);
-var root_3$e = /* @__PURE__ */ from_html(`<span class="hc-session-emoji svelte-114uzds" aria-hidden="true"> </span>`);
-var root_4$d = /* @__PURE__ */ from_html(`<div class="hc-session-preview svelte-114uzds"> </div>`);
+var root_1$o = /* @__PURE__ */ from_html(`<span class="hc-session-voice svelte-114uzds" title="Voice session" aria-label="Voice session"><!></span>`);
+var root_3$d = /* @__PURE__ */ from_html(`<span class="hc-session-emoji svelte-114uzds" aria-hidden="true"> </span>`);
+var root_4$c = /* @__PURE__ */ from_html(`<div class="hc-session-preview svelte-114uzds"> </div>`);
 var root$o = /* @__PURE__ */ from_html(`<div role="button" tabindex="0"><div class="hc-session-row svelte-114uzds"><!> <div class="hc-session-title svelte-114uzds"> </div> <div class="hc-session-time svelte-114uzds"> </div> <button class="hc-session-del svelte-114uzds" aria-label="Delete session" title="Delete"><!></button></div> <!></div>`);
 function SessionItem($$anchor, $$props) {
   push($$props, true);
@@ -16061,7 +15965,7 @@ function SessionItem($$anchor, $$props) {
   var node = child(div_1);
   {
     var consequent = ($$anchor2) => {
-      var span = root_1$p();
+      var span = root_1$o();
       var node_1 = child(span);
       Icon(node_1, { name: "mic", size: 11 });
       append($$anchor2, span);
@@ -16071,7 +15975,7 @@ function SessionItem($$anchor, $$props) {
       var node_2 = first_child(fragment);
       {
         var consequent_1 = ($$anchor3) => {
-          var span_1 = root_3$e();
+          var span_1 = root_3$d();
           var text2 = child(span_1);
           template_effect(() => set_text(text2, $$props.session.emoji));
           append($$anchor3, span_1);
@@ -16102,7 +16006,7 @@ function SessionItem($$anchor, $$props) {
   var node_4 = sibling(div_1, 2);
   {
     var consequent_2 = ($$anchor2) => {
-      var div_4 = root_4$d();
+      var div_4 = root_4$c();
       var text_3 = child(div_4);
       template_effect(() => set_text(text_3, $$props.session.preview));
       append($$anchor2, div_4);
@@ -16124,10 +16028,10 @@ function SessionItem($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click", "keydown"]);
-var root_2$e = /* @__PURE__ */ from_html(`<div class="hc-session-skeleton svelte-1j5qstn"><div class="line svelte-1j5qstn"></div> <div class="line short svelte-1j5qstn"></div></div>`);
-var root_4$c = /* @__PURE__ */ from_html(`<div class="hc-empty-sessions svelte-1j5qstn">No conversations yet</div>`);
-var root_6$a = /* @__PURE__ */ from_html(`<div class="hc-empty-sessions svelte-1j5qstn"> </div>`);
-var root_8$7 = /* @__PURE__ */ from_html(`<div class="hc-section svelte-1j5qstn"> </div> <!>`, 1);
+var root_2$d = /* @__PURE__ */ from_html(`<div class="hc-session-skeleton svelte-1j5qstn"><div class="line svelte-1j5qstn"></div> <div class="line short svelte-1j5qstn"></div></div>`);
+var root_4$b = /* @__PURE__ */ from_html(`<div class="hc-empty-sessions svelte-1j5qstn">No conversations yet</div>`);
+var root_6$9 = /* @__PURE__ */ from_html(`<div class="hc-empty-sessions svelte-1j5qstn"> </div>`);
+var root_8$6 = /* @__PURE__ */ from_html(`<div class="hc-section svelte-1j5qstn"> </div> <!>`, 1);
 function SessionList($$anchor, $$props) {
   push($$props, true);
   const $sessionState = () => store_get(sessionState, "$sessionState", $$stores);
@@ -16167,7 +16071,7 @@ function SessionList($$anchor, $$props) {
       var fragment_1 = comment();
       var node_1 = first_child(fragment_1);
       each(node_1, 17, () => Array(skeletonCount), index, ($$anchor3, _2) => {
-        var div = root_2$e();
+        var div = root_2$d();
         append($$anchor3, div);
       });
       append($$anchor2, fragment_1);
@@ -16177,7 +16081,7 @@ function SessionList($$anchor, $$props) {
       var node_2 = first_child(fragment_2);
       {
         var consequent_1 = ($$anchor3) => {
-          var div_1 = root_4$c();
+          var div_1 = root_4$b();
           append($$anchor3, div_1);
         };
         var alternate_1 = ($$anchor3) => {
@@ -16185,7 +16089,7 @@ function SessionList($$anchor, $$props) {
           var node_3 = first_child(fragment_3);
           {
             var consequent_2 = ($$anchor4) => {
-              var div_2 = root_6$a();
+              var div_2 = root_6$9();
               var text2 = child(div_2);
               template_effect(() => set_text(text2, `No results for “${searchQuery() ?? ""}”`));
               append($$anchor4, div_2);
@@ -16194,7 +16098,7 @@ function SessionList($$anchor, $$props) {
               var fragment_4 = comment();
               var node_4 = first_child(fragment_4);
               each(node_4, 17, () => get$1(grouped), (g2) => g2.name, ($$anchor5, g2) => {
-                var fragment_5 = root_8$7();
+                var fragment_5 = root_8$6();
                 var div_3 = first_child(fragment_5);
                 var text_1 = child(div_3);
                 var node_5 = sibling(div_3, 2);
@@ -16278,8 +16182,8 @@ function NewChatButton($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root_1$o = /* @__PURE__ */ from_html(`<div class="hc-sidebar-overlay svelte-ou1367"></div>`);
-var root_2$d = /* @__PURE__ */ from_html(`<small class="svelte-ou1367"> </small>`);
+var root_1$n = /* @__PURE__ */ from_html(`<div class="hc-sidebar-overlay svelte-ou1367"></div>`);
+var root_2$c = /* @__PURE__ */ from_html(`<small class="svelte-ou1367"> </small>`);
 var root$m = /* @__PURE__ */ from_html(`<!> <aside><div class="hc-sidebar-head svelte-ou1367"><div class="hc-mark svelte-ou1367"><!></div> <div class="hc-brand svelte-ou1367"> </div></div> <!> <div class="hc-search svelte-ou1367"><!> <input placeholder="Search conversations" aria-label="Search conversations" class="svelte-ou1367"/></div> <div class="hc-sessions svelte-ou1367"><!></div> <div class="hc-sidebar-foot svelte-ou1367"><div class="hc-status-pulse svelte-ou1367"></div> <div class="hc-status-text svelte-ou1367"> <!></div> <button aria-label="Toggle theme" class="svelte-ou1367"><!></button> <button title="Settings" aria-label="Settings" class="svelte-ou1367"><!></button></div></aside>`, 1);
 function Sidebar($$anchor, $$props) {
   push($$props, true);
@@ -16298,7 +16202,7 @@ function Sidebar($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var div = root_1$o();
+      var div = root_1$n();
       div.__click = function(...$$args) {
         closeSidebar?.apply(this, $$args);
       };
@@ -16334,7 +16238,7 @@ function Sidebar($$anchor, $$props) {
   var node_5 = sibling(text_1);
   {
     var consequent_1 = ($$anchor2) => {
-      var small = root_2$d();
+      var small = root_2$c();
       var text_2 = child(small);
       template_effect(() => set_text(text_2, `${get$1(entityCount) ?? ""} entities`));
       append($$anchor2, small);
@@ -16384,7 +16288,7 @@ async function sendMessage(hass, message, attachments) {
     session_id: session.activeSessionId,
     message,
     provider: provider.selectedProvider,
-    debug: app.showThinking
+    reasoning: app.reasoningEnabled
   };
   if (provider.selectedModel) {
     wsParams.model = provider.selectedModel;
@@ -16406,7 +16310,7 @@ async function sendMessageStream(hass, message, callbacks, attachments) {
     session_id: session.activeSessionId,
     message,
     provider: provider.selectedProvider,
-    debug: app.showThinking
+    reasoning: app.reasoningEnabled
   };
   if (provider.selectedModel) {
     wsParams.model = provider.selectedModel;
@@ -16487,12 +16391,12 @@ function parseAIResponse(content) {
   }
   return { text: content };
 }
-var root_3$d = /* @__PURE__ */ from_html(`<span class="da-spinner svelte-1rmnfr5"></span>`);
-var root_1$n = /* @__PURE__ */ from_html(`<span> <!> <!></span>`);
-var root_5$8 = /* @__PURE__ */ from_html(`<div class="da-stats svelte-1rmnfr5"> </div>`);
+var root_3$c = /* @__PURE__ */ from_html(`<span class="da-spinner svelte-1rmnfr5"></span>`);
+var root_1$m = /* @__PURE__ */ from_html(`<span> <!> <!></span>`);
+var root_5$7 = /* @__PURE__ */ from_html(`<div class="da-stats svelte-1rmnfr5"> </div>`);
 var root_7$6 = /* @__PURE__ */ from_html(`<div class="da-yaml-label svelte-1rmnfr5">Current:</div> <pre class="svelte-1rmnfr5"><code> </code></pre> <div class="da-yaml-label svelte-1rmnfr5">New:</div>`, 1);
-var root_6$9 = /* @__PURE__ */ from_html(`<details open class="svelte-1rmnfr5"><summary class="svelte-1rmnfr5">Show YAML preview</summary> <div class="da-yaml svelte-1rmnfr5"><!> <pre class="svelte-1rmnfr5"><code> </code></pre></div></details>`);
-var root_4$b = /* @__PURE__ */ from_html(`<!> <!> <div class="da-buttons svelte-1rmnfr5"><button>Zatwierdź</button> <button class="da-btn da-btn-reject svelte-1rmnfr5">Odrzuć</button></div>`, 1);
+var root_6$8 = /* @__PURE__ */ from_html(`<details open class="svelte-1rmnfr5"><summary class="svelte-1rmnfr5">Show YAML preview</summary> <div class="da-yaml svelte-1rmnfr5"><!> <pre class="svelte-1rmnfr5"><code> </code></pre></div></details>`);
+var root_4$a = /* @__PURE__ */ from_html(`<!> <!> <div class="da-buttons svelte-1rmnfr5"><button>Zatwierdź</button> <button class="da-btn da-btn-reject svelte-1rmnfr5">Odrzuć</button></div>`, 1);
 var root$l = /* @__PURE__ */ from_html(`<div><div class="da-header svelte-1rmnfr5"><span class="da-icon svelte-1rmnfr5"> </span> <span class="da-title svelte-1rmnfr5"> </span> <!></div> <!></div>`);
 function DashboardAction($$anchor, $$props) {
   push($$props, true);
@@ -16536,7 +16440,7 @@ function DashboardAction($$anchor, $$props) {
   var node = sibling(span_1, 2);
   {
     var consequent_2 = ($$anchor2) => {
-      var span_2 = root_1$n();
+      var span_2 = root_1$m();
       let classes_1;
       var text_2 = child(span_2);
       var node_1 = sibling(text_2);
@@ -16552,7 +16456,7 @@ function DashboardAction($$anchor, $$props) {
       var node_2 = sibling(node_1, 2);
       {
         var consequent_1 = ($$anchor3) => {
-          var span_3 = root_3$d();
+          var span_3 = root_3$c();
           append($$anchor3, span_3);
         };
         if_block(node_2, ($$render) => {
@@ -16572,11 +16476,11 @@ function DashboardAction($$anchor, $$props) {
   var node_3 = sibling(div_1, 2);
   {
     var consequent_6 = ($$anchor2) => {
-      var fragment = root_4$b();
+      var fragment = root_4$a();
       var node_4 = first_child(fragment);
       {
         var consequent_3 = ($$anchor3) => {
-          var div_2 = root_5$8();
+          var div_2 = root_5$7();
           var text_4 = child(div_2);
           template_effect(() => set_text(text_4, `Views: ${get$1(viewCount) ?? ""}`));
           append($$anchor3, div_2);
@@ -16588,7 +16492,7 @@ function DashboardAction($$anchor, $$props) {
       var node_5 = sibling(node_4, 2);
       {
         var consequent_5 = ($$anchor3) => {
-          var details = root_6$9();
+          var details = root_6$8();
           var div_3 = sibling(child(details), 2);
           var node_6 = child(div_3);
           {
@@ -16639,8 +16543,8 @@ function DashboardAction($$anchor, $$props) {
   pop();
 }
 delegate(["click"]);
-var root_1$m = /* @__PURE__ */ from_html(`<span class="hc-avatar-emoji svelte-112qgxv"> </span>`);
-var root_4$a = /* @__PURE__ */ from_html(`<span class="hc-avatar-initial svelte-112qgxv"> </span>`);
+var root_1$l = /* @__PURE__ */ from_html(`<span class="hc-avatar-emoji svelte-112qgxv"> </span>`);
+var root_4$9 = /* @__PURE__ */ from_html(`<span class="hc-avatar-initial svelte-112qgxv"> </span>`);
 var root$k = /* @__PURE__ */ from_html(`<div aria-hidden="true"><!></div>`);
 function Avatar($$anchor, $$props) {
   push($$props, false);
@@ -16667,7 +16571,7 @@ function Avatar($$anchor, $$props) {
   var node = child(div);
   {
     var consequent = ($$anchor2) => {
-      var span = root_1$m();
+      var span = root_1$l();
       var text2 = child(span);
       template_effect(() => {
         set_style(span, `font-size: ${get$1(emojiFontSize) ?? ""}px;`);
@@ -16691,7 +16595,7 @@ function Avatar($$anchor, $$props) {
           }
         };
         var alternate = ($$anchor3) => {
-          var span_1 = root_4$a();
+          var span_1 = root_4$9();
           var text_1 = child(span_1);
           template_effect(() => set_text(text_1, get$1(initial)));
           append($$anchor3, span_1);
@@ -16719,17 +16623,17 @@ function Avatar($$anchor, $$props) {
   append($$anchor, div);
   pop();
 }
-var root_1$l = /* @__PURE__ */ from_html(`<span class="hc-msg-name-emoji svelte-cu3vo4" aria-hidden="true"> </span>`);
-var root_2$c = /* @__PURE__ */ from_html(`<span class="hc-msg-time svelte-cu3vo4"> </span>`);
-var root_6$8 = /* @__PURE__ */ from_html(`<img class="hc-attached-image svelte-cu3vo4" loading="lazy"/>`);
-var root_8$6 = /* @__PURE__ */ from_html(`<img class="hc-attached-image svelte-cu3vo4" loading="lazy"/>`);
+var root_1$k = /* @__PURE__ */ from_html(`<span class="hc-msg-name-emoji svelte-cu3vo4" aria-hidden="true"> </span>`);
+var root_2$b = /* @__PURE__ */ from_html(`<span class="hc-msg-time svelte-cu3vo4"> </span>`);
+var root_6$7 = /* @__PURE__ */ from_html(`<img class="hc-attached-image svelte-cu3vo4" loading="lazy"/>`);
+var root_8$5 = /* @__PURE__ */ from_html(`<img class="hc-attached-image svelte-cu3vo4" loading="lazy"/>`);
 var root_9$3 = /* @__PURE__ */ from_html(`<div class="hc-image-placeholder svelte-cu3vo4"><svg viewBox="0 0 24 24" class="svelte-cu3vo4"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" class="svelte-cu3vo4"></path></svg> <span class="svelte-cu3vo4"> </span></div>`);
-var root_4$9 = /* @__PURE__ */ from_html(`<div class="hc-image-attachments svelte-cu3vo4"></div>`);
+var root_4$8 = /* @__PURE__ */ from_html(`<div class="hc-image-attachments svelte-cu3vo4"></div>`);
 var root_12$2 = /* @__PURE__ */ from_svg(`<path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z" class="svelte-cu3vo4"></path>`);
 var root_13$2 = /* @__PURE__ */ from_svg(`<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" class="svelte-cu3vo4"></path>`);
 var root_11$2 = /* @__PURE__ */ from_html(`<div class="hc-file-chip svelte-cu3vo4"><svg viewBox="0 0 24 24" class="hc-file-icon svelte-cu3vo4"><!></svg> <span class="hc-file-name svelte-cu3vo4"> </span> <span class="hc-file-size svelte-cu3vo4"> </span></div>`);
 var root_10$3 = /* @__PURE__ */ from_html(`<div class="hc-file-attachments svelte-cu3vo4"></div>`);
-var root_3$c = /* @__PURE__ */ from_html(`<div class="hc-attachments svelte-cu3vo4"><!> <!></div>`);
+var root_3$b = /* @__PURE__ */ from_html(`<div class="hc-attachments svelte-cu3vo4"><!> <!></div>`);
 var root_16$1 = /* @__PURE__ */ from_html(`<span class="hc-streaming-cursor svelte-cu3vo4">&#9611;</span>`);
 var root_15$2 = /* @__PURE__ */ from_html(`<!> <!>`, 1);
 var root_14$2 = /* @__PURE__ */ from_html(`<div class="hc-bubble svelte-cu3vo4"><!></div>`);
@@ -16796,7 +16700,7 @@ function MessageBubble($$anchor, $$props) {
   var node_1 = sibling(span, 2);
   {
     var consequent = ($$anchor2) => {
-      var span_1 = root_1$l();
+      var span_1 = root_1$k();
       var text_1 = child(span_1);
       template_effect(() => set_text(text_1, $appState().agentEmoji));
       append($$anchor2, span_1);
@@ -16808,7 +16712,7 @@ function MessageBubble($$anchor, $$props) {
   var node_2 = sibling(node_1, 2);
   {
     var consequent_1 = ($$anchor2) => {
-      var span_2 = root_2$c();
+      var span_2 = root_2$b();
       var text_2 = child(span_2);
       template_effect(() => set_text(text_2, get$1(formattedTime)));
       append($$anchor2, span_2);
@@ -16820,17 +16724,17 @@ function MessageBubble($$anchor, $$props) {
   var node_3 = sibling(div_2, 2);
   {
     var consequent_7 = ($$anchor2) => {
-      var div_3 = root_3$c();
+      var div_3 = root_3$b();
       var node_4 = child(div_3);
       {
         var consequent_4 = ($$anchor3) => {
-          var div_4 = root_4$9();
+          var div_4 = root_4$8();
           each(div_4, 21, () => get$1(imageAttachments), (att) => att.file_id, ($$anchor4, att) => {
             var fragment = comment();
             var node_5 = first_child(fragment);
             {
               var consequent_2 = ($$anchor5) => {
-                var img = root_6$8();
+                var img = root_6$7();
                 template_effect(() => {
                   set_attribute(img, "src", get$1(att).data_url);
                   set_attribute(img, "alt", get$1(att).filename);
@@ -16842,7 +16746,7 @@ function MessageBubble($$anchor, $$props) {
                 var node_6 = first_child(fragment_1);
                 {
                   var consequent_3 = ($$anchor6) => {
-                    var img_1 = root_8$6();
+                    var img_1 = root_8$5();
                     template_effect(() => {
                       set_attribute(img_1, "src", `data:${get$1(att).mime_type};base64,${get$1(att).thumbnail_b64}`);
                       set_attribute(img_1, "alt", get$1(att).filename);
@@ -17039,7 +16943,7 @@ function MessageBubble($$anchor, $$props) {
   pop();
   $$cleanup();
 }
-var root_1$k = /* @__PURE__ */ from_html(`<div class="reasoning svelte-174ds4q"> </div>`);
+var root_1$j = /* @__PURE__ */ from_html(`<div class="reasoning svelte-174ds4q"> </div>`);
 var root$i = /* @__PURE__ */ from_html(`<div class="hc-msg hc-loading svelte-174ds4q"><!> <div class="hc-msg-body svelte-174ds4q"><div class="hc-msg-meta svelte-174ds4q"><span class="hc-msg-name svelte-174ds4q"> </span> <span class="hc-msg-thinking svelte-174ds4q">thinking</span></div> <div class="hc-bubble hc-bubble-loading svelte-174ds4q" aria-live="polite" aria-label="Assistant is thinking"><div class="dots svelte-174ds4q"><span class="dot svelte-174ds4q"></span> <span class="dot svelte-174ds4q"></span> <span class="dot svelte-174ds4q"></span></div> <!></div></div></div>`);
 function LoadingIndicator($$anchor, $$props) {
   push($$props, true);
@@ -17070,7 +16974,7 @@ function LoadingIndicator($$anchor, $$props) {
   var node_1 = sibling(child(div_3), 2);
   {
     var consequent = ($$anchor2) => {
-      var div_4 = root_1$k();
+      var div_4 = root_1$j();
       var text_1 = child(div_4);
       bind_this(div_4, ($$value) => set(reasoningEl, $$value), () => get$1(reasoningEl));
       template_effect(() => set_text(text_1, get$1(reasoning)));
@@ -17085,9 +16989,9 @@ function LoadingIndicator($$anchor, $$props) {
   pop();
   $$cleanup();
 }
-var root_2$b = /* @__PURE__ */ from_html(`<div class="hc-rail-chip svelte-euh035"><span class="dot svelte-euh035"></span> </div>`);
-var root_1$j = /* @__PURE__ */ from_html(`<div class="hc-empty-rail svelte-euh035"><span class="hc-rail-label svelte-euh035">RIGHT NOW</span> <!></div>`);
-var root_3$b = /* @__PURE__ */ from_html(`<button class="hc-suggest svelte-euh035"><div class="hc-suggest-icon svelte-euh035"><!></div> <div class="hc-suggest-title svelte-euh035"> </div> <div class="hc-suggest-sub svelte-euh035"> </div></button>`);
+var root_2$a = /* @__PURE__ */ from_html(`<div class="hc-rail-chip svelte-euh035"><span class="dot svelte-euh035"></span> </div>`);
+var root_1$i = /* @__PURE__ */ from_html(`<div class="hc-empty-rail svelte-euh035"><span class="hc-rail-label svelte-euh035">RIGHT NOW</span> <!></div>`);
+var root_3$a = /* @__PURE__ */ from_html(`<button class="hc-suggest svelte-euh035"><div class="hc-suggest-icon svelte-euh035"><!></div> <div class="hc-suggest-title svelte-euh035"> </div> <div class="hc-suggest-sub svelte-euh035"> </div></button>`);
 var root$h = /* @__PURE__ */ from_html(`<div class="hc-empty svelte-euh035"><!> <h1 class="hc-empty-greet svelte-euh035"> <em class="svelte-euh035">What should the house do?</em></h1> <p class="hc-empty-sub svelte-euh035">Ask in plain language. I can read sensors, control devices, and propose
     automations — you approve before anything is saved.</p> <div class="hc-empty-grid svelte-euh035"></div></div>`);
 function EmptyState($$anchor, $$props) {
@@ -17187,10 +17091,10 @@ function EmptyState($$anchor, $$props) {
   var node = child(div);
   {
     var consequent = ($$anchor2) => {
-      var div_1 = root_1$j();
+      var div_1 = root_1$i();
       var node_1 = sibling(child(div_1), 2);
       each(node_1, 17, () => get$1(statusChips), index, ($$anchor3, s2) => {
-        var div_2 = root_2$b();
+        var div_2 = root_2$a();
         var span = child(div_2);
         var text_1 = sibling(span);
         template_effect(
@@ -17212,7 +17116,7 @@ function EmptyState($$anchor, $$props) {
   var text_2 = child(h1);
   var div_3 = sibling(h1, 4);
   each(div_3, 21, () => suggestions, index, ($$anchor2, s2) => {
-    var button = root_3$b();
+    var button = root_3$a();
     button.__click = () => handleSuggestion(get$1(s2).title);
     var div_4 = child(button);
     var node_2 = child(div_4);
@@ -17238,7 +17142,7 @@ function EmptyState($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root_1$i = /* @__PURE__ */ from_html(`<div class="error svelte-sualbq"><svg viewBox="0 0 24 24" class="icon svelte-sualbq"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg> <span class="error-message svelte-sualbq"> </span> <button class="error-dismiss svelte-sualbq" aria-label="Dismiss error"><svg viewBox="0 0 24 24" class="close-icon svelte-sualbq"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button></div>`);
+var root_1$h = /* @__PURE__ */ from_html(`<div class="error svelte-sualbq"><svg viewBox="0 0 24 24" class="icon svelte-sualbq"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"></path></svg> <span class="error-message svelte-sualbq"> </span> <button class="error-dismiss svelte-sualbq" aria-label="Dismiss error"><svg viewBox="0 0 24 24" class="close-icon svelte-sualbq"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button></div>`);
 function ErrorMessage($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
@@ -17251,7 +17155,7 @@ function ErrorMessage($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var div = root_1$i();
+      var div = root_1$h();
       var span = sibling(child(div), 2);
       var text2 = child(span);
       var button = sibling(span, 2);
@@ -17268,7 +17172,7 @@ function ErrorMessage($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root_4$8 = /* @__PURE__ */ from_html(`<button class="scroll-bottom-btn svelte-hiq0w4" aria-label="Scroll to bottom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-hiq0w4"><polyline points="6 9 12 15 18 9"></polyline></svg></button>`);
+var root_4$7 = /* @__PURE__ */ from_html(`<button class="scroll-bottom-btn svelte-hiq0w4" aria-label="Scroll to bottom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svelte-hiq0w4"><polyline points="6 9 12 15 18 9"></polyline></svg></button>`);
 var root$g = /* @__PURE__ */ from_html(`<div class="chat-wrapper svelte-hiq0w4"><div class="messages svelte-hiq0w4"><!> <div class="messages-inner svelte-hiq0w4"><!> <!></div> <!></div> <!></div>`);
 function ChatArea($$anchor, $$props) {
   push($$props, true);
@@ -17333,7 +17237,7 @@ function ChatArea($$anchor, $$props) {
   var node_4 = sibling(div_1, 2);
   {
     var consequent_2 = ($$anchor2) => {
-      var button = root_4$8();
+      var button = root_4$7();
       button.__click = scrollDown;
       append($$anchor2, button);
     };
@@ -17347,7 +17251,7 @@ function ChatArea($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root_1$h = /* @__PURE__ */ from_html(`<div class="drop-overlay svelte-5grvz8"><span class="drop-label svelte-5grvz8">Drop files here</span></div>`);
+var root_1$g = /* @__PURE__ */ from_html(`<div class="drop-overlay svelte-5grvz8"><span class="drop-label svelte-5grvz8">Drop files here</span></div>`);
 var root$f = /* @__PURE__ */ from_html(`<div role="textbox" tabindex="-1"><textarea placeholder="Ask me anything about your Home Assistant..." class="svelte-5grvz8"></textarea> <!></div>`);
 function MessageInput($$anchor, $$props) {
   push($$props, true);
@@ -17446,7 +17350,7 @@ function MessageInput($$anchor, $$props) {
   var node = sibling(textarea_1, 2);
   {
     var consequent = ($$anchor2) => {
-      var div_1 = root_1$h();
+      var div_1 = root_1$g();
       append($$anchor2, div_1);
     };
     if_block(node, ($$render) => {
@@ -17468,9 +17372,9 @@ function MessageInput($$anchor, $$props) {
   return $$pop;
 }
 delegate(["input", "keydown"]);
-var root_2$a = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_1$g = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-6zrmqv"><span class="provider-label svelte-6zrmqv">Provider:</span> <select class="provider-button svelte-6zrmqv"></select></div>`);
-var root_3$a = /* @__PURE__ */ from_html(`<div class="no-providers svelte-6zrmqv">No providers configured</div>`);
+var root_2$9 = /* @__PURE__ */ from_html(`<option> </option>`);
+var root_1$f = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-6zrmqv"><span class="provider-label svelte-6zrmqv">Provider:</span> <select class="provider-button svelte-6zrmqv"></select></div>`);
+var root_3$9 = /* @__PURE__ */ from_html(`<div class="no-providers svelte-6zrmqv">No providers configured</div>`);
 function ProviderSelector($$anchor, $$props) {
   push($$props, true);
   const $hasProviders = () => store_get(hasProviders, "$hasProviders", $$stores);
@@ -17495,11 +17399,11 @@ function ProviderSelector($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var div = root_1$g();
+      var div = root_1$f();
       var select = sibling(child(div), 2);
       select.__change = handleChange;
       each(select, 5, () => $providerState().availableProviders, index, ($$anchor3, provider) => {
-        var option = root_2$a();
+        var option = root_2$9();
         var text2 = child(option);
         var option_value = {};
         template_effect(() => {
@@ -17522,7 +17426,7 @@ function ProviderSelector($$anchor, $$props) {
       append($$anchor2, div);
     };
     var alternate = ($$anchor2) => {
-      var div_1 = root_3$a();
+      var div_1 = root_3$9();
       append($$anchor2, div_1);
     };
     if_block(node, ($$render) => {
@@ -17535,9 +17439,9 @@ function ProviderSelector($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["change"]);
-var root_2$9 = /* @__PURE__ */ from_html(`<span class="default-star svelte-1whqbkb" title="Your default model">&#9733;</span>`);
-var root_3$9 = /* @__PURE__ */ from_html(`<option> </option>`);
-var root_1$f = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-1whqbkb"><span class="provider-label svelte-1whqbkb">Model:</span> <!> <select class="provider-button svelte-1whqbkb"></select></div>`);
+var root_2$8 = /* @__PURE__ */ from_html(`<span class="default-star svelte-1whqbkb" title="Your default model">&#9733;</span>`);
+var root_3$8 = /* @__PURE__ */ from_html(`<option> </option>`);
+var root_1$e = /* @__PURE__ */ from_html(`<div class="provider-selector svelte-1whqbkb"><span class="provider-label svelte-1whqbkb">Model:</span> <!> <select class="provider-button svelte-1whqbkb"></select></div>`);
 function ModelSelector($$anchor, $$props) {
   push($$props, true);
   const $providerState = () => store_get(providerState, "$providerState", $$stores);
@@ -17553,11 +17457,11 @@ function ModelSelector($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent_1 = ($$anchor2) => {
-      var div = root_1$f();
+      var div = root_1$e();
       var node_1 = sibling(child(div), 2);
       {
         var consequent = ($$anchor3) => {
-          var span = root_2$9();
+          var span = root_2$8();
           append($$anchor3, span);
         };
         if_block(node_1, ($$render) => {
@@ -17567,7 +17471,7 @@ function ModelSelector($$anchor, $$props) {
       var select = sibling(node_1, 2);
       select.__change = handleChange;
       each(select, 5, () => $providerState().availableModels, index, ($$anchor3, model) => {
-        var option = root_3$9();
+        var option = root_3$8();
         var text2 = child(option);
         var option_value = {};
         template_effect(() => {
@@ -17615,19 +17519,19 @@ function SendButton($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root$d = /* @__PURE__ */ from_html(`<label class="thinking-toggle svelte-1ahnk03"><input type="checkbox" class="svelte-1ahnk03"/> <span class="label svelte-1ahnk03">Debug Mode</span></label>`);
+var root$d = /* @__PURE__ */ from_html(`<label class="thinking-toggle svelte-1ahnk03"><input type="checkbox" class="svelte-1ahnk03"/> <span class="label svelte-1ahnk03">Reasoning</span></label>`);
 function ThinkingToggle($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   function toggle() {
-    appState.update((s2) => ({ ...s2, showThinking: !s2.showThinking }));
+    appState.update((s2) => ({ ...s2, reasoningEnabled: !s2.reasoningEnabled }));
   }
   init();
   var label = root$d();
   var input = child(label);
   input.__change = toggle;
-  template_effect(() => set_checked(input, $appState().showThinking));
+  template_effect(() => set_checked(input, $appState().reasoningEnabled));
   append($$anchor, label);
   pop();
   $$cleanup();
@@ -17695,13 +17599,13 @@ function AttachButton($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["change", "click"]);
-var root_3$8 = /* @__PURE__ */ from_html(`<img class="thumbnail svelte-fchx1w"/>`);
-var root_5$7 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" class="svelte-fchx1w"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"></path></svg>`);
-var root_6$7 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" class="svelte-fchx1w"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"></path></svg>`);
-var root_4$7 = /* @__PURE__ */ from_html(`<div><!></div>`);
+var root_3$7 = /* @__PURE__ */ from_html(`<img class="thumbnail svelte-fchx1w"/>`);
+var root_5$6 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" class="svelte-fchx1w"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"></path></svg>`);
+var root_6$6 = /* @__PURE__ */ from_svg(`<svg viewBox="0 0 24 24" class="svelte-fchx1w"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"></path></svg>`);
+var root_4$6 = /* @__PURE__ */ from_html(`<div><!></div>`);
 var root_7$5 = /* @__PURE__ */ from_html(`<div class="status-overlay svelte-fchx1w"><div class="spinner svelte-fchx1w"></div></div>`);
-var root_2$8 = /* @__PURE__ */ from_html(`<div><!> <div class="attachment-info svelte-fchx1w"><span class="filename svelte-fchx1w"> </span> <span class="filesize svelte-fchx1w"> </span></div> <button class="remove-btn svelte-fchx1w" title="Remove"><svg viewBox="0 0 24 24" class="svelte-fchx1w"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button> <!></div>`);
-var root_1$e = /* @__PURE__ */ from_html(`<div class="attachment-preview svelte-fchx1w"></div>`);
+var root_2$7 = /* @__PURE__ */ from_html(`<div><!> <div class="attachment-info svelte-fchx1w"><span class="filename svelte-fchx1w"> </span> <span class="filesize svelte-fchx1w"> </span></div> <button class="remove-btn svelte-fchx1w" title="Remove"><svg viewBox="0 0 24 24" class="svelte-fchx1w"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg></button> <!></div>`);
+var root_1$d = /* @__PURE__ */ from_html(`<div class="attachment-preview svelte-fchx1w"></div>`);
 function AttachmentPreview($$anchor, $$props) {
   push($$props, true);
   function formatSize(bytes) {
@@ -17718,14 +17622,14 @@ function AttachmentPreview($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent_3 = ($$anchor2) => {
-      var div = root_1$e();
+      var div = root_1$d();
       each(div, 21, () => $$props.attachments, (att) => att.file_id, ($$anchor3, att) => {
-        var div_1 = root_2$8();
+        var div_1 = root_2$7();
         let classes;
         var node_1 = child(div_1);
         {
           var consequent = ($$anchor4) => {
-            var img = root_3$8();
+            var img = root_3$7();
             template_effect(() => {
               set_attribute(img, "src", get$1(att).data_url);
               set_attribute(img, "alt", get$1(att).filename);
@@ -17733,16 +17637,16 @@ function AttachmentPreview($$anchor, $$props) {
             append($$anchor4, img);
           };
           var alternate_1 = ($$anchor4) => {
-            var div_2 = root_4$7();
+            var div_2 = root_4$6();
             let classes_1;
             var node_2 = child(div_2);
             {
               var consequent_1 = ($$anchor5) => {
-                var svg2 = root_5$7();
+                var svg2 = root_5$6();
                 append($$anchor5, svg2);
               };
               var alternate = ($$anchor5) => {
-                var svg_1 = root_6$7();
+                var svg_1 = root_6$6();
                 append($$anchor5, svg_1);
               };
               if_block(node_2, ($$render) => {
@@ -17799,7 +17703,7 @@ function AttachmentPreview($$anchor, $$props) {
   pop();
 }
 delegate(["click"]);
-var root_1$d = /* @__PURE__ */ from_html(`<div class="hc-composer-attachments svelte-f7ebxa"><!></div>`);
+var root_1$c = /* @__PURE__ */ from_html(`<div class="hc-composer-attachments svelte-f7ebxa"><!></div>`);
 var root$b = /* @__PURE__ */ from_html(`<div class="hc-composer-wrap svelte-f7ebxa"><div class="hc-composer svelte-f7ebxa"><!> <div class="hc-composer-input svelte-f7ebxa"><!></div> <div class="hc-composer-bar svelte-f7ebxa"><!> <!> <!> <!> <div class="hc-composer-spacer svelte-f7ebxa"></div> <!></div></div> <div class="hc-composer-foot svelte-f7ebxa"><span>Enter to send · Shift+Enter for newline</span> <span>Homeclaw asks before saving anything.</span></div></div>`);
 function InputArea($$anchor, $$props) {
   push($$props, true);
@@ -18043,7 +17947,7 @@ _${status}_` } : msg)
   var node = child(div_1);
   {
     var consequent = ($$anchor2) => {
-      var div_2 = root_1$d();
+      var div_2 = root_1$c();
       var node_1 = child(div_2);
       AttachmentPreview(node_1, {
         get attachments() {
@@ -18089,114 +17993,6 @@ _${status}_` } : msg)
   pop();
   $$cleanup();
 }
-var root_2$7 = /* @__PURE__ */ from_html(`<span class="thinking-subtitle svelte-wqn4rm"> </span>`);
-var root_3$7 = /* @__PURE__ */ from_svg(`<path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"></path>`);
-var root_4$6 = /* @__PURE__ */ from_svg(`<path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"></path>`);
-var root_6$6 = /* @__PURE__ */ from_html(`<div class="thinking-empty svelte-wqn4rm">No trace captured.</div>`);
-var root_8$5 = /* @__PURE__ */ from_html(`<div class="thinking-entry svelte-wqn4rm"><div class="badge svelte-wqn4rm"> </div> <pre class="svelte-wqn4rm"> </pre></div>`);
-var root_5$6 = /* @__PURE__ */ from_html(`<div class="thinking-body svelte-wqn4rm"><!></div>`);
-var root_1$c = /* @__PURE__ */ from_html(`<div class="thinking-panel svelte-wqn4rm"><div class="thinking-header svelte-wqn4rm" role="button" tabindex="0"><div><span class="thinking-title svelte-wqn4rm">Thinking trace</span> <!></div> <svg viewBox="0 0 24 24" class="icon svelte-wqn4rm"><!></svg></div> <!></div>`);
-function ThinkingPanel($$anchor, $$props) {
-  push($$props, true);
-  const $appState = () => store_get(appState, "$appState", $$stores);
-  const [$$stores, $$cleanup] = setup_stores();
-  function toggleExpanded() {
-    appState.update((s2) => ({ ...s2, thinkingExpanded: !s2.thinkingExpanded }));
-  }
-  const subtitle = /* @__PURE__ */ user_derived(() => () => {
-    if (!$appState().debugInfo) return "";
-    const parts = [];
-    if ($appState().debugInfo.provider) parts.push($appState().debugInfo.provider);
-    if ($appState().debugInfo.model) parts.push($appState().debugInfo.model);
-    if ($appState().debugInfo.endpoint_type) parts.push($appState().debugInfo.endpoint_type);
-    return parts.join(" · ");
-  });
-  const conversation = /* @__PURE__ */ user_derived(() => $appState().debugInfo?.conversation || []);
-  var fragment = comment();
-  var node = first_child(fragment);
-  {
-    var consequent_4 = ($$anchor2) => {
-      var div = root_1$c();
-      var div_1 = child(div);
-      div_1.__click = toggleExpanded;
-      var div_2 = child(div_1);
-      var node_1 = sibling(child(div_2), 2);
-      {
-        var consequent = ($$anchor3) => {
-          var span = root_2$7();
-          var text2 = child(span);
-          template_effect(($0) => set_text(text2, $0), [() => get$1(subtitle)()]);
-          append($$anchor3, span);
-        };
-        if_block(node_1, ($$render) => {
-          if (get$1(subtitle)()) $$render(consequent);
-        });
-      }
-      var svg2 = sibling(div_2, 2);
-      var node_2 = child(svg2);
-      {
-        var consequent_1 = ($$anchor3) => {
-          var path = root_3$7();
-          append($$anchor3, path);
-        };
-        var alternate = ($$anchor3) => {
-          var path_1 = root_4$6();
-          append($$anchor3, path_1);
-        };
-        if_block(node_2, ($$render) => {
-          if ($appState().thinkingExpanded) $$render(consequent_1);
-          else $$render(alternate, false);
-        });
-      }
-      var node_3 = sibling(div_1, 2);
-      {
-        var consequent_3 = ($$anchor3) => {
-          var div_3 = root_5$6();
-          var node_4 = child(div_3);
-          {
-            var consequent_2 = ($$anchor4) => {
-              var div_4 = root_6$6();
-              append($$anchor4, div_4);
-            };
-            var alternate_1 = ($$anchor4) => {
-              var fragment_1 = comment();
-              var node_5 = first_child(fragment_1);
-              each(node_5, 17, () => get$1(conversation), index, ($$anchor5, entry) => {
-                var div_5 = root_8$5();
-                var div_6 = child(div_5);
-                var text_1 = child(div_6);
-                var pre = sibling(div_6, 2);
-                var text_2 = child(pre);
-                template_effect(() => {
-                  set_text(text_1, get$1(entry).role || "unknown");
-                  set_text(text_2, get$1(entry).content || "");
-                });
-                append($$anchor5, div_5);
-              });
-              append($$anchor4, fragment_1);
-            };
-            if_block(node_4, ($$render) => {
-              if (get$1(conversation).length === 0) $$render(consequent_2);
-              else $$render(alternate_1, false);
-            });
-          }
-          append($$anchor3, div_3);
-        };
-        if_block(node_3, ($$render) => {
-          if ($appState().thinkingExpanded) $$render(consequent_3);
-        });
-      }
-      append($$anchor2, div);
-    };
-    if_block(node, ($$render) => {
-      if ($appState().showThinking && $appState().debugInfo) $$render(consequent_4);
-    });
-  }
-  append($$anchor, fragment);
-  pop();
-  $$cleanup();
-}
-delegate(["click"]);
 var root_1$b = /* @__PURE__ */ from_html(`<button type="button"><div class="hc-aesthetic-swatch svelte-1ty8kd9"><span class="sw-bg svelte-1ty8kd9"></span> <span class="sw-card svelte-1ty8kd9"></span> <span class="sw-ink svelte-1ty8kd9"></span></div> <div class="hc-aesthetic-text svelte-1ty8kd9"><div class="hc-aesthetic-name svelte-1ty8kd9"> </div> <div class="hc-aesthetic-sub svelte-1ty8kd9"> </div></div></button>`);
 var root$a = /* @__PURE__ */ from_html(`<div class="hc-section-block svelte-1ty8kd9"><div class="hc-set-eyebrow svelte-1ty8kd9">Theme</div> <div class="hc-set-row svelte-1ty8kd9"><div class="hc-set-row-text svelte-1ty8kd9"><div class="hc-set-row-title svelte-1ty8kd9">Color mode</div> <div class="hc-set-row-sub svelte-1ty8kd9">Light, dark, or follow system preference.</div></div> <select class="hc-pill-select svelte-1ty8kd9"><option>Light</option><option>Dark</option><option>System</option></select></div></div> <div class="hc-section-block svelte-1ty8kd9"><div class="hc-set-eyebrow svelte-1ty8kd9">Aesthetic</div> <div class="hc-aesthetic-grid svelte-1ty8kd9"></div></div>`, 1);
 function AppearanceEditor($$anchor, $$props) {
@@ -20828,11 +20624,9 @@ function ConfirmDialog($$anchor, $$props) {
   $$cleanup();
 }
 delegate(["click"]);
-var root = /* @__PURE__ */ from_html(`<div><!> <div class="hc-main svelte-j6syiu"><!> <div class="hc-chat-region svelte-j6syiu"><!> <!></div> <!></div> <!> <!></div>`);
+var root = /* @__PURE__ */ from_html(`<div><!> <div class="hc-main svelte-j6syiu"><!> <div class="hc-chat-region svelte-j6syiu"><!></div> <!></div> <!> <!></div>`);
 function HomeclawPanel$1($$anchor, $$props) {
   push($$props, true);
-  const $appState = () => store_get(appState, "$appState", $$stores);
-  const [$$stores, $$cleanup] = setup_stores();
   let narrow = prop($$props, "narrow", 3, false);
   async function loadIdentity(ha) {
     try {
@@ -20883,7 +20677,6 @@ function HomeclawPanel$1($$anchor, $$props) {
     };
   });
   const isMobile2 = /* @__PURE__ */ user_derived(() => narrow() || window.innerWidth <= 768);
-  const showThinkingPanel = /* @__PURE__ */ user_derived(() => $appState().showThinking && $appState().debugInfo?.length > 0);
   var div = root();
   let classes;
   var node = child(div);
@@ -20898,25 +20691,15 @@ function HomeclawPanel$1($$anchor, $$props) {
       return $$props.hass;
     }
   });
-  var node_3 = sibling(node_2, 2);
-  {
-    var consequent = ($$anchor2) => {
-      ThinkingPanel($$anchor2, {});
-    };
-    if_block(node_3, ($$render) => {
-      if (get$1(showThinkingPanel)) $$render(consequent);
-    });
-  }
-  var node_4 = sibling(div_2, 2);
-  InputArea(node_4, {});
-  var node_5 = sibling(div_1, 2);
-  SettingsPanel(node_5, {});
-  var node_6 = sibling(node_5, 2);
-  ConfirmDialog(node_6, {});
+  var node_3 = sibling(div_2, 2);
+  InputArea(node_3, {});
+  var node_4 = sibling(div_1, 2);
+  SettingsPanel(node_4, {});
+  var node_5 = sibling(node_4, 2);
+  ConfirmDialog(node_5, {});
   template_effect(() => classes = set_class(div, 1, "hc-app svelte-j6syiu", null, classes, { narrow: get$1(isMobile2) }));
   append($$anchor, div);
   pop();
-  $$cleanup();
 }
 console.log("[HomeclawPanel] Bundle loaded and executing...");
 console.log("[HomeclawPanel] Imports completed successfully");

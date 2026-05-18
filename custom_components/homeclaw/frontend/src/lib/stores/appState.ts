@@ -1,22 +1,15 @@
 import { writable, derived } from 'svelte/store';
 import type { HomeAssistant, Message } from '$lib/types';
 
-/**
- * Global application state
- */
 export interface AppStateType {
   hass: HomeAssistant | null;
   messages: Message[];
   isLoading: boolean;
   error: string | null;
-  debugInfo: any;
-  showThinking: boolean;
-  thinkingExpanded: boolean;
+  reasoningEnabled: boolean;
   agentName: string;
   agentEmoji: string;
   userName: string;
-  // Live reasoning text from the current stream. Ephemeral — cleared when the
-  // first content chunk arrives or the stream ends. Not persisted to storage.
   streamingReasoning: string;
 }
 
@@ -25,9 +18,7 @@ const initialState: AppStateType = {
   messages: [],
   isLoading: false,
   error: null,
-  debugInfo: null,
-  showThinking: false,
-  thinkingExpanded: false,
+  reasoningEnabled: false,
   agentName: 'Homeclaw',
   agentEmoji: '',
   userName: '',
@@ -36,6 +27,5 @@ const initialState: AppStateType = {
 
 export const appState = writable<AppStateType>(initialState);
 
-// Derived stores
 export const hasMessages = derived(appState, $state => $state.messages.length > 0);
 export const hasError = derived(appState, $state => $state.error !== null);

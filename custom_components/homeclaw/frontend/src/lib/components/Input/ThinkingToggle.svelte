@@ -2,17 +2,17 @@
   import { appState } from '$lib/stores/appState';
 
   function toggle() {
-    appState.update(s => ({ ...s, showThinking: !s.showThinking }));
+    appState.update(s => ({ ...s, reasoningEnabled: !s.reasoningEnabled }));
   }
 </script>
 
 <label class="thinking-toggle">
   <input
     type="checkbox"
-    checked={$appState.showThinking}
+    checked={$appState.reasoningEnabled}
     onchange={toggle}
   />
-  <span class="label">Debug Mode</span>
+  <span class="label">Reasoning</span>
 </label>
 
 <style>

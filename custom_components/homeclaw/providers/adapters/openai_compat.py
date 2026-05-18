@@ -105,8 +105,8 @@ class OpenAICompatAdapter(ProviderAdapter):
         """Parse a non-streaming OpenAI API response.
 
         Returns:
-            {"type": "text", "content": str, "finish_reason": str}
-            or {"type": "tool_calls", "tool_calls": [...], "text": str | None, "finish_reason": "tool_calls"}
+            {"type": "text", "content": str, "finish_reason": str, "reasoning_details": [...]}
+            or {"type": "tool_calls", "tool_calls": [...], "text": str | None, "finish_reason": "tool_calls", "reasoning_details": [...]}
         """
         choices = raw_response.get("choices", [])
         if not choices:
@@ -117,6 +117,7 @@ class OpenAICompatAdapter(ProviderAdapter):
         finish_reason = choice.get("finish_reason", "") or ""
         content: str = message.get("content") or ""
         raw_tool_calls: list[dict[str, Any]] | None = message.get("tool_calls")
+        reasoning_details = message.get("reasoning_details") or []
 
         if raw_tool_calls:
             tool_calls: list[dict[str, Any]] = []
@@ -143,9 +144,15 @@ class OpenAICompatAdapter(ProviderAdapter):
                 "tool_calls": tool_calls,
                 "text": content or None,
                 "finish_reason": "tool_calls",
+                "reasoning_details": reasoning_details,
             }
 
-        return {"type": "text", "content": content, "finish_reason": finish_reason}
+        return {
+            "type": "text",
+            "content": content,
+            "finish_reason": finish_reason,
+            "reasoning_details": reasoning_details,
+        }
 
     # ------------------------------------------------------------------
     # extract_stream_events
@@ -179,6 +186,13 @@ class OpenAICompatAdapter(ProviderAdapter):
         reasoning_text = delta.get("reasoning") or delta.get("reasoning_content")
         if reasoning_text:
             chunks.append({"type": "reasoning", "content": reasoning_text})
+
+        # OpenRouter ships the opaque reasoning_details payload either on each
+        # streaming chunk or only at the end. We forward whatever we see and
+        # let the consumer take the last non-empty value.
+        details = delta.get("reasoning_details")
+        if details:
+            chunks.append({"type": "reasoning_details", "details": details})
 
         # Text delta
         text_content = delta.get("content")

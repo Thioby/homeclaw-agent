@@ -53,6 +53,9 @@ class Message:
     content_blocks: list[dict[str, Any]] = field(default_factory=list)
     # Links tool_result back to the tool_use that triggered it
     tool_call_id: str = ""
+    # Opaque reasoning payload from providers like OpenRouter — passed back
+    # verbatim on the next turn so the model can continue its chain-of-thought.
+    reasoning_details: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Validate and sanitize message data."""

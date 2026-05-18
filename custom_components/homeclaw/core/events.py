@@ -73,6 +73,20 @@ class ReasoningEvent(AgentEvent):
 
 
 @dataclass
+class ReasoningDetailsEvent(AgentEvent):
+    """Event carrying the opaque reasoning_details payload from the provider.
+
+    Unlike ReasoningEvent (human-readable chain-of-thought, ephemeral), this
+    is the structured payload that must be persisted on the assistant message
+    and sent back verbatim on the next turn so the model can continue its
+    chain-of-thought (OpenRouter multi-turn reasoning continuity).
+    """
+
+    details: list[dict[str, Any]]
+    type: Literal["reasoning_details"] = "reasoning_details"
+
+
+@dataclass
 class ErrorEvent(AgentEvent):
     """Event emitted when a generic error occurs."""
 

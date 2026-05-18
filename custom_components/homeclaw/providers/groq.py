@@ -30,3 +30,13 @@ class GroqProvider(OpenAIProvider):
             The Groq chat completions endpoint URL.
         """
         return self.API_URL
+
+    def _build_payload(
+        self, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> dict[str, Any]:
+        payload = super()._build_payload(messages, **kwargs)
+        payload.pop("reasoning_effort", None)
+        payload["reasoning_format"] = (
+            "parsed" if kwargs.get("reasoning") else "hidden"
+        )
+        return payload

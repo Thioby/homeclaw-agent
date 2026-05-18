@@ -363,7 +363,7 @@ class TestReasoningStreaming:
             mock_intake.process_message_stream = fake_stream
             mock_intake_cls.return_value = mock_intake
 
-            text, error, _ = await _run_agent_stream(
+            text, error, _, _ = await _run_agent_stream(
                 hass,
                 storage=storage,
                 user_text="hi",
@@ -371,6 +371,7 @@ class TestReasoningStreaming:
                 session_id="s1",
                 provider="openrouter",
                 model="deepseek/deepseek-r1",
+                reasoning=False,
                 conversation_history=[],
                 attachments=[],
                 on_reasoning=lambda chunk: captured_reasoning.append(chunk),
@@ -404,7 +405,7 @@ class TestReasoningStreaming:
             mock_intake.process_message_stream = fake_stream
             mock_intake_cls.return_value = mock_intake
 
-            text, error, _ = await _run_agent_stream(
+            text, error, _, _ = await _run_agent_stream(
                 hass,
                 storage=storage,
                 user_text="hi",
@@ -412,6 +413,7 @@ class TestReasoningStreaming:
                 session_id="s1",
                 provider="openrouter",
                 model="deepseek/deepseek-v4-flash:free",
+                reasoning=False,
                 conversation_history=[],
                 attachments=[],
             )

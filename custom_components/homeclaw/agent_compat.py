@@ -340,6 +340,7 @@ class HomeclawAgent:
         user_id: str,
         session_id: str = "",
         model: str | None = None,
+        reasoning: bool = False,
         conversation_history: list[dict] | None = None,
         attachments: list | None = None,
         channel_source: str = "panel",
@@ -367,6 +368,7 @@ class HomeclawAgent:
             user_id=user_id,
             session_id=session_id,
             model=model,
+            reasoning=reasoning,
             conversation_history=conversation_history,
             attachments=attachments,
             channel_source=channel_source,
@@ -390,6 +392,7 @@ class HomeclawAgent:
         model: str | None = None,
         provider: str | None = None,
         debug: bool = False,
+        reasoning: bool = False,
         conversation_history: list[dict] | None = None,
         attachments: list | None = None,
         channel_source: str = "panel",
@@ -432,6 +435,8 @@ class HomeclawAgent:
             kwargs["model"] = model
         if debug:
             kwargs["debug"] = debug
+        if reasoning:
+            kwargs["reasoning"] = reasoning
         if include_config:
             kwargs["config"] = self.config  # For tool instantiation (API keys, etc.)
         if conversation_history is not None:

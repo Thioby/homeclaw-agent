@@ -186,6 +186,9 @@ async def _build_conversation_history(
         # Regular message (user/assistant/system)
         msg_dict: dict[str, Any] = {"role": m.role, "content": m.content}
 
+        if m.role == "assistant" and m.reasoning_details:
+            msg_dict["reasoning_details"] = m.reasoning_details
+
         if i in reconstruct_set:
             # Reconstruct _images from stored attachments
             images: list[dict[str, Any]] = []
@@ -430,6 +433,7 @@ async def _run_agent_stream(
     session_id: str,
     provider: str,
     model: str | None,
+    reasoning: bool,
     conversation_history: list[dict[str, Any]],
     attachments: list[Any],
     on_text: Callable[[str], None] | None = None,
@@ -438,13 +442,19 @@ async def _run_agent_stream(
     on_tool_result: Callable[[str, Any, str], None] | None = None,
     tool_timestamp_factory: Callable[[], str] | None = None,
     error_log_prefix: str = "AI streaming error",
-) -> tuple[str, str | None, list[dict[str, Any]]]:
-    """Execute the shared streaming event loop and return final text/error/completion_messages."""
+) -> tuple[str, str | None, list[dict[str, Any]], list[dict[str, Any]]]:
+    """Execute the shared streaming event loop.
+
+    Returns: ``(accumulated_text, error, completion_messages, reasoning_details)``.
+    ``reasoning_details`` is the opaque payload from providers like OpenRouter
+    that must be passed back on the next turn for multi-turn reasoning continuity.
+    """
     intake = MessageIntake(hass)
     accumulated_text = ""
     any_reasoning_seen = False
     stream_error: str | None = None
     completion_messages: list[dict[str, Any]] = []
+    reasoning_details: list[dict[str, Any]] = []
     timestamp_factory = tool_timestamp_factory or _now_iso
 
     try:
@@ -454,6 +464,7 @@ async def _run_agent_stream(
             session_id=session_id,
             provider=provider,
             model=model,
+            reasoning=reasoning,
             conversation_history=conversation_history,
             attachments=attachments or None,
         ):
@@ -471,6 +482,10 @@ async def _run_agent_stream(
                     any_reasoning_seen = True
                     if on_reasoning:
                         on_reasoning(reasoning_chunk)
+            elif event_type == "reasoning_details":
+                details = getattr(event, "details", []) or []
+                if details:
+                    reasoning_details = details
             elif event_type == "status":
                 if on_status:
                     on_status(getattr(event, "message", ""))
@@ -506,7 +521,7 @@ async def _run_agent_stream(
             "Model returned no content (only reasoning). Try a different model."
         )
 
-    return accumulated_text, stream_error, completion_messages
+    return accumulated_text, stream_error, completion_messages, reasoning_details
 
 
 @websocket_api.websocket_command(
@@ -516,7 +531,7 @@ async def _run_agent_stream(
         vol.Required("message"): _validate_message,
         vol.Optional("provider"): str,
         vol.Optional("model"): str,
-        vol.Optional("debug"): vol.Coerce(bool),
+        vol.Optional("reasoning"): vol.Coerce(bool),
         vol.Optional("attachments"): vol.All(
             list,
             vol.Length(max=5),
@@ -566,7 +581,12 @@ async def ws_send_message(
         )
 
         tool_timestamp = _now_iso()
-        accumulated_text, stream_error, completion_messages = await _run_agent_stream(
+        (
+            accumulated_text,
+            stream_error,
+            completion_messages,
+            reasoning_details,
+        ) = await _run_agent_stream(
             hass,
             storage=prepared.storage,
             user_text=msg["message"],
@@ -574,6 +594,7 @@ async def ws_send_message(
             session_id=prepared.session_id,
             provider=prepared.provider,
             model=msg.get("model"),
+            reasoning=bool(msg.get("reasoning")),
             conversation_history=prepared.conversation_history,
             attachments=prepared.processed_attachments,
             tool_timestamp_factory=lambda: tool_timestamp,
@@ -591,6 +612,8 @@ async def ws_send_message(
         else:
             assistant_message.content = accumulated_text
             assistant_message.status = "completed"
+            if reasoning_details:
+                assistant_message.reasoning_details = reasoning_details
 
         # Save assistant message
         await prepared.storage.add_message(prepared.session_id, assistant_message)
@@ -640,7 +663,7 @@ async def ws_send_message(
         vol.Required("message"): _validate_message,
         vol.Optional("provider"): str,
         vol.Optional("model"): str,
-        vol.Optional("debug"): vol.Coerce(bool),
+        vol.Optional("reasoning"): vol.Coerce(bool),
         vol.Optional("attachments"): vol.All(
             list,
             vol.Length(max=5),
@@ -791,7 +814,12 @@ async def ws_send_message_stream(
                     }
                 )
 
-        accumulated_text, stream_error, completion_messages = await _run_agent_stream(
+        (
+            accumulated_text,
+            stream_error,
+            completion_messages,
+            reasoning_details,
+        ) = await _run_agent_stream(
             hass,
             storage=prepared.storage,
             user_text=msg["message"],
@@ -799,6 +827,7 @@ async def ws_send_message_stream(
             session_id=prepared.session_id,
             provider=prepared.provider,
             model=msg.get("model"),
+            reasoning=bool(msg.get("reasoning")),
             conversation_history=prepared.conversation_history,
             attachments=prepared.processed_attachments,
             on_text=_send_stream_chunk,
@@ -807,7 +836,6 @@ async def ws_send_message_stream(
             on_tool_result=_send_tool_result,
         )
 
-        # Update assistant message with final content
         _LOGGER.info(
             "Stream finished. accumulated_text length: %d chars, error: %s",
             len(accumulated_text),
@@ -822,6 +850,8 @@ async def ws_send_message_stream(
         assistant_message.status = "error" if stream_error else "completed"
         if stream_error:
             assistant_message.error_message = stream_error
+        elif reasoning_details:
+            assistant_message.reasoning_details = reasoning_details
 
         # Save assistant message
         await prepared.storage.add_message(prepared.session_id, assistant_message)

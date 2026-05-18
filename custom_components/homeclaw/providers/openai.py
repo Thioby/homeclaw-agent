@@ -15,6 +15,24 @@ from .registry import ProviderRegistry
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+def _is_openai_reasoning_model(model: str) -> bool:
+    """True for OpenAI models that accept the ``reasoning_effort`` parameter.
+
+    Chat Completions rejects ``reasoning_effort`` on non-reasoning models
+    (gpt-4o, gpt-4.1, etc.) with a 400, so callers must gate on this.
+    """
+    if not model:
+        return False
+    lowered = model.lower()
+    return (
+        lowered.startswith("o1")
+        or lowered.startswith("o3")
+        or lowered.startswith("o4")
+        or lowered.startswith("o5")
+        or lowered.startswith("gpt-5")
+    )
+
+
 def _logger_for(obj: Any) -> logging.Logger:
     """Return a logger bound to the concrete subclass's module.
 
@@ -87,24 +105,29 @@ class OpenAIProvider(BaseHTTPClient):
         Args:
             messages: List of message dictionaries with role and content.
             **kwargs: Additional arguments. Supports:
-                - model: Per-request model override (e.g. user picked a model
-                  in the UI different from the session/provider default).
+                - model: Per-request model override.
                 - tools: List of tool definitions for function calling.
+                - reasoning: When truthy and the model supports it, add
+                  ``reasoning_effort: medium``. Non-reasoning OpenAI models
+                  reject the field, so we gate on the model name.
 
         Returns:
             The request payload dictionary.
         """
         converted_messages, _ = self.adapter.transform_messages(messages)
+        model = kwargs.get("model") or self._model
 
         payload: dict[str, Any] = {
-            "model": kwargs.get("model") or self._model,
+            "model": model,
             "messages": converted_messages,
         }
 
-        # Add tools if provided
         tools = kwargs.get("tools")
         if tools:
             payload["tools"] = tools
+
+        if kwargs.get("reasoning") and _is_openai_reasoning_model(model):
+            payload["reasoning_effort"] = "medium"
 
         return payload
 
