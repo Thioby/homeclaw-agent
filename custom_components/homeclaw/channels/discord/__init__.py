@@ -433,29 +433,24 @@ class DiscordChannel(Channel):
         """Resolve provider and model from user preferences with fallback.
 
         Returns:
-            Tuple of (provider, model). Either or both may be None for fallback.
+            Tuple of (provider, model). Either or both may be None when the
+            user has no preference — callers fall back to Discord config.
         """
+        from ...user_defaults import resolve_user_agent
+
         try:
             storage = get_storage(self._hass, ha_user_id)
-            prefs = await storage.get_preferences()
         except Exception:
             _LOGGER.debug("Discord: could not load preferences for user=%s", ha_user_id)
             return None, None
 
-        provider = prefs.get("default_provider")
-        model = prefs.get("default_model")
-
-        # Validate provider is actually available
-        if provider:
-            agents = self._hass.data.get(DOMAIN, {}).get("agents", {})
-            if provider not in agents:
-                _LOGGER.debug(
-                    "Discord: preferred provider %s not available, falling back",
-                    provider,
-                )
-                return None, None
-
-        return provider or None, model or None
+        _agent, provider, model = await resolve_user_agent(
+            self._hass,
+            ha_user_id,
+            storage=storage,
+            fallback_to_first_agent=False,
+        )
+        return provider, model
 
     async def _run_stream(
         self,

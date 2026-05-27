@@ -239,45 +239,29 @@ async def _get_sanitization_provider(
 
     Priority:
     1. rag_optimizer_provider/model from user preferences
-    2. default_provider/model from user preferences
+    2. default_provider/default_model from user preferences (via shared helper)
     3. First available provider from configured agents
-
-    Args:
-        hass: Home Assistant instance.
-        storage: SessionStorage for reading preferences.
 
     Returns:
         Tuple of (provider_instance, model_name) or (None, None).
     """
-    agents = hass.data.get(DOMAIN, {}).get("agents", {})
-    if not agents:
-        return None, None
+    from ..user_defaults import resolve_user_agent
 
-    # Read user preferences
     try:
         prefs = await storage.get_preferences()
     except Exception:
         prefs = {}
 
-    # Priority 1: RAG optimizer config
-    provider_name = prefs.get("rag_optimizer_provider")
-    model = prefs.get("rag_optimizer_model")
-
-    # Priority 2: Default provider
-    if not provider_name:
-        provider_name = prefs.get("default_provider")
-        model = prefs.get("default_model")
-
-    # Priority 3: First available
-    if not provider_name or provider_name not in agents:
-        provider_name = next(iter(agents))
-        model = None
-
-    agent_compat = agents.get(provider_name)
-    if not agent_compat:
+    agent_compat, _provider_name, model = await resolve_user_agent(
+        hass,
+        getattr(storage, "user_id", ""),
+        storage=storage,
+        override_provider=prefs.get("rag_optimizer_provider") or None,
+        override_model=prefs.get("rag_optimizer_model") or None,
+    )
+    if agent_compat is None:
         return None, None
 
-    # Access the raw AIProvider from the agent wrapper
     provider = getattr(agent_compat, "_provider", None)
     if not provider:
         provider = getattr(getattr(agent_compat, "_agent", None), "_provider", None)
@@ -439,20 +423,16 @@ async def ws_generate_emoji(
     title = msg["title"]
 
     try:
-        agents = hass.data.get(DOMAIN, {}).get("agents", {})
-        if not agents:
+        from ..user_defaults import resolve_user_agent
+
+        storage = _get_storage(hass, user_id)
+        agent, _provider_name, _model = await resolve_user_agent(
+            hass, user_id, storage=storage
+        )
+        if agent is None:
             _LOGGER.debug("No AI agents configured, skipping emoji generation")
             connection.send_result(msg["id"], {"emoji": ""})
             return
-
-        # Prefer the user's default provider; fall back to the first registered.
-        storage = _get_storage(hass, user_id)
-        prefs = await storage.get_preferences()
-        provider_name = prefs.get("default_provider")
-        agent = agents.get(provider_name) if provider_name else None
-        if agent is None:
-            provider_name = next(iter(agents))
-            agent = agents[provider_name]
         provider = agent._provider
 
         # Simple one-shot prompt — ask for a single emoji

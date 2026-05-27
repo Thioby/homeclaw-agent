@@ -446,7 +446,13 @@ class SchedulerService:
         """
         start_time = time.monotonic()
 
-        agent = self._get_agent(provider, user_id=user_id)
+        from ..user_defaults import resolve_user_agent
+
+        agent, _provider_name, model = await resolve_user_agent(
+            self._hass,
+            user_id,
+            override_provider=provider,
+        )
         if not agent:
             return {"success": False, "error": "No AI agent available"}
 
@@ -461,6 +467,7 @@ class SchedulerService:
 
             result = await agent.process_query(
                 user_query=prompt,
+                model=model,
                 conversation_history=[],
                 user_id=user_id,
                 system_prompt=system_prompt,
@@ -727,38 +734,6 @@ class SchedulerService:
                 job.name,
                 err,
             )
-
-    def _get_agent(self, provider: str | None = None, user_id: str = "") -> Any:
-        """Get an AI agent instance, respecting user's default provider.
-
-        Resolution order:
-        1. Explicit ``provider`` argument (from job config).
-        2. User's ``default_provider`` preference (from storage).
-        3. First available agent (fallback).
-        """
-        domain_data = self._hass.data.get(DOMAIN, {})
-        agents = domain_data.get("agents", {})
-        if not agents:
-            return None
-
-        if provider and provider in agents:
-            return agents[provider]
-
-        # Try user's default provider from preferences
-        if user_id:
-            cache_key = f"{DOMAIN}_storage_{user_id}"
-            storage = self._hass.data.get(cache_key)
-            if storage and hasattr(storage, "_data") and storage._data:
-                prefs = storage._data.get("preferences", {})
-                default_provider = prefs.get("default_provider")
-                if default_provider and default_provider in agents:
-                    _LOGGER.debug(
-                        "Scheduler using user default provider: %s", default_provider
-                    )
-                    return agents[default_provider]
-
-        # Return first available
-        return next(iter(agents.values()), None)
 
     async def _async_save(self) -> None:
         """Persist jobs and run history to HA Store."""

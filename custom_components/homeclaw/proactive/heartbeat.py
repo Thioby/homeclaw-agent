@@ -279,7 +279,7 @@ class HeartbeatService:
 
         try:
             # 1. Get an agent
-            agent = self._get_agent()
+            agent, model = await self._get_agent()
             if not agent:
                 result.error = "No AI agent available"
                 _LOGGER.warning("Heartbeat: no agent available")
@@ -300,6 +300,7 @@ class HeartbeatService:
             # 4. Call agent with read-only tools (denied_tools blocks all writes)
             agent_result = await agent.process_query(
                 user_query=prompt,
+                model=model,
                 conversation_history=[],  # Clean history — no carry-over
                 denied_tools=HEARTBEAT_DENIED_TOOLS,
                 system_prompt=HEARTBEAT_SYSTEM_PROMPT,
@@ -400,14 +401,12 @@ class HeartbeatService:
         elapsed = time.time() - last_activity
         return elapsed < (self._config.throttle_if_active_minutes * 60)
 
-    def _get_agent(self) -> Any:
-        """Get the first available AI agent."""
-        domain_data = self._hass.data.get(DOMAIN, {})
-        agents = domain_data.get("agents", {})
-        if not agents:
-            return None
-        # Return the first available agent
-        return next(iter(agents.values()), None)
+    async def _get_agent(self) -> tuple[Any, str | None]:
+        """Resolve an AI agent and model honoring user defaults."""
+        from ..user_defaults import resolve_user_agent
+
+        agent, _provider_name, model = await resolve_user_agent(self._hass)
+        return agent, model
 
     def _build_entity_snapshot(self) -> str:
         """Build a text snapshot of monitored entity states."""
