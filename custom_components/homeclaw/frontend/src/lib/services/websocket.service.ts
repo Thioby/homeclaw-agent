@@ -66,6 +66,12 @@ export async function sendMessageStream(
     onStatus?: (status: string) => void;
     onToolCall?: (name: string, args: any) => void;
     onToolResult?: (name: string, result: any, toolCallId: string) => void;
+    onApprovalRequest?: (event: {
+      name: string;
+      args: any;
+      tool_call_id: string;
+      preview: any;
+    }) => void;
     onComplete?: (result: any) => void;
     onError?: (error: string) => void;
   },
@@ -131,6 +137,15 @@ export async function sendMessageStream(
 
         case 'tool_result':
           callbacks.onToolResult?.(event.name, event.result, event.tool_call_id);
+          break;
+
+        case 'approval_request':
+          callbacks.onApprovalRequest?.({
+            name: event.name,
+            args: event.args,
+            tool_call_id: event.tool_call_id,
+            preview: event.preview,
+          });
           break;
 
         case 'stream_end':

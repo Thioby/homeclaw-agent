@@ -53,6 +53,22 @@ class ToolErrorEvent(AgentEvent):
 
 
 @dataclass
+class ApprovalRequestEvent(AgentEvent):
+    """Event emitted when a confirmable tool needs user approval.
+
+    The agent loop is suspended awaiting the user's decision; the UI shows the
+    preview and confirm/reject buttons, and a websocket confirm command resolves
+    the pending approval to resume the loop.
+    """
+
+    tool_name: str
+    tool_args: dict[str, Any]
+    tool_call_id: str
+    preview: Any = None
+    type: Literal["approval_request"] = "approval_request"
+
+
+@dataclass
 class StatusEvent(AgentEvent):
     """Event emitted to update the status (e.g. 'Thinking...')."""
 

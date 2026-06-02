@@ -163,6 +163,24 @@
         let assistantMessageId = '';
         let streamedText = '';
 
+        const appendToolResult = (toolName: string, toolCallId: string, result: any) => {
+          appState.update((s) => ({
+            ...s,
+            messages: s.messages.map((msg) => {
+              if (msg.id !== assistantMessageId) return msg;
+              const existing = msg.toolResults || [];
+              if (existing.some((tr) => tr.toolCallId === toolCallId)) return msg;
+              return {
+                ...msg,
+                toolResults: [
+                  ...existing,
+                  { toolName, toolCallId, result, status: 'preview' as const },
+                ],
+              };
+            }),
+          }));
+        };
+
         await sendMessageStream(
           currentAppState.hass,
           message,
@@ -220,26 +238,29 @@
             onToolCall: (_name: string, _args: any) => {},
             onToolResult: (name: string, result: any, toolCallId: string) => {
               if (result?.ui_type) {
-                appState.update((s) => ({
-                  ...s,
-                  messages: s.messages.map((msg) =>
-                    msg.id === assistantMessageId
-                      ? {
-                          ...msg,
-                          toolResults: [
-                            ...(msg.toolResults || []),
-                            {
-                              toolName: name,
-                              toolCallId,
-                              result,
-                              status: 'preview' as const,
-                            },
-                          ],
-                        }
-                      : msg
-                  ),
-                }));
+                appendToolResult(name, toolCallId, result);
               }
+            },
+
+            onApprovalRequest: (event) => {
+              const preview = event.preview || {};
+              const result =
+                preview.ui_type === 'dashboard_action'
+                  ? preview
+                  : {
+                      ui_type: 'dashboard_action',
+                      action: 'create',
+                      label:
+                        event.name === 'create_yaml_integration'
+                          ? 'Create automation / integration'
+                          : `Confirm: ${event.name}`,
+                      title:
+                        (event.args?.config && Object.keys(event.args.config)[0]) ||
+                        event.args?.alias ||
+                        'configuration.yaml',
+                      preview: JSON.stringify(preview.args ?? event.args ?? {}, null, 2),
+                    };
+              appendToolResult(event.name, event.tool_call_id, result);
             },
 
             onComplete: (result: any) => {

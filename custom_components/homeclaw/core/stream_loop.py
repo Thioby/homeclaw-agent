@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, AsyncGenerator
 from ..function_calling import FunctionCall
 from .context_builder import recompact_if_needed
 from .events import (
+    ApprovalRequestEvent,
     CompletionEvent,
     ErrorEvent,
     ReasoningDetailsEvent,
@@ -26,6 +27,16 @@ if TYPE_CHECKING:
     from ..providers.registry import AIProvider
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _approval_request_event(tool_event: dict[str, Any]) -> ApprovalRequestEvent:
+    """Map a raw approval_request tool event to an ApprovalRequestEvent."""
+    return ApprovalRequestEvent(
+        tool_name=tool_event["name"],
+        tool_args=tool_event.get("args", {}),
+        tool_call_id=tool_event.get("id", "unknown"),
+        preview=tool_event.get("preview"),
+    )
 
 
 async def run_tool_loop_stream(
@@ -242,6 +253,7 @@ async def _nonstream_fallback_iteration(
         denied_tools=denied_tools,
         user_id=user_id,
         call_history_hashes=call_history_hashes,
+        approval_enabled=True,
     ):
         if tool_event.get("type") == "tool_call":
             yield ToolCallEvent(
@@ -249,6 +261,8 @@ async def _nonstream_fallback_iteration(
                 tool_args=tool_event.get("args", {}),
                 tool_call_id=tool_event.get("id", "unknown"),
             )
+        elif tool_event.get("type") == "approval_request":
+            yield _approval_request_event(tool_event)
         elif tool_event.get("type") == "tool_result":
             yield ToolResultEvent(
                 tool_name=tool_event["name"],
@@ -325,8 +339,16 @@ async def _handle_stream_tool_calls(
         denied_tools=denied_tools,
         user_id=user_id,
         call_history_hashes=call_history_hashes,
+        approval_enabled=True,
     ):
-        if tool_event.get("type") == "tool_result":
+        if tool_event.get("type") == "approval_request":
+            yield ApprovalRequestEvent(
+                tool_name=tool_event["name"],
+                tool_args=tool_event.get("args", {}),
+                tool_call_id=tool_event.get("id", "unknown"),
+                preview=tool_event.get("preview"),
+            )
+        elif tool_event.get("type") == "tool_result":
             yield ToolResultEvent(
                 tool_name=tool_event["name"],
                 tool_result=tool_event["result"],

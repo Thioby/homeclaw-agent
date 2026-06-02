@@ -6,6 +6,7 @@ Supports both streaming and non-streaming modes.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import TYPE_CHECKING, Any, AsyncGenerator, cast
@@ -22,6 +23,8 @@ _LOGGER = logging.getLogger(__name__)
 # If a single tool result exceeds this, it gets truncated with a warning.
 # Individual tools should paginate to stay well under this; this is a last resort.
 MAX_TOOL_RESULT_CHARS = 30_000
+
+APPROVAL_TIMEOUT_SECONDS = 600
 
 
 class ToolExecutor:
@@ -40,6 +43,7 @@ class ToolExecutor:
         denied_tools: frozenset[str] | None = None,
         user_id: str = "",
         call_history_hashes: dict[str, int] | None = None,
+        approval_enabled: bool = False,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Execute a list of tool calls and add results to messages.
 
@@ -185,6 +189,80 @@ class ToolExecutor:
                 exec_params = dict(fc.arguments)
                 if user_id:
                     exec_params["_user_id"] = user_id
+
+                tool_class = (
+                    ToolRegistry.get_tool_class(fc.name) if approval_enabled else None
+                )
+                if tool_class is not None and getattr(
+                    tool_class, "requires_confirmation", False
+                ):
+                    from .pending_actions import discard_approval, register_approval
+
+                    has_dry_run = any(
+                        getattr(p, "name", None) == "dry_run"
+                        for p in getattr(tool_class, "parameters", [])
+                    )
+                    preview = await ToolExecutor._build_confirmation_preview(
+                        fc.name, exec_params, hass, has_dry_run
+                    )
+                    approval_future = register_approval(fc.id)
+                    yield {
+                        "type": "approval_request",
+                        "name": fc.name,
+                        "args": fc.arguments,
+                        "id": fc.id,
+                        "preview": preview,
+                    }
+                    try:
+                        approved = await asyncio.wait_for(
+                            approval_future, timeout=APPROVAL_TIMEOUT_SECONDS
+                        )
+                    except asyncio.TimeoutError:
+                        approved = False
+                    finally:
+                        discard_approval(fc.id)
+
+                    if not approved:
+                        rejection = json.dumps(
+                            {
+                                "status": "cancelled_by_user",
+                                "rejected": True,
+                                "message": (
+                                    "The user reviewed this action and chose to "
+                                    "CANCEL it — nothing was applied. This is a "
+                                    "deliberate user choice, NOT an error or "
+                                    "failure. Do not retry the same action and do "
+                                    "not apologize for a failure. Briefly confirm "
+                                    "you cancelled it and, if useful, ask what "
+                                    "they would like to change."
+                                ),
+                            }
+                        )
+                        messages.append(
+                            {
+                                "role": "function",
+                                "name": fc.name,
+                                "tool_use_id": fc.id,
+                                "content": rejection,
+                            }
+                        )
+                        if yield_mode == "status":
+                            yield {
+                                "type": "status",
+                                "message": f"✗ {fc.name} rejected by user",
+                            }
+                        elif yield_mode == "result":
+                            yield {
+                                "type": "tool_result",
+                                "name": fc.name,
+                                "result": rejection,
+                                "id": fc.id,
+                            }
+                        continue
+
+                    if has_dry_run:
+                        exec_params["dry_run"] = False
+
                 result = await ToolRegistry.execute_tool(
                     tool_id=fc.name, params=exec_params, hass=hass
                 )
@@ -255,6 +333,37 @@ class ToolExecutor:
                         "result": error_msg,
                         "id": fc.id,
                     }
+
+    @staticmethod
+    async def _build_confirmation_preview(
+        tool_name: str,
+        exec_params: dict[str, Any],
+        hass: Any,
+        has_dry_run: bool,
+    ) -> dict[str, Any]:
+        """Build the preview shown in the approval card.
+
+        Tools with a ``dry_run`` parameter render a real preview; everything
+        else falls back to showing the arguments that would be applied.
+        """
+        visible_args = {k: v for k, v in exec_params.items() if k != "_user_id"}
+        if not has_dry_run:
+            return {"args": visible_args}
+        preview_params = dict(exec_params)
+        preview_params["dry_run"] = True
+        try:
+            preview_result = await ToolRegistry.execute_tool(
+                tool_id=tool_name, params=preview_params, hass=hass
+            )
+            try:
+                return json.loads(preview_result.output)
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                return {"output": getattr(preview_result, "output", "")}
+        except Exception as exc:
+            _LOGGER.warning(
+                "Failed to build approval preview for %s: %s", tool_name, exc
+            )
+            return {"args": visible_args}
 
     @staticmethod
     def _build_validation_error(

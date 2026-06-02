@@ -26,6 +26,25 @@ def mock_config():
     return {}
 
 
+class TestConfirmableToolsFlag:
+    """Lock which tools require user confirmation before they run."""
+
+    @pytest.mark.parametrize(
+        "tool_id",
+        ["create_dashboard", "update_dashboard", "delete_dashboard", "create_yaml_integration"],
+    )
+    def test_mutating_tools_require_confirmation(self, tool_id):
+        tool_class = ToolRegistry.get_tool_class(tool_id)
+        assert tool_class is not None
+        assert tool_class.requires_confirmation is True
+
+    @pytest.mark.parametrize("tool_id", ["get_dashboards", "get_dashboard_config"])
+    def test_read_tools_do_not_require_confirmation(self, tool_id):
+        tool_class = ToolRegistry.get_tool_class(tool_id)
+        assert tool_class is not None
+        assert tool_class.requires_confirmation is False
+
+
 class TestCreateDashboardTool:
     """Tests for CreateDashboard tool."""
 

@@ -24,9 +24,6 @@ ERR_STORAGE_ERROR = "storage_error"
 ERR_AI_ERROR = "ai_error"
 ERR_RATE_LIMITED = "rate_limited"
 
-# Tools that support dry_run confirmation flow
-CONFIRMABLE_TOOLS = frozenset({"create_dashboard", "update_dashboard", "delete_dashboard"})
-
 # Validation constants
 MAX_TITLE_LENGTH = 200
 UUID_PATTERN = re.compile(

@@ -280,6 +280,7 @@ class CreateYamlIntegration(Tool):
     """Create or update a YAML-based integration in configuration.yaml."""
 
     id = "create_yaml_integration"
+    requires_confirmation = True
     description = (
         "Add YAML-based integration to configuration.yaml. Pass config as a "
         "JSON object with top-level domain keys — it is converted to YAML and "

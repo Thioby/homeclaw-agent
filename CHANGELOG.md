@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7.0 — Confirm before creating dashboards and automations
+
+### Added
+- **Confirmation gate** for dashboard and automation/integration changes. The agent now pauses on `create_dashboard`, `update_dashboard`, `delete_dashboard`, and `create_yaml_integration`, shows a preview with Confirm/Reject buttons, and applies the change only after you confirm. It behaves the same on every model — previously it depended on whether the model voluntarily waited for you.
+
+### Changed
+- The agent loop truly suspends on a confirmable action (awaits your decision over the websocket) and resumes in place: confirm runs it and reports the real result; reject tells the model you cancelled it — a deliberate choice, not an error — so it stops cleanly instead of assuming something broke.
+
 ## v1.6.0 — Reasoning toggle for OpenAI-compatible providers
 
 ### Added

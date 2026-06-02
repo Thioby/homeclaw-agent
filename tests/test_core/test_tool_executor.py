@@ -232,3 +232,200 @@ class TestToolExecutorDeniedTools:
         payload = json.loads(messages[0]["content"])
         assert payload["error"] == "Invalid tool arguments"
         assert "entity_id" in payload["required_parameters"]
+
+
+def _confirmable_tool_class(has_dry_run: bool = True):
+    cls = MagicMock()
+    cls.requires_confirmation = True
+    if has_dry_run:
+        dry_run_param = MagicMock()
+        dry_run_param.name = "dry_run"
+        cls.parameters = [dry_run_param]
+    else:
+        cls.parameters = []
+    return cls
+
+
+@pytest.mark.asyncio
+class TestToolExecutorApproval:
+    """Human-in-the-loop approval gate for confirmable tools."""
+
+    def setup_method(self):
+        from custom_components.homeclaw.core.pending_actions import _pending
+
+        _pending.clear()
+
+    async def test_confirmable_tool_emits_approval_then_executes_on_approve(self):
+        from custom_components.homeclaw.core.pending_actions import resolve_approval
+
+        fc = FunctionCall(
+            id="call_1", name="create_dashboard", arguments={"title": "Security"}
+        )
+        messages: list[dict] = []
+
+        preview_result = MagicMock()
+        preview_result.output = json.dumps(
+            {"ui_type": "dashboard_action", "action": "create", "title": "Security"}
+        )
+        real_result = MagicMock()
+        real_result.to_dict.return_value = {"success": True, "message": "created"}
+        execute_mock = AsyncMock(side_effect=[preview_result, real_result])
+
+        events: list[dict] = []
+        with (
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool_class",
+                return_value=_confirmable_tool_class(),
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool",
+                return_value=None,
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
+                execute_mock,
+            ),
+        ):
+            async for event in ToolExecutor.execute_tool_calls(
+                [fc],
+                hass=MagicMock(),
+                messages=messages,
+                yield_mode="result",
+                approval_enabled=True,
+            ):
+                events.append(event)
+                if event.get("type") == "approval_request":
+                    resolve_approval("call_1", True)
+
+        types = [e["type"] for e in events]
+        assert "approval_request" in types
+        approval = next(e for e in events if e["type"] == "approval_request")
+        assert approval["name"] == "create_dashboard"
+        assert approval["id"] == "call_1"
+        assert approval["preview"]["ui_type"] == "dashboard_action"
+
+        # Real execution forced dry_run=False
+        assert execute_mock.await_args_list[-1].kwargs["params"]["dry_run"] is False
+        # Result fed back to the model
+        assert json.loads(messages[-1]["content"])["success"] is True
+
+    async def test_confirmable_tool_rejected_injects_rejection_and_skips_execution(self):
+        from custom_components.homeclaw.core.pending_actions import resolve_approval
+
+        fc = FunctionCall(
+            id="call_1", name="create_dashboard", arguments={"title": "Security"}
+        )
+        messages: list[dict] = []
+
+        preview_result = MagicMock()
+        preview_result.output = json.dumps({"ui_type": "dashboard_action"})
+        execute_mock = AsyncMock(side_effect=[preview_result])
+
+        with (
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool_class",
+                return_value=_confirmable_tool_class(),
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool",
+                return_value=None,
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
+                execute_mock,
+            ),
+        ):
+            async for event in ToolExecutor.execute_tool_calls(
+                [fc],
+                hass=MagicMock(),
+                messages=messages,
+                yield_mode="result",
+                approval_enabled=True,
+            ):
+                if event.get("type") == "approval_request":
+                    resolve_approval("call_1", False)
+
+        # Only the preview dry_run ran — the real save was skipped
+        assert execute_mock.await_count == 1
+        payload = json.loads(messages[-1]["content"])
+        assert payload["rejected"] is True
+        assert payload["status"] == "cancelled_by_user"
+        # No failure signal that would make the model think the tool errored
+        assert "success" not in payload
+        assert "not an error" in payload["message"].lower()
+
+    async def test_approval_disabled_executes_confirmable_tool_directly(self):
+        fc = FunctionCall(
+            id="call_1", name="create_dashboard", arguments={"title": "Security"}
+        )
+        messages: list[dict] = []
+
+        real_result = MagicMock()
+        real_result.to_dict.return_value = {"success": True}
+        execute_mock = AsyncMock(return_value=real_result)
+
+        events: list[dict] = []
+        with (
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool_class",
+                return_value=_confirmable_tool_class(),
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool",
+                return_value=None,
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
+                execute_mock,
+            ),
+        ):
+            async for event in ToolExecutor.execute_tool_calls(
+                [fc],
+                hass=MagicMock(),
+                messages=messages,
+                yield_mode="result",
+                approval_enabled=False,
+            ):
+                events.append(event)
+
+        assert "approval_request" not in [e["type"] for e in events]
+        assert execute_mock.await_count == 1
+
+    async def test_non_confirmable_tool_not_gated(self):
+        fc = FunctionCall(
+            id="call_1", name="get_entity_state", arguments={"entity_id": "light.x"}
+        )
+        messages: list[dict] = []
+
+        plain_class = MagicMock()
+        plain_class.requires_confirmation = False
+        real_result = MagicMock()
+        real_result.to_dict.return_value = {"success": True}
+        execute_mock = AsyncMock(return_value=real_result)
+
+        events: list[dict] = []
+        with (
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool_class",
+                return_value=plain_class,
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool",
+                return_value=None,
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
+                execute_mock,
+            ),
+        ):
+            async for event in ToolExecutor.execute_tool_calls(
+                [fc],
+                hass=MagicMock(),
+                messages=messages,
+                yield_mode="result",
+                approval_enabled=True,
+            ):
+                events.append(event)
+
+        assert "approval_request" not in [e["type"] for e in events]
+        assert execute_mock.await_count == 1

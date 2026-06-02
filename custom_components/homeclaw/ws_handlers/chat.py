@@ -19,7 +19,6 @@ from ..file_processor import (
 )
 from ..storage import Message, SessionStorage
 from ._common import (
-    CONFIRMABLE_TOOLS,
     ERR_SESSION_NOT_FOUND,
     ERR_STORAGE_ERROR,
     _get_storage,
@@ -440,6 +439,7 @@ async def _run_agent_stream(
     on_status: Callable[[str], None] | None = None,
     on_reasoning: Callable[[str], None] | None = None,
     on_tool_result: Callable[[str, Any, str], None] | None = None,
+    on_approval_request: Callable[[str, dict[str, Any], str, Any], None] | None = None,
     tool_timestamp_factory: Callable[[], str] | None = None,
     error_log_prefix: str = "AI streaming error",
 ) -> tuple[str, str | None, list[dict[str, Any]], list[dict[str, Any]]]:
@@ -496,15 +496,19 @@ async def _run_agent_stream(
                     event,
                     timestamp_factory(),
                 )
-                if event_type == "tool_call" and event.tool_name in CONFIRMABLE_TOOLS:
-                    from ..core.pending_actions import store_pending
-
-                    store_pending(event.tool_call_id, event.tool_name, event.tool_args)
                 if event_type == "tool_result" and on_tool_result:
                     on_tool_result(
                         event.tool_name,
                         getattr(event, "tool_result", ""),
                         event.tool_call_id,
+                    )
+            elif event_type == "approval_request":
+                if on_approval_request:
+                    on_approval_request(
+                        event.tool_name,
+                        event.tool_args,
+                        event.tool_call_id,
+                        getattr(event, "preview", None),
                     )
             elif event_type == "error":
                 stream_error = getattr(event, "message", "Unknown error")
@@ -814,6 +818,24 @@ async def ws_send_message_stream(
                     }
                 )
 
+        def _send_approval_request(
+            tool_name: str, tool_args: dict, tool_call_id: str, preview: Any
+        ) -> None:
+            """Ask the frontend to confirm a pending action; the loop is suspended."""
+            connection.send_message(
+                {
+                    "id": request_id,
+                    "type": "event",
+                    "event": {
+                        "type": "approval_request",
+                        "name": tool_name,
+                        "args": tool_args,
+                        "tool_call_id": tool_call_id,
+                        "preview": preview,
+                    },
+                }
+            )
+
         (
             accumulated_text,
             stream_error,
@@ -834,6 +856,7 @@ async def ws_send_message_stream(
             on_status=_send_status,
             on_reasoning=_send_reasoning,
             on_tool_result=_send_tool_result,
+            on_approval_request=_send_approval_request,
         )
 
         _LOGGER.info(

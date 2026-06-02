@@ -16342,6 +16342,14 @@ async function sendMessageStream(hass, message, callbacks, attachments) {
         case "tool_result":
           callbacks.onToolResult?.(event2.name, event2.result, event2.tool_call_id);
           break;
+        case "approval_request":
+          callbacks.onApprovalRequest?.({
+            name: event2.name,
+            args: event2.args,
+            tool_call_id: event2.tool_call_id,
+            preview: event2.preview
+          });
+          break;
         case "stream_end":
           if (event2.success) {
             callbacks.onComplete?.({});
@@ -16408,6 +16416,7 @@ function DashboardAction($$anchor, $$props) {
     update: "Update Dashboard",
     delete: "Delete Dashboard"
   };
+  const headerLabel = /* @__PURE__ */ user_derived(() => $$props.toolResult?.label || actionLabels[$$props.action] || "Confirm action");
   const actionIcons = { create: "+", update: "✎", delete: "✕" };
   const statusMessages = {
     confirmed: "Confirming...",
@@ -16419,7 +16428,7 @@ function DashboardAction($$anchor, $$props) {
     $$props.onStatusChange("confirmed");
     try {
       const res = await confirmDashboardAction($$props.hass, $$props.toolCallId, $$props.sessionId, true);
-      $$props.onStatusChange(res.status === "success" ? "success" : "error");
+      $$props.onStatusChange(res.status === "accepted" || res.status === "success" ? "success" : "error");
     } catch (e2) {
       console.error("Dashboard confirm failed:", e2);
       $$props.onStatusChange("error");
@@ -16537,7 +16546,7 @@ function DashboardAction($$anchor, $$props) {
       collapsed: status() !== "preview"
     });
     set_text(text2, actionIcons[$$props.action]);
-    set_text(text_1, `${actionLabels[$$props.action] ?? ""}: "${get$1(title) ?? ""}"`);
+    set_text(text_1, `${get$1(headerLabel) ?? ""}: "${get$1(title) ?? ""}"`);
   });
   append($$anchor, div);
   pop();
@@ -17814,6 +17823,23 @@ function InputArea($$anchor, $$props) {
       if (USE_STREAMING) {
         let assistantMessageId = "";
         let streamedText = "";
+        const appendToolResult = (toolName, toolCallId, result) => {
+          appState.update((s2) => ({
+            ...s2,
+            messages: s2.messages.map((msg) => {
+              if (msg.id !== assistantMessageId) return msg;
+              const existing = msg.toolResults || [];
+              if (existing.some((tr) => tr.toolCallId === toolCallId)) return msg;
+              return {
+                ...msg,
+                toolResults: [
+                  ...existing,
+                  { toolName, toolCallId, result, status: "preview" }
+                ]
+              };
+            })
+          }));
+        };
         await sendMessageStream(
           currentAppState.hass,
           message,
@@ -17861,17 +17887,19 @@ _${status}_` } : msg)
             },
             onToolResult: (name, result, toolCallId) => {
               if (result?.ui_type) {
-                appState.update((s2) => ({
-                  ...s2,
-                  messages: s2.messages.map((msg) => msg.id === assistantMessageId ? {
-                    ...msg,
-                    toolResults: [
-                      ...msg.toolResults || [],
-                      { toolName: name, toolCallId, result, status: "preview" }
-                    ]
-                  } : msg)
-                }));
+                appendToolResult(name, toolCallId, result);
               }
+            },
+            onApprovalRequest: (event2) => {
+              const preview = event2.preview || {};
+              const result = preview.ui_type === "dashboard_action" ? preview : {
+                ui_type: "dashboard_action",
+                action: "create",
+                label: event2.name === "create_yaml_integration" ? "Create automation / integration" : `Confirm: ${event2.name}`,
+                title: event2.args?.config && Object.keys(event2.args.config)[0] || event2.args?.alias || "configuration.yaml",
+                preview: JSON.stringify(preview.args ?? event2.args ?? {}, null, 2)
+              };
+              appendToolResult(event2.name, event2.tool_call_id, result);
             },
             onComplete: (result) => {
               const { text: text2, automation, dashboard } = parseAIResponse(result.assistant_message?.content || streamedText);

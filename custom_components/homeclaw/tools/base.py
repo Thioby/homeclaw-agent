@@ -225,6 +225,7 @@ class Tool(ABC):
     category: ClassVar[ToolCategory] = ToolCategory.UTILITY
     tier: ClassVar[ToolTier] = ToolTier.ON_DEMAND
     enabled: ClassVar[bool] = True
+    requires_confirmation: ClassVar[bool] = False
 
     def __init__(self, hass: Any = None, config: Optional[Dict[str, Any]] = None):
         """Initialize the tool.

@@ -32,6 +32,8 @@
     delete: 'Delete Dashboard',
   };
 
+  const headerLabel = $derived(toolResult?.label || actionLabels[action] || 'Confirm action');
+
   const actionIcons: Record<string, string> = {
     create: '+',
     update: '✎',
@@ -49,7 +51,7 @@
     onStatusChange('confirmed');
     try {
       const res = await confirmDashboardAction(hass, toolCallId, sessionId, true);
-      onStatusChange(res.status === 'success' ? 'success' : 'error');
+      onStatusChange(res.status === 'accepted' || res.status === 'success' ? 'success' : 'error');
     } catch (e) {
       console.error('Dashboard confirm failed:', e);
       onStatusChange('error');
@@ -69,7 +71,7 @@
 >
   <div class="da-header">
     <span class="da-icon">{actionIcons[action]}</span>
-    <span class="da-title">{actionLabels[action]}: "{title}"</span>
+    <span class="da-title">{headerLabel}: "{title}"</span>
     {#if status !== 'preview'}
       <span
         class="da-status"

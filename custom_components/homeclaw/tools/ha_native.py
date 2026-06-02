@@ -1385,6 +1385,7 @@ class GetDashboardConfig(Tool):
 @ToolRegistry.register
 class CreateDashboard(Tool):
     id = "create_dashboard"
+    requires_confirmation = True
     description = (
         "Create a new Lovelace dashboard. Use dry_run=true first to preview, "
         "then dry_run=false after user confirms."
@@ -1452,6 +1453,7 @@ class CreateDashboard(Tool):
 @ToolRegistry.register
 class UpdateDashboard(Tool):
     id = "update_dashboard"
+    requires_confirmation = True
     description = (
         "Update an existing Lovelace dashboard. Use dry_run=true first to preview changes, "
         "then dry_run=false after user confirms."
@@ -1519,6 +1521,7 @@ class UpdateDashboard(Tool):
 @ToolRegistry.register
 class DeleteDashboard(Tool):
     id = "delete_dashboard"
+    requires_confirmation = True
     description = (
         "Delete a Lovelace dashboard. Use dry_run=true first to see what will be deleted, "
         "then dry_run=false after user confirms."

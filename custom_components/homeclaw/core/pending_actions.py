@@ -1,33 +1,41 @@
-"""Cache for pending dashboard actions awaiting user confirmation."""
+"""Approval gate for confirmable tool actions (human-in-the-loop).
+
+The agent loop registers a Future keyed by tool_call_id, emits an approval
+request to the UI, then awaits the Future. A separate websocket command
+resolves it with the user's decision, resuming the loop in place. This mirrors
+the suspend/resume pattern used by sibling agents (opencode, openclaw).
+"""
 
 from __future__ import annotations
 
-import time
-from typing import Any
+import asyncio
+import logging
 
-_pending: dict[str, dict[str, Any]] = {}
-_TTL_SECONDS = 600  # 10 minutes
+_LOGGER = logging.getLogger(__name__)
 
-
-def store_pending(tool_call_id: str, tool_name: str, params: dict[str, Any]) -> None:
-    """Cache a dry_run result for later confirmation."""
-    _cleanup_expired()
-    _pending[tool_call_id] = {
-        "tool_name": tool_name,
-        "params": params,
-        "timestamp": time.time(),
-    }
+_pending: dict[str, asyncio.Future[bool]] = {}
 
 
-def pop_pending(tool_call_id: str) -> dict[str, Any] | None:
-    """Retrieve and remove a pending action. Returns None if expired or missing."""
-    _cleanup_expired()
-    return _pending.pop(tool_call_id, None)
+def register_approval(tool_call_id: str) -> asyncio.Future[bool]:
+    """Create and store a Future the agent loop will await for this tool call."""
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[bool] = loop.create_future()
+    _pending[tool_call_id] = future
+    return future
 
 
-def _cleanup_expired() -> None:
-    """Remove entries older than TTL."""
-    now = time.time()
-    expired = [k for k, v in _pending.items() if now - v["timestamp"] > _TTL_SECONDS]
-    for k in expired:
-        del _pending[k]
+def resolve_approval(tool_call_id: str, approved: bool) -> bool:
+    """Resolve a waiting approval with the user's decision.
+
+    Returns True if a live waiter was found and resolved, False otherwise.
+    """
+    future = _pending.get(tool_call_id)
+    if future is None or future.done():
+        return False
+    future.set_result(approved)
+    return True
+
+
+def discard_approval(tool_call_id: str) -> None:
+    """Remove a pending approval (after it resolves, times out, or is abandoned)."""
+    _pending.pop(tool_call_id, None)
