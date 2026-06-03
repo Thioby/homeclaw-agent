@@ -5,7 +5,7 @@
   import { appState } from '$lib/stores/appState';
   import { syncThemeFromPreferences, uiState } from '$lib/stores/ui';
   import { loadProviders } from '../services/provider.service';
-  import { loadSessions } from '../services/session.service';
+  import { loadSessions, startNewChat } from '../services/session.service';
 
   // Components
   import Topbar from './Topbar.svelte';
@@ -78,7 +78,18 @@
   });
 
   const isMobile = $derived(narrow || window.innerWidth <= 768);
+
+  function handleShortcut(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 't') {
+      const ha = get(appState).hass;
+      if (!ha) return;
+      e.preventDefault();
+      startNewChat(ha);
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleShortcut} />
 
 <div class="hc-app" class:narrow={isMobile}>
   <Sidebar />

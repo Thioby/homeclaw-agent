@@ -15139,6 +15139,26 @@ async function createSession(hass, provider) {
     appState.update((s2) => ({ ...s2, error: "Could not create new conversation" }));
   }
 }
+async function startNewChat(hass) {
+  const providers = get(providerState);
+  const startProvider = providers.defaultProvider || providers.selectedProvider;
+  if (!startProvider) {
+    appState.update((s2) => ({ ...s2, error: "Please select a provider first" }));
+    return;
+  }
+  if (providers.selectedProvider !== startProvider) {
+    providerState.update((s2) => ({
+      ...s2,
+      selectedProvider: startProvider,
+      selectedModel: providers.defaultModel || null
+    }));
+    await fetchModels(hass, startProvider);
+  }
+  await createSession(hass, startProvider);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("homeclaw-focus-input"));
+  }
+}
 async function updateSessionProvider(hass, sessionId, provider) {
   try {
     await hass.callWS({
@@ -16149,27 +16169,13 @@ var root$n = /* @__PURE__ */ from_html(`<button class="hc-newchat svelte-19p7jpv
 function NewChatButton($$anchor, $$props) {
   push($$props, false);
   const $appState = () => store_get(appState, "$appState", $$stores);
-  const $providerState = () => store_get(providerState, "$providerState", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   async function handleNewChat() {
     if (!$appState().hass) {
       appState.update((s2) => ({ ...s2, error: "Home Assistant not connected" }));
       return;
     }
-    const startProvider = $providerState().defaultProvider || $providerState().selectedProvider;
-    if (!startProvider) {
-      appState.update((s2) => ({ ...s2, error: "Please select a provider first" }));
-      return;
-    }
-    if ($providerState().selectedProvider !== startProvider) {
-      providerState.update((s2) => ({
-        ...s2,
-        selectedProvider: startProvider,
-        selectedModel: $providerState().defaultModel || null
-      }));
-      await fetchModels($appState().hass, startProvider);
-    }
-    await createSession($appState().hass, startProvider);
+    await startNewChat($appState().hass);
   }
   init();
   var button = root$n();
@@ -17281,8 +17287,15 @@ function MessageInput($$anchor, $$props) {
         }
       });
     };
+    const onFocusRequest = () => {
+      queueMicrotask(() => textarea?.focus());
+    };
     window.addEventListener("homeclaw-suggest", onSuggest);
-    return () => window.removeEventListener("homeclaw-suggest", onSuggest);
+    window.addEventListener("homeclaw-focus-input", onFocusRequest);
+    return () => {
+      window.removeEventListener("homeclaw-suggest", onSuggest);
+      window.removeEventListener("homeclaw-focus-input", onFocusRequest);
+    };
   });
   function handleInput(e2) {
     const target = e2.target;
@@ -20705,7 +20718,16 @@ function HomeclawPanel$1($$anchor, $$props) {
     };
   });
   const isMobile2 = /* @__PURE__ */ user_derived(() => narrow() || window.innerWidth <= 768);
+  function handleShortcut(e2) {
+    if ((e2.ctrlKey || e2.metaKey) && !e2.shiftKey && !e2.altKey && e2.key.toLowerCase() === "t") {
+      const ha = get(appState).hass;
+      if (!ha) return;
+      e2.preventDefault();
+      startNewChat(ha);
+    }
+  }
   var div = root();
+  event("keydown", $window, handleShortcut);
   let classes;
   var node = child(div);
   Sidebar(node, {});

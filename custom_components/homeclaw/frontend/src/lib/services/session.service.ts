@@ -138,6 +138,35 @@ export async function createSession(hass: HomeAssistant, provider: string): Prom
 }
 
 /**
+ * Start a fresh conversation from the user's preferred default provider, then
+ * ask the composer to grab focus so the user can type right away.
+ */
+export async function startNewChat(hass: HomeAssistant): Promise<void> {
+  const providers = get(providerState);
+  const startProvider = providers.defaultProvider || providers.selectedProvider;
+
+  if (!startProvider) {
+    appState.update(s => ({ ...s, error: 'Please select a provider first' }));
+    return;
+  }
+
+  if (providers.selectedProvider !== startProvider) {
+    providerState.update(s => ({
+      ...s,
+      selectedProvider: startProvider,
+      selectedModel: providers.defaultModel || null,
+    }));
+    await fetchModels(hass, startProvider);
+  }
+
+  await createSession(hass, startProvider);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('homeclaw-focus-input'));
+  }
+}
+
+/**
  * Change a session's provider. Only succeeds if the session has no messages
  * yet — the backend locks the provider on first send. On success the local
  * session list and selectedProvider are updated to reflect the change.

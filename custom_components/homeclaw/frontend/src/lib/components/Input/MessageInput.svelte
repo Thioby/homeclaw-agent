@@ -29,8 +29,15 @@
         }
       });
     };
+    const onFocusRequest = () => {
+      queueMicrotask(() => textarea?.focus());
+    };
     window.addEventListener('homeclaw-suggest', onSuggest);
-    return () => window.removeEventListener('homeclaw-suggest', onSuggest);
+    window.addEventListener('homeclaw-focus-input', onFocusRequest);
+    return () => {
+      window.removeEventListener('homeclaw-suggest', onSuggest);
+      window.removeEventListener('homeclaw-focus-input', onFocusRequest);
+    };
   });
 
   function handleInput(e: Event) {
