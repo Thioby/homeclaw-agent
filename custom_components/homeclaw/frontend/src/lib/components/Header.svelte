@@ -1,6 +1,7 @@
 <script lang="ts">
   import { get } from 'svelte/store';
   import { appState } from '$lib/stores/appState';
+  import { activeIsLoading } from '$lib/stores/chatRuntime';
   import { sessionState, activeSession } from '$lib/stores/sessions';
   import { toggleSidebar, toggleSettings, cycleTheme, uiState } from '$lib/stores/ui';
   import { deleteSession } from '$lib/services/session.service';
@@ -74,7 +75,7 @@
     <button
       class="header-btn delete-btn"
       onclick={clearChat}
-      disabled={$appState.isLoading}
+      disabled={$activeIsLoading}
       title="Clear chat"
       aria-label="Clear chat"
     >

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { appState } from "$lib/stores/appState"
+  import { activeIsLoading } from "$lib/stores/chatRuntime"
   import { hasProviders } from "$lib/stores/providers"
 
   let { onclick }: { onclick: () => void } = $props();
 
-  const disabled = $derived($appState.isLoading || !$hasProviders);
+  const disabled = $derived($activeIsLoading || !$hasProviders);
 </script>
 
 <button

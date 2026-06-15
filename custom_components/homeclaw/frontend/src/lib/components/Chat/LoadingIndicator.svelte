@@ -1,9 +1,10 @@
 <script lang="ts">
   import { appState } from '$lib/stores/appState';
+  import { activeStreamingReasoning } from '$lib/stores/chatRuntime';
   import Avatar from '../Avatar.svelte';
 
   const senderName = $derived($appState.agentName || 'Homeclaw');
-  const reasoning = $derived($appState.streamingReasoning);
+  const reasoning = $derived($activeStreamingReasoning);
 
   let reasoningEl: HTMLDivElement | undefined = $state();
 

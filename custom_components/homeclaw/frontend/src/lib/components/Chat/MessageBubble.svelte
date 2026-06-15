@@ -3,6 +3,7 @@
   import { get } from 'svelte/store';
   import { renderMarkdown } from '$lib/services/markdown.service';
   import { sessionState } from '$lib/stores/sessions';
+  import { updateSessionRuntime } from '$lib/stores/chatRuntime';
   import { appState } from '$lib/stores/appState';
   import DashboardAction from './DashboardAction.svelte';
   import Avatar from '../Avatar.svelte';
@@ -57,9 +58,11 @@
   }
 
   function updateToolResultStatus(toolCallId: string, newStatus: string) {
-    appState.update((s) => ({
-      ...s,
-      messages: s.messages.map((msg) =>
+    const sessionId = get(sessionState).activeSessionId;
+    if (!sessionId) return;
+    updateSessionRuntime(sessionId, (r) => ({
+      ...r,
+      messages: r.messages.map((msg) =>
         msg.id === message.id
           ? {
               ...msg,

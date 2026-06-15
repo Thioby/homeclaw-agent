@@ -2,9 +2,11 @@
   import { get } from 'svelte/store';
   import { appState } from '$lib/stores/appState';
   import { sessionState, activeSession } from '$lib/stores/sessions';
+  import { getSessionRuntime, updateSessionRuntime } from '$lib/stores/chatRuntime';
   import { providerState } from '$lib/stores/providers';
   import { sendMessage, sendMessageStream, parseAIResponse } from '$lib/services/websocket.service';
   import { createSession, updateSessionInList } from '$lib/services/session.service';
+  import type { SessionRuntime } from '$lib/stores/chatRuntime';
   import type { FileAttachment } from '$lib/types/message';
   import MessageInput from './MessageInput.svelte';
   import ProviderSelector from './ProviderSelector.svelte';
@@ -95,6 +97,10 @@
     pendingAttachments = pendingAttachments.filter((a) => a.file_id !== fileId);
   }
 
+  function isActiveSession(sessionId: string): boolean {
+    return get(sessionState).activeSessionId === sessionId;
+  }
+
   async function handleSend() {
     const currentAppState = get(appState);
     if (!currentAppState.hass) return;
@@ -102,8 +108,10 @@
     const message = messageInput.getValue().trim();
     const hasAttachments = pendingAttachments.length > 0;
 
-    // Need either text or attachments
-    if ((!message && !hasAttachments) || currentAppState.isLoading) return;
+    // Need either text or attachments, and the active session must be idle
+    const activeId = get(sessionState).activeSessionId;
+    const activeBusy = activeId ? getSessionRuntime(activeId).isLoading : false;
+    if ((!message && !hasAttachments) || activeBusy) return;
 
     // Capture and clear attachments before async operations
     const attachmentsToSend = [...pendingAttachments];
@@ -112,21 +120,26 @@
     messageInput.clear();
     pendingAttachments = [];
 
-    appState.update((s) => ({ ...s, isLoading: true, error: null }));
+    appState.update((s) => ({ ...s, error: null }));
 
     // Create session if none active
-    const currentSessionState = get(sessionState);
     const currentProviderState = get(providerState);
-
-    if (!currentSessionState.activeSessionId && currentProviderState.selectedProvider) {
+    if (!get(sessionState).activeSessionId && currentProviderState.selectedProvider) {
       await createSession(currentAppState.hass, currentProviderState.selectedProvider);
     }
 
-    const updatedSessionState = get(sessionState);
-    if (!updatedSessionState.activeSessionId) {
-      appState.update((s) => ({ ...s, error: 'No active session', isLoading: false }));
+    // Pin the stream to this session for its whole lifetime, so switching the
+    // active conversation never redirects its updates to another session.
+    const streamSessionId = get(sessionState).activeSessionId;
+    if (!streamSessionId) {
+      appState.update((s) => ({ ...s, error: 'No active session' }));
       return;
     }
+
+    const update = (updater: (runtime: SessionRuntime) => SessionRuntime) =>
+      updateSessionRuntime(streamSessionId, updater);
+
+    update((r) => ({ ...r, isLoading: true }));
 
     // Build user message with attachments for local display
     const userMsg: any = {
@@ -144,11 +157,7 @@
       })),
     };
 
-    // Add user message
-    appState.update((s) => ({
-      ...s,
-      messages: [...s.messages, userMsg],
-    }));
+    update((r) => ({ ...r, messages: [...r.messages, userMsg] }));
 
     // Build WS attachments payload (base64 content for backend)
     const wsAttachments = attachmentsToSend.map((a) => ({
@@ -158,15 +167,29 @@
       size: a.size,
     }));
 
+    const bumpSessionPreview = () => {
+      const sessions = get(sessionState).sessions;
+      const session = sessions.find((s) => s.session_id === streamSessionId);
+      const isNewConversation = session?.title === 'New Conversation';
+      const previewText = message || attachmentsToSend.map((a) => a.filename).join(', ');
+      updateSessionInList(
+        streamSessionId,
+        previewText,
+        isNewConversation
+          ? previewText.substring(0, 40) + (previewText.length > 40 ? '...' : '')
+          : undefined
+      );
+    };
+
     try {
       if (USE_STREAMING) {
         let assistantMessageId = '';
         let streamedText = '';
 
         const appendToolResult = (toolName: string, toolCallId: string, result: any) => {
-          appState.update((s) => ({
-            ...s,
-            messages: s.messages.map((msg) => {
+          update((r) => ({
+            ...r,
+            messages: r.messages.map((msg) => {
               if (msg.id !== assistantMessageId) return msg;
               const existing = msg.toolResults || [];
               if (existing.some((tr) => tr.toolCallId === toolCallId)) return msg;
@@ -187,12 +210,12 @@
           {
             onStart: (messageId: string) => {
               assistantMessageId = messageId;
-              appState.update((s) => {
-                if (s.messages.some((m) => m.id === assistantMessageId)) return s;
+              update((r) => {
+                if (r.messages.some((m) => m.id === assistantMessageId)) return r;
                 return {
-                  ...s,
+                  ...r,
                   messages: [
-                    ...s.messages,
+                    ...r.messages,
                     {
                       id: assistantMessageId,
                       type: 'assistant' as const,
@@ -207,27 +230,24 @@
 
             onChunk: (chunk: string) => {
               streamedText += chunk;
-              appState.update((s) => ({
-                ...s,
+              update((r) => ({
+                ...r,
                 isLoading: false,
                 streamingReasoning: '',
-                messages: s.messages.map((msg) =>
+                messages: r.messages.map((msg) =>
                   msg.id === assistantMessageId ? { ...msg, text: streamedText } : msg
                 ),
               }));
             },
 
             onReasoning: (chunk: string) => {
-              appState.update((s) => ({
-                ...s,
-                streamingReasoning: s.streamingReasoning + chunk,
-              }));
+              update((r) => ({ ...r, streamingReasoning: r.streamingReasoning + chunk }));
             },
 
             onStatus: (status: string) => {
-              appState.update((s) => ({
-                ...s,
-                messages: s.messages.map((msg) =>
+              update((r) => ({
+                ...r,
+                messages: r.messages.map((msg) =>
                   msg.id === assistantMessageId
                     ? { ...msg, text: streamedText + `\n\n_${status}_` }
                     : msg
@@ -268,11 +288,11 @@
                 result.assistant_message?.content || streamedText
               );
 
-              appState.update((s) => ({
-                ...s,
+              update((r) => ({
+                ...r,
                 isLoading: false,
                 streamingReasoning: '',
-                messages: s.messages.map((msg) =>
+                messages: r.messages.map((msg) =>
                   msg.id === assistantMessageId
                     ? {
                         ...msg,
@@ -286,28 +306,16 @@
                 ),
               }));
 
-              const sessions = get(sessionState).sessions;
-              const activeId = get(sessionState).activeSessionId;
-              const session = sessions.find((s) => s.session_id === activeId);
-              const isNewConversation = session?.title === 'New Conversation';
-              const previewText = message || attachmentsToSend.map((a) => a.filename).join(', ');
-              updateSessionInList(
-                activeId!,
-                previewText,
-                isNewConversation
-                  ? previewText.substring(0, 40) + (previewText.length > 40 ? '...' : '')
-                  : undefined
-              );
+              bumpSessionPreview();
             },
 
             onError: (error: string) => {
               console.error('Streaming error:', error);
-              appState.update((s) => ({
-                ...s,
+              update((r) => ({
+                ...r,
                 isLoading: false,
                 streamingReasoning: '',
-                error: error,
-                messages: s.messages.map((msg) =>
+                messages: r.messages.map((msg) =>
                   msg.id === assistantMessageId
                     ? {
                         ...msg,
@@ -320,31 +328,22 @@
                 ),
               }));
 
+              if (isActiveSession(streamSessionId)) {
+                appState.update((s) => ({ ...s, error }));
+              }
+
               // Backend already persisted the user message + error assistant
               // message, so the session is no longer empty. Bump local count
               // to match or the provider selector will incorrectly stay
               // unlocked.
-              const activeId = get(sessionState).activeSessionId;
-              if (activeId) {
-                const sessions = get(sessionState).sessions;
-                const sess = sessions.find((s) => s.session_id === activeId);
-                const isNewConversation = sess?.title === 'New Conversation';
-                const previewText = message;
-                updateSessionInList(
-                  activeId,
-                  previewText,
-                  isNewConversation
-                    ? previewText.substring(0, 40) + (previewText.length > 40 ? '...' : '')
-                    : undefined
-                );
-              }
+              bumpSessionPreview();
             },
           },
           wsAttachments.length > 0 ? wsAttachments : undefined
         );
       } else {
         const result = await sendMessage(currentAppState.hass, message, wsAttachments.length > 0 ? wsAttachments : undefined);
-        appState.update((s) => ({ ...s, isLoading: false }));
+        update((r) => ({ ...r, isLoading: false }));
 
         if (result.assistant_message) {
           const { text, automation, dashboard } = parseAIResponse(
@@ -362,38 +361,26 @@
           };
 
           if (result.assistant_message.status === 'error') {
-            appState.update((s) => ({ ...s, error: result.assistant_message.error_message }));
+            if (isActiveSession(streamSessionId)) {
+              appState.update((s) => ({ ...s, error: result.assistant_message.error_message }));
+            }
             assistantMsg.text = `Error: ${result.assistant_message.error_message}`;
           }
 
-          appState.update((s) => ({
-            ...s,
-            messages: [...s.messages, assistantMsg],
-          }));
+          update((r) => ({ ...r, messages: [...r.messages, assistantMsg] }));
 
-          const sessions = get(sessionState).sessions;
-          const activeId = get(sessionState).activeSessionId;
-          const session = sessions.find((s) => s.session_id === activeId);
-          const isNewConversation = session?.title === 'New Conversation';
-          updateSessionInList(
-            activeId!,
-            message,
-            isNewConversation
-              ? message.substring(0, 40) + (message.length > 40 ? '...' : '')
-              : undefined
-          );
+          bumpSessionPreview();
         }
       }
     } catch (error: any) {
       console.error('WebSocket error:', error);
       const errorMessage = error.message || 'An error occurred while processing your request';
-      appState.update((s) => ({
-        ...s,
+      update((r) => ({
+        ...r,
         isLoading: false,
         streamingReasoning: '',
-        error: errorMessage,
         messages: [
-          ...s.messages,
+          ...r.messages,
           {
             id: `error-${Date.now()}-${Math.random()}`,
             type: 'assistant',
@@ -401,6 +388,9 @@
           },
         ],
       }));
+      if (isActiveSession(streamSessionId)) {
+        appState.update((s) => ({ ...s, error: errorMessage }));
+      }
     }
   }
 </script>

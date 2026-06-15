@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { appState } from '$lib/stores/appState';
+  import { activeIsLoading } from '$lib/stores/chatRuntime';
   import { get } from 'svelte/store';
   import { onMount } from 'svelte';
   import { autoResize } from '$lib/utils/dom';
@@ -47,7 +47,7 @@
   }
 
   function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey && !get(appState).isLoading) {
+    if (e.key === 'Enter' && !e.shiftKey && !get(activeIsLoading)) {
       e.preventDefault();
       onSend();
     }
@@ -134,7 +134,7 @@
     bind:this={textarea}
     bind:value
     placeholder="Ask me anything about your Home Assistant..."
-    disabled={$appState.isLoading}
+    disabled={$activeIsLoading}
     oninput={handleInput}
     onkeydown={handleKeyDown}
     onpaste={handlePaste}

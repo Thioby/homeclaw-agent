@@ -2,6 +2,12 @@ import { get } from 'svelte/store';
 import type { HomeAssistant } from '$lib/types';
 import { sessionState } from '$lib/stores/sessions';
 import { appState } from '$lib/stores/appState';
+import {
+  setSessionMessages,
+  updateSessionRuntime,
+  clearSessionRuntime,
+  isSessionBusy,
+} from '$lib/stores/chatRuntime';
 import { providerState } from '$lib/stores/providers';
 import { fetchModels } from './provider.service';
 import { clearSessionCache } from './markdown.service';
@@ -42,7 +48,20 @@ export async function loadSessions(hass: HomeAssistant): Promise<void> {
  */
 export async function selectSession(hass: HomeAssistant, sessionId: string): Promise<void> {
   sessionState.update(s => ({ ...s, activeSessionId: sessionId }));
-  appState.update(s => ({ ...s, isLoading: true, error: null }));
+
+  // A session with a live stream keeps its in-flight runtime. Refetching from
+  // the server would overwrite the streaming message (the server only persists
+  // it once the stream ends), making the conversation look frozen on return.
+  if (isSessionBusy(sessionId)) {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      const { closeSidebar } = await import('$lib/stores/ui');
+      closeSidebar();
+    }
+    return;
+  }
+
+  appState.update(s => ({ ...s, error: null }));
+  updateSessionRuntime(sessionId, r => ({ ...r, isLoading: true }));
 
   try {
     const result = await hass.callWS({
@@ -67,7 +86,7 @@ export async function selectSession(hass: HomeAssistant, sessionId: string): Pro
       }))
       .sort((a: any, b: any) => (a.timestamp || '').localeCompare(b.timestamp || ''));
 
-    appState.update((s) => ({ ...s, messages }));
+    setSessionMessages(sessionId, messages);
 
     // Mirror the session's provider + model in the selector so the user sees
     // what will actually be used. Provider is locked server-side once the
@@ -94,7 +113,7 @@ export async function selectSession(hass: HomeAssistant, sessionId: string): Pro
     console.error('Failed to load session:', error);
     appState.update(s => ({ ...s, error: 'Could not load conversation' }));
   } finally {
-    appState.update(s => ({ ...s, isLoading: false }));
+    updateSessionRuntime(sessionId, r => ({ ...r, isLoading: false }));
   }
 }
 
@@ -118,8 +137,8 @@ export async function createSession(hass: HomeAssistant, provider: string): Prom
     }));
     
     console.log('[Session] Active session ID set to:', result.session_id);
-    
-    appState.update(s => ({ ...s, messages: [] }));
+
+    setSessionMessages(result.session_id, []);
 
     // WORKAROUND: Small delay to ensure backend has saved the session
     // This fixes race condition with streaming endpoint
@@ -221,6 +240,7 @@ export async function deleteSession(hass: HomeAssistant, sessionId: string): Pro
 
     // Clear markdown cache for this session
     clearSessionCache(sessionId);
+    clearSessionRuntime(sessionId);
 
     // If deleted active session, select first available
     const state = get(sessionState);
@@ -229,7 +249,6 @@ export async function deleteSession(hass: HomeAssistant, sessionId: string): Pro
         await selectSession(hass, state.sessions[0].session_id);
       } else {
         sessionState.update(s => ({ ...s, activeSessionId: null }));
-        appState.update(s => ({ ...s, messages: [] }));
       }
     }
   } catch (error) {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { appState, hasMessages } from '$lib/stores/appState';
+  import { activeMessages, activeIsLoading, activeHasMessages } from '$lib/stores/chatRuntime';
   import { scrollToBottom } from '$lib/utils/dom';
   import MessageBubble from './MessageBubble.svelte';
   import LoadingIndicator from './LoadingIndicator.svelte';
@@ -15,8 +15,8 @@
   // Auto-scroll to bottom when new messages arrive
   $effect(() => {
     // Track messages array to re-run on changes
-    const _msgs = $appState.messages;
-    const _loading = $appState.isLoading;
+    const _msgs = $activeMessages;
+    const _loading = $activeIsLoading;
     if (messagesContainer) {
       scrollToBottom(messagesContainer);
     }
@@ -39,16 +39,16 @@
 
 <div class="chat-wrapper">
   <div class="messages" bind:this={messagesContainer} onscroll={handleScroll}>
-    {#if !$hasMessages && !$appState.isLoading}
+    {#if !$activeHasMessages && !$activeIsLoading}
       <EmptyState />
     {/if}
 
     <div class="messages-inner">
-      {#each $appState.messages as message (message.id)}
+      {#each $activeMessages as message (message.id)}
         <MessageBubble {message} {hass} />
       {/each}
 
-      {#if $appState.isLoading}
+      {#if $activeIsLoading}
         <LoadingIndicator />
       {/if}
     </div>

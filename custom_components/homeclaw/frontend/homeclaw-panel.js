@@ -8866,17 +8866,13 @@ function prop(props, key, flags2, fallback) {
 }
 const initialState$3 = {
   hass: null,
-  messages: [],
-  isLoading: false,
   error: null,
   reasoningEnabled: false,
   agentName: "Homeclaw",
   agentEmoji: "",
-  userName: "",
-  streamingReasoning: ""
+  userName: ""
 };
 const appState = writable(initialState$3);
-const hasMessages = derived(appState, ($state) => $state.messages.length > 0);
 derived(appState, ($state) => $state.error !== null);
 function isValidAesthetic(value) {
   return value === "warm" || value === "tech" || value === "ambient";
@@ -9191,6 +9187,41 @@ const activeSession = derived(
   sessionState,
   ($state) => $state.sessions.find((s2) => s2.session_id === $state.activeSessionId) || null
 );
+function emptyRuntime() {
+  return { messages: [], isLoading: false, streamingReasoning: "" };
+}
+const chatRuntime = writable({});
+function getSessionRuntime(sessionId) {
+  return get(chatRuntime)[sessionId] ?? emptyRuntime();
+}
+function updateSessionRuntime(sessionId, updater) {
+  chatRuntime.update((all) => ({
+    ...all,
+    [sessionId]: updater(all[sessionId] ?? emptyRuntime())
+  }));
+}
+function setSessionMessages(sessionId, messages) {
+  updateSessionRuntime(sessionId, (r2) => ({ ...r2, messages }));
+}
+function clearSessionRuntime(sessionId) {
+  chatRuntime.update((all) => {
+    const next = { ...all };
+    delete next[sessionId];
+    return next;
+  });
+}
+function isSessionBusy(sessionId) {
+  const runtime = getSessionRuntime(sessionId);
+  return runtime.isLoading || runtime.messages.some((m2) => m2.isStreaming);
+}
+const activeRuntime = derived(
+  [chatRuntime, sessionState],
+  ([$runtime, $session]) => ($session.activeSessionId ? $runtime[$session.activeSessionId] : void 0) ?? emptyRuntime()
+);
+const activeMessages = derived(activeRuntime, ($r) => $r.messages);
+const activeIsLoading = derived(activeRuntime, ($r) => $r.isLoading);
+const activeStreamingReasoning = derived(activeRuntime, ($r) => $r.streamingReasoning);
+const activeHasMessages = derived(activeRuntime, ($r) => $r.messages.length > 0);
 function L$1() {
   return { async: false, breaks: false, extensions: null, gfm: true, hooks: null, pedantic: false, renderer: null, silent: false, tokenizer: null, walkTokens: null };
 }
@@ -15071,7 +15102,15 @@ async function loadSessions(hass) {
 }
 async function selectSession(hass, sessionId) {
   sessionState.update((s2) => ({ ...s2, activeSessionId: sessionId }));
-  appState.update((s2) => ({ ...s2, isLoading: true, error: null }));
+  if (isSessionBusy(sessionId)) {
+    if (typeof window !== "undefined" && window.innerWidth <= 768) {
+      const { closeSidebar: closeSidebar2 } = await Promise.resolve().then(() => ui);
+      closeSidebar2();
+    }
+    return;
+  }
+  appState.update((s2) => ({ ...s2, error: null }));
+  updateSessionRuntime(sessionId, (r2) => ({ ...r2, isLoading: true }));
   try {
     const result = await hass.callWS({
       type: "homeclaw/sessions/get",
@@ -15089,7 +15128,7 @@ async function selectSession(hass, sessionId) {
       error_message: m2.error_message,
       attachments: m2.attachments
     })).sort((a2, b2) => (a2.timestamp || "").localeCompare(b2.timestamp || ""));
-    appState.update((s2) => ({ ...s2, messages }));
+    setSessionMessages(sessionId, messages);
     const sessionProvider = result.session?.provider;
     const sessionModel = result.session?.model || null;
     if (sessionProvider) {
@@ -15110,7 +15149,7 @@ async function selectSession(hass, sessionId) {
     console.error("Failed to load session:", error);
     appState.update((s2) => ({ ...s2, error: "Could not load conversation" }));
   } finally {
-    appState.update((s2) => ({ ...s2, isLoading: false }));
+    updateSessionRuntime(sessionId, (r2) => ({ ...r2, isLoading: false }));
   }
 }
 async function createSession(hass, provider) {
@@ -15127,7 +15166,7 @@ async function createSession(hass, provider) {
       activeSessionId: result.session_id
     }));
     console.log("[Session] Active session ID set to:", result.session_id);
-    appState.update((s2) => ({ ...s2, messages: [] }));
+    setSessionMessages(result.session_id, []);
     await new Promise((resolve) => setTimeout(resolve, 100));
     console.log("[Session] Waited 100ms for session to be fully saved");
     if (typeof window !== "undefined" && window.innerWidth <= 768) {
@@ -15195,13 +15234,13 @@ async function deleteSession(hass, sessionId) {
       sessions: s2.sessions.filter((session) => session.session_id !== sessionId)
     }));
     clearSessionCache(sessionId);
+    clearSessionRuntime(sessionId);
     const state2 = get(sessionState);
     if (state2.activeSessionId === sessionId) {
       if (state2.sessions.length > 0) {
         await selectSession(hass, state2.sessions[0].session_id);
       } else {
         sessionState.update((s2) => ({ ...s2, activeSessionId: null }));
-        appState.update((s2) => ({ ...s2, messages: [] }));
       }
     }
   } catch (error) {
@@ -16685,9 +16724,11 @@ function MessageBubble($$anchor, $$props) {
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   }
   function updateToolResultStatus(toolCallId, newStatus) {
-    appState.update((s2) => ({
-      ...s2,
-      messages: s2.messages.map((msg) => msg.id === $$props.message.id ? {
+    const sessionId = get(sessionState).activeSessionId;
+    if (!sessionId) return;
+    updateSessionRuntime(sessionId, (r2) => ({
+      ...r2,
+      messages: r2.messages.map((msg) => msg.id === $$props.message.id ? {
         ...msg,
         toolResults: (msg.toolResults || []).map((tr) => tr.toolCallId === toolCallId ? { ...tr, status: newStatus } : tr)
       } : msg)
@@ -16963,9 +17004,10 @@ var root$i = /* @__PURE__ */ from_html(`<div class="hc-msg hc-loading svelte-174
 function LoadingIndicator($$anchor, $$props) {
   push($$props, true);
   const $appState = () => store_get(appState, "$appState", $$stores);
+  const $activeStreamingReasoning = () => store_get(activeStreamingReasoning, "$activeStreamingReasoning", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   const senderName = /* @__PURE__ */ user_derived(() => $appState().agentName || "Homeclaw");
-  const reasoning = /* @__PURE__ */ user_derived(() => $appState().streamingReasoning);
+  const reasoning = /* @__PURE__ */ user_derived($activeStreamingReasoning);
   let reasoningEl = /* @__PURE__ */ state(void 0);
   user_effect(() => {
     void get$1(reasoning);
@@ -17191,14 +17233,15 @@ var root_4$7 = /* @__PURE__ */ from_html(`<button class="scroll-bottom-btn svelt
 var root$g = /* @__PURE__ */ from_html(`<div class="chat-wrapper svelte-hiq0w4"><div class="messages svelte-hiq0w4"><!> <div class="messages-inner svelte-hiq0w4"><!> <!></div> <!></div> <!></div>`);
 function ChatArea($$anchor, $$props) {
   push($$props, true);
-  const $appState = () => store_get(appState, "$appState", $$stores);
-  const $hasMessages = () => store_get(hasMessages, "$hasMessages", $$stores);
+  const $activeMessages = () => store_get(activeMessages, "$activeMessages", $$stores);
+  const $activeIsLoading = () => store_get(activeIsLoading, "$activeIsLoading", $$stores);
+  const $activeHasMessages = () => store_get(activeHasMessages, "$activeHasMessages", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   let messagesContainer;
   let showScrollBtn = /* @__PURE__ */ state(false);
   user_effect(() => {
-    $appState().messages;
-    $appState().isLoading;
+    $activeMessages();
+    $activeIsLoading();
     if (messagesContainer) {
       scrollToBottom(messagesContainer);
     }
@@ -17222,12 +17265,12 @@ function ChatArea($$anchor, $$props) {
       EmptyState($$anchor2, {});
     };
     if_block(node, ($$render) => {
-      if (!$hasMessages() && !$appState().isLoading) $$render(consequent);
+      if (!$activeHasMessages() && !$activeIsLoading()) $$render(consequent);
     });
   }
   var div_2 = sibling(node, 2);
   var node_1 = child(div_2);
-  each(node_1, 1, () => $appState().messages, (message) => message.id, ($$anchor2, message) => {
+  each(node_1, 1, $activeMessages, (message) => message.id, ($$anchor2, message) => {
     MessageBubble($$anchor2, {
       get message() {
         return get$1(message);
@@ -17243,7 +17286,7 @@ function ChatArea($$anchor, $$props) {
       LoadingIndicator($$anchor2, {});
     };
     if_block(node_2, ($$render) => {
-      if ($appState().isLoading) $$render(consequent_1);
+      if ($activeIsLoading()) $$render(consequent_1);
     });
   }
   var node_3 = sibling(div_2, 2);
@@ -17270,7 +17313,7 @@ var root_1$g = /* @__PURE__ */ from_html(`<div class="drop-overlay svelte-5grvz8
 var root$f = /* @__PURE__ */ from_html(`<div role="textbox" tabindex="-1"><textarea placeholder="Ask me anything about your Home Assistant..." class="svelte-5grvz8"></textarea> <!></div>`);
 function MessageInput($$anchor, $$props) {
   push($$props, true);
-  const $appState = () => store_get(appState, "$appState", $$stores);
+  const $activeIsLoading = () => store_get(activeIsLoading, "$activeIsLoading", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   let textarea;
   let value = /* @__PURE__ */ state("");
@@ -17303,7 +17346,7 @@ function MessageInput($$anchor, $$props) {
     autoResize(target);
   }
   function handleKeyDown(e2) {
-    if (e2.key === "Enter" && !e2.shiftKey && !get(appState).isLoading) {
+    if (e2.key === "Enter" && !e2.shiftKey && !get(activeIsLoading)) {
       e2.preventDefault();
       $$props.onSend();
     }
@@ -17381,7 +17424,7 @@ function MessageInput($$anchor, $$props) {
   }
   template_effect(() => {
     classes = set_class(div, 1, "input-wrapper svelte-5grvz8", null, classes, { "drag-over": get$1(isDragOver) });
-    textarea_1.disabled = $appState().isLoading;
+    textarea_1.disabled = $activeIsLoading();
   });
   event("dragover", div, handleDragOver);
   event("dragleave", div, handleDragLeave);
@@ -17526,18 +17569,16 @@ function ModelSelector($$anchor, $$props) {
 delegate(["change"]);
 var root$e = /* @__PURE__ */ from_html(`<button class="send-button svelte-1lpj1oh"><svg viewBox="0 0 24 24" class="icon svelte-1lpj1oh"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></button>`);
 function SendButton($$anchor, $$props) {
-  push($$props, true);
-  const $appState = () => store_get(appState, "$appState", $$stores);
+  const $activeIsLoading = () => store_get(activeIsLoading, "$activeIsLoading", $$stores);
   const $hasProviders = () => store_get(hasProviders, "$hasProviders", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
-  const disabled = /* @__PURE__ */ user_derived(() => $appState().isLoading || !$hasProviders());
+  const disabled = /* @__PURE__ */ user_derived(() => $activeIsLoading() || !$hasProviders());
   var button = root$e();
   button.__click = function(...$$args) {
     $$props.onclick?.apply(this, $$args);
   };
   template_effect(() => button.disabled = get$1(disabled));
   append($$anchor, button);
-  pop();
   $$cleanup();
 }
 delegate(["click"]);
@@ -17562,7 +17603,7 @@ delegate(["change"]);
 var root$c = /* @__PURE__ */ from_html(`<input type="file" multiple class="hidden-input svelte-nfbktg"/> <button class="attach-button svelte-nfbktg" title="Attach file"><svg viewBox="0 0 24 24" class="icon svelte-nfbktg"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"></path></svg></button>`, 1);
 function AttachButton($$anchor, $$props) {
   push($$props, true);
-  const $appState = () => store_get(appState, "$appState", $$stores);
+  const $activeIsLoading = () => store_get(activeIsLoading, "$activeIsLoading", $$stores);
   const [$$stores, $$cleanup] = setup_stores();
   let fileInput;
   const ACCEPT = [
@@ -17614,7 +17655,7 @@ function AttachButton($$anchor, $$props) {
   button.__click = handleClick;
   template_effect(() => {
     set_attribute(input_1, "accept", ACCEPT);
-    button.disabled = $appState().isLoading;
+    button.disabled = $activeIsLoading();
   });
   append($$anchor, fragment);
   pop();
@@ -17791,26 +17832,32 @@ function InputArea($$anchor, $$props) {
   function removeAttachment(fileId) {
     set(pendingAttachments, get$1(pendingAttachments).filter((a2) => a2.file_id !== fileId), true);
   }
+  function isActiveSession(sessionId) {
+    return get(sessionState).activeSessionId === sessionId;
+  }
   async function handleSend() {
     const currentAppState = get(appState);
     if (!currentAppState.hass) return;
     const message = messageInput.getValue().trim();
     const hasAttachments = get$1(pendingAttachments).length > 0;
-    if (!message && !hasAttachments || currentAppState.isLoading) return;
+    const activeId = get(sessionState).activeSessionId;
+    const activeBusy = activeId ? getSessionRuntime(activeId).isLoading : false;
+    if (!message && !hasAttachments || activeBusy) return;
     const attachmentsToSend = [...get$1(pendingAttachments)];
     messageInput.clear();
     set(pendingAttachments, [], true);
-    appState.update((s2) => ({ ...s2, isLoading: true, error: null }));
-    const currentSessionState = get(sessionState);
+    appState.update((s2) => ({ ...s2, error: null }));
     const currentProviderState = get(providerState);
-    if (!currentSessionState.activeSessionId && currentProviderState.selectedProvider) {
+    if (!get(sessionState).activeSessionId && currentProviderState.selectedProvider) {
       await createSession(currentAppState.hass, currentProviderState.selectedProvider);
     }
-    const updatedSessionState = get(sessionState);
-    if (!updatedSessionState.activeSessionId) {
-      appState.update((s2) => ({ ...s2, error: "No active session", isLoading: false }));
+    const streamSessionId = get(sessionState).activeSessionId;
+    if (!streamSessionId) {
+      appState.update((s2) => ({ ...s2, error: "No active session" }));
       return;
     }
+    const update = (updater) => updateSessionRuntime(streamSessionId, updater);
+    update((r2) => ({ ...r2, isLoading: true }));
     const userMsg = {
       id: `user-${Date.now()}-${Math.random()}`,
       type: "user",
@@ -17825,21 +17872,28 @@ function InputArea($$anchor, $$props) {
         status: "ready"
       }))
     };
-    appState.update((s2) => ({ ...s2, messages: [...s2.messages, userMsg] }));
+    update((r2) => ({ ...r2, messages: [...r2.messages, userMsg] }));
     const wsAttachments = attachmentsToSend.map((a2) => ({
       filename: a2.filename,
       mime_type: a2.mime_type,
       content: a2.content || "",
       size: a2.size
     }));
+    const bumpSessionPreview = () => {
+      const sessions = get(sessionState).sessions;
+      const session = sessions.find((s2) => s2.session_id === streamSessionId);
+      const isNewConversation = session?.title === "New Conversation";
+      const previewText = message || attachmentsToSend.map((a2) => a2.filename).join(", ");
+      updateSessionInList(streamSessionId, previewText, isNewConversation ? previewText.substring(0, 40) + (previewText.length > 40 ? "..." : "") : void 0);
+    };
     try {
       if (USE_STREAMING) {
         let assistantMessageId = "";
         let streamedText = "";
         const appendToolResult = (toolName, toolCallId, result) => {
-          appState.update((s2) => ({
-            ...s2,
-            messages: s2.messages.map((msg) => {
+          update((r2) => ({
+            ...r2,
+            messages: r2.messages.map((msg) => {
               if (msg.id !== assistantMessageId) return msg;
               const existing = msg.toolResults || [];
               if (existing.some((tr) => tr.toolCallId === toolCallId)) return msg;
@@ -17859,12 +17913,12 @@ function InputArea($$anchor, $$props) {
           {
             onStart: (messageId) => {
               assistantMessageId = messageId;
-              appState.update((s2) => {
-                if (s2.messages.some((m2) => m2.id === assistantMessageId)) return s2;
+              update((r2) => {
+                if (r2.messages.some((m2) => m2.id === assistantMessageId)) return r2;
                 return {
-                  ...s2,
+                  ...r2,
                   messages: [
-                    ...s2.messages,
+                    ...r2.messages,
                     {
                       id: assistantMessageId,
                       type: "assistant",
@@ -17878,20 +17932,20 @@ function InputArea($$anchor, $$props) {
             },
             onChunk: (chunk) => {
               streamedText += chunk;
-              appState.update((s2) => ({
-                ...s2,
+              update((r2) => ({
+                ...r2,
                 isLoading: false,
                 streamingReasoning: "",
-                messages: s2.messages.map((msg) => msg.id === assistantMessageId ? { ...msg, text: streamedText } : msg)
+                messages: r2.messages.map((msg) => msg.id === assistantMessageId ? { ...msg, text: streamedText } : msg)
               }));
             },
             onReasoning: (chunk) => {
-              appState.update((s2) => ({ ...s2, streamingReasoning: s2.streamingReasoning + chunk }));
+              update((r2) => ({ ...r2, streamingReasoning: r2.streamingReasoning + chunk }));
             },
             onStatus: (status) => {
-              appState.update((s2) => ({
-                ...s2,
-                messages: s2.messages.map((msg) => msg.id === assistantMessageId ? { ...msg, text: streamedText + `
+              update((r2) => ({
+                ...r2,
+                messages: r2.messages.map((msg) => msg.id === assistantMessageId ? { ...msg, text: streamedText + `
 
 _${status}_` } : msg)
               }));
@@ -17916,11 +17970,11 @@ _${status}_` } : msg)
             },
             onComplete: (result) => {
               const { text: text2, automation, dashboard } = parseAIResponse(result.assistant_message?.content || streamedText);
-              appState.update((s2) => ({
-                ...s2,
+              update((r2) => ({
+                ...r2,
                 isLoading: false,
                 streamingReasoning: "",
-                messages: s2.messages.map((msg) => msg.id === assistantMessageId ? {
+                messages: r2.messages.map((msg) => msg.id === assistantMessageId ? {
                   ...msg,
                   text: text2 || streamedText,
                   status: "completed",
@@ -17929,21 +17983,15 @@ _${status}_` } : msg)
                   dashboard: dashboard || result.assistant_message?.metadata?.dashboard
                 } : msg)
               }));
-              const sessions = get(sessionState).sessions;
-              const activeId = get(sessionState).activeSessionId;
-              const session = sessions.find((s2) => s2.session_id === activeId);
-              const isNewConversation = session?.title === "New Conversation";
-              const previewText = message || attachmentsToSend.map((a2) => a2.filename).join(", ");
-              updateSessionInList(activeId, previewText, isNewConversation ? previewText.substring(0, 40) + (previewText.length > 40 ? "..." : "") : void 0);
+              bumpSessionPreview();
             },
             onError: (error) => {
               console.error("Streaming error:", error);
-              appState.update((s2) => ({
-                ...s2,
+              update((r2) => ({
+                ...r2,
                 isLoading: false,
                 streamingReasoning: "",
-                error,
-                messages: s2.messages.map((msg) => msg.id === assistantMessageId ? {
+                messages: r2.messages.map((msg) => msg.id === assistantMessageId ? {
                   ...msg,
                   text: `Error: ${error}`,
                   status: "error",
@@ -17951,14 +17999,10 @@ _${status}_` } : msg)
                   error_message: error
                 } : msg)
               }));
-              const activeId = get(sessionState).activeSessionId;
-              if (activeId) {
-                const sessions = get(sessionState).sessions;
-                const sess = sessions.find((s2) => s2.session_id === activeId);
-                const isNewConversation = sess?.title === "New Conversation";
-                const previewText = message;
-                updateSessionInList(activeId, previewText, isNewConversation ? previewText.substring(0, 40) + (previewText.length > 40 ? "..." : "") : void 0);
+              if (isActiveSession(streamSessionId)) {
+                appState.update((s2) => ({ ...s2, error }));
               }
+              bumpSessionPreview();
             }
           },
           wsAttachments.length > 0 ? wsAttachments : void 0
@@ -17967,13 +18011,12 @@ _${status}_` } : msg)
     } catch (error) {
       console.error("WebSocket error:", error);
       const errorMessage = error.message || "An error occurred while processing your request";
-      appState.update((s2) => ({
-        ...s2,
+      update((r2) => ({
+        ...r2,
         isLoading: false,
         streamingReasoning: "",
-        error: errorMessage,
         messages: [
-          ...s2.messages,
+          ...r2.messages,
           {
             id: `error-${Date.now()}-${Math.random()}`,
             type: "assistant",
@@ -17981,6 +18024,9 @@ _${status}_` } : msg)
           }
         ]
       }));
+      if (isActiveSession(streamSessionId)) {
+        appState.update((s2) => ({ ...s2, error: errorMessage }));
+      }
     }
   }
   var div = root$b();

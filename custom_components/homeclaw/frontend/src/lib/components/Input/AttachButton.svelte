@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { appState } from '$lib/stores/appState';
+  import { activeIsLoading } from '$lib/stores/chatRuntime';
 
   let { onFilesSelected }: { onFilesSelected: (files: FileList) => void } = $props();
 
@@ -63,7 +63,7 @@
 <button
   class="attach-button"
   onclick={handleClick}
-  disabled={$appState.isLoading}
+  disabled={$activeIsLoading}
   title="Attach file"
 >
   <svg viewBox="0 0 24 24" class="icon">
