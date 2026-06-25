@@ -407,6 +407,26 @@
       }
     ]
   },
+  "deepseek": {
+    "display_name": "DeepSeek",
+    "description": "DeepSeek API (OpenAI-compatible)",
+    "allow_custom_model": true,
+    "models": [
+      {
+        "id": "deepseek-v4-pro",
+        "name": "DeepSeek V4 Pro",
+        "description": "Flagship model with thinking mode",
+        "context_window": 131072,
+        "default": true
+      },
+      {
+        "id": "deepseek-v4-flash",
+        "name": "DeepSeek V4 Flash",
+        "description": "Fast and cheap, thinking mode optional",
+        "context_window": 131072
+      }
+    ]
+  },
   "xiaomi": {
     "display_name": "Xiaomi MiMo",
     "description": "Xiaomi MiMo AI models",

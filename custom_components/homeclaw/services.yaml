@@ -10,7 +10,7 @@ query:
       example: true
       default: false
     provider:
-      description: "The AI provider to use (openai, llama, gemini, openrouter, anthropic, alter, zai, local)"
+      description: "The AI provider to use (openai, llama, gemini, openrouter, anthropic, alter, zai, deepseek, local)"
       example: "openai"
       default: "openai"
       selector:
@@ -23,6 +23,7 @@ query:
             - "anthropic"
             - "alter"
             - "zai"
+            - "deepseek"
             - "local"
 
 create_dashboard:
@@ -33,7 +34,7 @@ create_dashboard:
       description: "The dashboard configuration as a JSON object."
       example: '{"title": "My Dashboard", "url_path": "my-dashboard", "views": []}'
     provider:
-      description: "The AI provider to use (openai, llama, gemini, openrouter, anthropic, alter, zai, local)"
+      description: "The AI provider to use (openai, llama, gemini, openrouter, anthropic, alter, zai, deepseek, local)"
       example: "openai"
       default: "openai"
       selector:
@@ -46,6 +47,7 @@ create_dashboard:
             - "anthropic"
             - "alter"
             - "zai"
+            - "deepseek"
             - "local"
 
 create_automation:
@@ -56,7 +58,7 @@ create_automation:
       description: "The automation configuration as a JSON object."
       example: '{"alias": "Turn off lights at 9 PM", "trigger": [{"platform": "time", "at": "21:00:00"}], "action": [{"service": "light.turn_off", "target": {"entity_id": "light.living_room"}}]}'
     provider:
-      description: "The AI provider to use (openai, llama, gemini, openrouter, anthropic, alter, zai, local)"
+      description: "The AI provider to use (openai, llama, gemini, openrouter, anthropic, alter, zai, deepseek, local)"
       example: "openai"
       default: "openai"
       selector:
@@ -69,6 +71,7 @@ create_automation:
             - "anthropic"
             - "alter"
             - "zai"
+            - "deepseek"
             - "local"
 
 update_dashboard:
@@ -82,7 +85,7 @@ update_dashboard:
       description: "The updated dashboard configuration as a JSON object."
       example: '{"title": "Updated Dashboard", "views": []}'
     provider:
-      description: "The AI provider to use (openai, llama, gemini, openrouter, anthropic, alter, zai, local)"
+      description: "The AI provider to use (openai, llama, gemini, openrouter, anthropic, alter, zai, deepseek, local)"
       example: "openai"
       default: "openai"
       selector:
@@ -95,6 +98,7 @@ update_dashboard:
             - "anthropic"
             - "alter"
             - "zai"
+            - "deepseek"
             - "local"
 
 rag_reindex:

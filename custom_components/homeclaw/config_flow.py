@@ -63,6 +63,7 @@ PROVIDERS = {
     "anthropic_oauth": "Anthropic (Claude Pro/Max)",
     "alter": "Alter",
     "zai": "z.ai",
+    "deepseek": "DeepSeek",
     "xiaomi": "Xiaomi MiMo",
     "local": "Local Model",
 }
@@ -75,6 +76,7 @@ TOKEN_FIELD_NAMES = {
     "anthropic": "anthropic_token",
     "alter": "alter_token",
     "zai": "zai_token",
+    "deepseek": "deepseek_token",
     "xiaomi": "xiaomi_token",
     "zai_endpoint": "zai_endpoint",
     "local": CONF_LOCAL_URL,  # For local models, we use URL instead of token
@@ -88,6 +90,7 @@ TOKEN_LABELS = {
     "anthropic": "Anthropic API Key",
     "alter": "Alter API Key",
     "zai": "z.ai API Key",
+    "deepseek": "DeepSeek API Key",
     "xiaomi": "Xiaomi MiMo API Key",
     "zai_endpoint": "z.ai API Endpoint Type",
     "local": "Local API URL (e.g., http://localhost:11434/api/generate)",

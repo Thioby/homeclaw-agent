@@ -110,6 +110,7 @@ class HomeclawAgent:
             "groq": "groq_token",
             "openrouter": "openrouter_token",
             "zai": "zai_token",
+            "deepseek": "deepseek_token",
             "xiaomi": "xiaomi_token",
             "local": None,  # No token needed
         }
