@@ -36,7 +36,6 @@ class GroqProvider(OpenAIProvider):
     ) -> dict[str, Any]:
         payload = super()._build_payload(messages, **kwargs)
         payload.pop("reasoning_effort", None)
-        payload["reasoning_format"] = (
-            "parsed" if kwargs.get("reasoning") else "hidden"
-        )
+        if kwargs.get("reasoning"):
+            payload["reasoning_format"] = "parsed"
         return payload

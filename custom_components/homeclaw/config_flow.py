@@ -64,6 +64,7 @@ PROVIDERS = {
     "alter": "Alter",
     "zai": "z.ai",
     "deepseek": "DeepSeek",
+    "groq": "Groq",
     "xiaomi": "Xiaomi MiMo",
     "local": "Local Model",
 }
@@ -77,6 +78,7 @@ TOKEN_FIELD_NAMES = {
     "alter": "alter_token",
     "zai": "zai_token",
     "deepseek": "deepseek_token",
+    "groq": "groq_token",
     "xiaomi": "xiaomi_token",
     "zai_endpoint": "zai_endpoint",
     "local": CONF_LOCAL_URL,  # For local models, we use URL instead of token
@@ -91,6 +93,7 @@ TOKEN_LABELS = {
     "alter": "Alter API Key",
     "zai": "z.ai API Key",
     "deepseek": "DeepSeek API Key",
+    "groq": "Groq API Key",
     "xiaomi": "Xiaomi MiMo API Key",
     "zai_endpoint": "z.ai API Endpoint Type",
     "local": "Local API URL (e.g., http://localhost:11434/api/generate)",

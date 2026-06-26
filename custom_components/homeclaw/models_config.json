@@ -298,18 +298,31 @@
   "groq": {
     "display_name": "Groq",
     "description": "Groq - fast LPU inference",
+    "allow_custom_model": true,
     "models": [
       {
         "id": "llama-3.3-70b-versatile",
         "name": "Llama 3.3 70B Versatile",
-        "description": "Large, versatile Llama model",
+        "description": "Versatile Llama, reliable tool calling",
         "context_window": 131072,
         "default": true
       },
       {
+        "id": "openai/gpt-oss-120b",
+        "name": "GPT-OSS 120B",
+        "description": "High-end reasoning with tool calling",
+        "context_window": 131072
+      },
+      {
+        "id": "openai/gpt-oss-20b",
+        "name": "GPT-OSS 20B",
+        "description": "Fast reasoning model with tool calling",
+        "context_window": 131072
+      },
+      {
         "id": "llama-3.1-8b-instant",
         "name": "Llama 3.1 8B Instant",
-        "description": "Ultra-fast small model",
+        "description": "Ultra-fast small model, tool calling",
         "context_window": 131072
       }
     ]
