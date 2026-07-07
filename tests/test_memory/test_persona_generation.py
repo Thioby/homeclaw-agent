@@ -167,3 +167,34 @@ class TestFlushTriggers:
             [{"role": "user", "content": "hi"}], "user1", provider=MagicMock()
         )
         assert captured == 1  # flush result survives trigger failures
+
+
+class TestGdprAndStats:
+    @pytest.mark.asyncio
+    async def test_forget_all_wipes_scenarios_and_persona(self, memory_manager) -> None:
+        await _seed_memories(memory_manager, 5)
+        mem_ids = [
+            m.id
+            for m in await memory_manager._scenario_store.list_ungrouped_memories("user1")
+        ]
+        await memory_manager._scenario_store.store_scenario(
+            user_id="user1", title="T", summary="S",
+            embedding=_basis_embedding(0), memory_ids=mem_ids[:3],
+        )
+        await memory_manager._persona_store.save_persona("user1", "profile", memory_count=5)
+
+        await memory_manager.forget_all_user_memories("user1")
+
+        assert await memory_manager._scenario_store.count_scenarios("user1") == 0
+        assert await memory_manager.get_persona_content("user1") is None
+
+    @pytest.mark.asyncio
+    async def test_stats_include_layer_info(self, memory_manager) -> None:
+        await _seed_memories(memory_manager, 3)
+        stats = await memory_manager.get_stats("user1")
+        assert stats["scenarios"] == 0
+        assert stats["persona_generated"] is False
+
+        await memory_manager._persona_store.save_persona("user1", "p", memory_count=3)
+        stats = await memory_manager.get_stats("user1")
+        assert stats["persona_generated"] is True

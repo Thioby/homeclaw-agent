@@ -13,6 +13,11 @@ are captured via three mechanisms:
 Architecture:
 - Storage: SQLite tables in the existing RAG database (no new dependencies)
 - Auto-Recall: Relevant memories are injected into the system prompt before processing
+- Layered memory: memories (L1 atoms) -> memory_scenarios (L2 LLM-grouped
+  summaries, consolidated after flush) -> user_personas (L3 profile,
+  regenerated every ~25 new memories, injected into the system prompt)
+- Hybrid recall: vector + FTS5 keyword results fused with Reciprocal Rank
+  Fusion; scenario summaries participate in recall alongside atoms
 
 Usage:
     manager = MemoryManager(store, embedding_provider)
@@ -30,7 +35,13 @@ Usage:
 from __future__ import annotations
 
 from .manager import MemoryManager
+from .persona_store import Persona, PersonaStore
+from .scenario_store import Scenario, ScenarioStore
 
 __all__ = [
     "MemoryManager",
+    "Persona",
+    "PersonaStore",
+    "Scenario",
+    "ScenarioStore",
 ]

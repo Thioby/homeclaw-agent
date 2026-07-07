@@ -280,7 +280,20 @@ class MemoryManager:
             Number of memories deleted.
         """
         self._ensure_initialized()
-        return await self._memory_store.delete_user_memories(user_id)
+        deleted = await self._memory_store.delete_user_memories(user_id)
+
+        if self._scenario_store:
+            try:
+                await self._scenario_store.delete_user_scenarios(user_id)
+            except Exception as e:
+                _LOGGER.debug("Failed to delete user scenarios: %s", e)
+        if self._persona_store:
+            try:
+                await self._persona_store.delete_persona(user_id)
+            except Exception as e:
+                _LOGGER.debug("Failed to delete user persona: %s", e)
+
+        return deleted
 
     async def search_memories(
         self,
@@ -339,7 +352,15 @@ class MemoryManager:
     async def get_stats(self, user_id: str | None = None) -> dict[str, Any]:
         """Get memory statistics."""
         self._ensure_initialized()
-        return await self._memory_store.get_stats(user_id)
+        stats = await self._memory_store.get_stats(user_id)
+
+        if self._scenario_store:
+            stats["scenarios"] = await self._scenario_store.count_scenarios(user_id)
+        if self._persona_store:
+            persona = await self._persona_store.get_persona(user_id)
+            stats["persona_generated"] = persona is not None
+
+        return stats
 
     # --- AI-powered memory flush (pre-compaction) ---
 
