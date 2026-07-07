@@ -26,6 +26,9 @@ RECALL_MIN_SIMILARITY = (
     0.35  # Lower threshold than entity RAG (memories are more varied)
 )
 
+# RRF constant — dampens the impact of top ranks (standard value from the literature)
+RRF_K = 60
+
 
 @dataclass
 class MemoryManager:
@@ -540,38 +543,29 @@ def _merge_memory_results(
     keyword_results: list[Memory],
     *,
     limit: int = 5,
-    vector_weight: float = 0.7,
-    keyword_weight: float = 0.3,
+    rrf_k: int = RRF_K,
 ) -> list[Memory]:
-    """Merge vector and keyword search results with deduplication and overlap boost.
+    """Merge vector and keyword results using Reciprocal Rank Fusion.
 
-    Same weighted merge strategy as the RAG hybrid search.
+    RRF is rank-based, so it is robust to incomparable score scales
+    (cosine similarity vs normalized BM25). A memory appearing in both
+    lists accumulates contributions from both ranks.
     """
     seen: dict[str, Memory] = {}
     scores: dict[str, float] = {}
 
-    # Process vector results
-    for mem in vector_results:
-        seen[mem.id] = mem
-        scores[mem.id] = mem.score * vector_weight
+    for result_list in (vector_results, keyword_results):
+        for rank, mem in enumerate(result_list):
+            if mem.id not in seen:
+                seen[mem.id] = mem
+            scores[mem.id] = scores.get(mem.id, 0.0) + 1.0 / (rrf_k + rank + 1)
 
-    # Process keyword results
-    for mem in keyword_results:
-        if mem.id in scores:
-            # Overlap boost: add keyword score
-            scores[mem.id] += mem.score * keyword_weight
-        else:
-            seen[mem.id] = mem
-            scores[mem.id] = mem.score * keyword_weight
-
-    # Sort by merged score, then importance
     ranked = sorted(
         seen.values(),
         key=lambda m: (scores.get(m.id, 0), m.importance),
         reverse=True,
     )
 
-    # Update scores on the Memory objects
     for mem in ranked:
         mem.score = scores.get(mem.id, 0)
 
