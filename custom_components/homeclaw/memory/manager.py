@@ -625,6 +625,9 @@ class MemoryManager:
         if content.startswith("```"):
             content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
+        if not content:
+            return False
+
         from .auto_capture import ANTI_PATTERNS
 
         if any(p.search(content) for p in ANTI_PATTERNS):

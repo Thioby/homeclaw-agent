@@ -98,6 +98,13 @@ class TestPersonaGeneration:
         assert await memory_manager.get_persona_content("user1") is None
 
     @pytest.mark.asyncio
+    async def test_fence_only_response_skips_save(self, memory_manager) -> None:
+        await _seed_memories(memory_manager, 10)
+        provider = _mock_provider("```json\n```")
+        assert await memory_manager.maybe_regenerate_persona("user1", provider) is False
+        assert await memory_manager.get_persona_content("user1") is None
+
+    @pytest.mark.asyncio
     async def test_get_persona_content_missing_user(self, memory_manager) -> None:
         assert await memory_manager.get_persona_content("nobody") is None
 
