@@ -441,10 +441,24 @@ class MemoryManager:
         self._ensure_initialized()
 
         if provider:
-            return await self._ai_flush(messages, user_id, session_id, provider)
+            captured = await self._ai_flush(messages, user_id, session_id, provider)
+        else:
+            # Fallback: explicit commands only
+            captured = await self._explicit_flush(messages, user_id, session_id)
 
-        # Fallback: explicit commands only
-        return await self._explicit_flush(messages, user_id, session_id)
+        # Post-flush maintenance of higher memory layers (L2 + L3).
+        # Both are best-effort: a failure must never break compaction.
+        if provider:
+            try:
+                await self.consolidate_scenarios(user_id, provider)
+            except Exception as e:
+                _LOGGER.debug("Scenario consolidation failed (non-fatal): %s", e)
+            try:
+                await self.maybe_regenerate_persona(user_id, provider)
+            except Exception as e:
+                _LOGGER.debug("Persona regeneration failed (non-fatal): %s", e)
+
+        return captured
 
     async def consolidate_scenarios(self, user_id: str, provider: Any) -> int:
         """Group ungrouped memories into L2 scenario blocks using an LLM.

@@ -100,3 +100,70 @@ class TestPersonaGeneration:
     @pytest.mark.asyncio
     async def test_get_persona_content_missing_user(self, memory_manager) -> None:
         assert await memory_manager.get_persona_content("nobody") is None
+
+
+class TestFlushTriggers:
+    @pytest.mark.asyncio
+    async def test_flush_triggers_consolidation_and_persona(
+        self, memory_manager, monkeypatch
+    ) -> None:
+        calls = []
+
+        async def fake_consolidate(user_id, provider):
+            calls.append(("consolidate", user_id))
+            return 0
+
+        async def fake_persona(user_id, provider):
+            calls.append(("persona", user_id))
+            return False
+
+        async def fake_ai_flush(messages, user_id, session_id, provider):
+            return 2  # pretend 2 memories captured
+
+        monkeypatch.setattr(memory_manager, "consolidate_scenarios", fake_consolidate)
+        monkeypatch.setattr(memory_manager, "maybe_regenerate_persona", fake_persona)
+        monkeypatch.setattr(memory_manager, "_ai_flush", fake_ai_flush)
+
+        provider = MagicMock()
+        captured = await memory_manager.flush_from_messages(
+            [{"role": "user", "content": "hi"}], "user1", provider=provider
+        )
+        assert captured == 2
+        assert ("consolidate", "user1") in calls
+        assert ("persona", "user1") in calls
+
+    @pytest.mark.asyncio
+    async def test_flush_without_provider_skips_triggers(
+        self, memory_manager, monkeypatch
+    ) -> None:
+        calls = []
+
+        async def fake_consolidate(user_id, provider):
+            calls.append("consolidate")
+            return 0
+
+        monkeypatch.setattr(memory_manager, "consolidate_scenarios", fake_consolidate)
+
+        await memory_manager.flush_from_messages(
+            [{"role": "user", "content": "hi"}], "user1"
+        )
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_trigger_failure_does_not_break_flush(
+        self, memory_manager, monkeypatch
+    ) -> None:
+        async def boom(user_id, provider):
+            raise RuntimeError("llm down")
+
+        async def fake_ai_flush(messages, user_id, session_id, provider):
+            return 1
+
+        monkeypatch.setattr(memory_manager, "consolidate_scenarios", boom)
+        monkeypatch.setattr(memory_manager, "maybe_regenerate_persona", boom)
+        monkeypatch.setattr(memory_manager, "_ai_flush", fake_ai_flush)
+
+        captured = await memory_manager.flush_from_messages(
+            [{"role": "user", "content": "hi"}], "user1", provider=MagicMock()
+        )
+        assert captured == 1  # flush result survives trigger failures
