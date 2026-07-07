@@ -17,6 +17,7 @@ from typing import Any
 
 from .auto_capture import extract_explicit_commands
 from .memory_store import Memory, MemoryStore
+from .persona_store import PersonaStore
 from .scenario_store import ScenarioStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ class MemoryManager:
     embedding_provider: Any  # CachedEmbeddingProvider or EmbeddingProvider
     _memory_store: MemoryStore | None = field(default=None, repr=False)
     _scenario_store: ScenarioStore | None = field(default=None, repr=False)
+    _persona_store: PersonaStore | None = field(default=None, repr=False)
     _initialized: bool = field(default=False, repr=False)
 
     async def async_initialize(self) -> None:
@@ -62,6 +64,9 @@ class MemoryManager:
 
         self._scenario_store = ScenarioStore(store=self.store)
         await self._scenario_store.async_initialize()
+
+        self._persona_store = PersonaStore(store=self.store)
+        await self._persona_store.async_initialize()
 
         self._initialized = True
         _LOGGER.info("Memory manager initialized")
@@ -388,6 +393,28 @@ class MemoryManager:
     _SCENARIO_MIN_CLUSTER = 3
     _SCENARIO_MAX_INPUT = 100
 
+    # --- Persona generation (L3) ---
+
+    _PERSONA_SYSTEM_PROMPT = (
+        "You are a user profiling assistant. You receive memories about a "
+        "user collected by a smart-home assistant. Distill them into a "
+        "concise persona profile the assistant reads before every "
+        "conversation.\n\n"
+        "FORMAT: Markdown, max 250 words, with these sections "
+        "(omit empty ones):\n"
+        "## Preferences\n## Facts\n## Routines\n## Communication style\n\n"
+        "RULES:\n"
+        "- Write in the SAME LANGUAGE as the memories.\n"
+        "- State only what the memories support — no speculation.\n"
+        "- Prefer stable traits over one-off events.\n"
+        "- Plain statements only, no meta-commentary."
+    )
+
+    _PERSONA_MIN_MEMORIES = 10
+    _PERSONA_REGEN_DELTA = 25
+    _PERSONA_MAX_INPUT = 200
+    _PERSONA_MAX_CHARS = 4000
+
     async def flush_from_messages(
         self,
         messages: list[dict[str, str]],
@@ -512,6 +539,80 @@ class MemoryManager:
                 _LOGGER.debug("Failed to store scenario: %s", e)
 
         return created
+
+    async def maybe_regenerate_persona(self, user_id: str, provider: Any) -> bool:
+        """Regenerate the L3 persona when enough new memories accumulated.
+
+        Triggers when the user has at least _PERSONA_MIN_MEMORIES memories
+        and either no persona exists yet or _PERSONA_REGEN_DELTA memories
+        were added since the last generation. Returns True when a new
+        persona was generated and saved.
+        """
+        self._ensure_initialized()
+
+        count = await self._memory_store.get_memory_count(user_id)
+        if count < self._PERSONA_MIN_MEMORIES:
+            return False
+
+        existing = await self._persona_store.get_persona(user_id)
+        if (
+            existing
+            and count - existing.memory_count_at_generation
+            < self._PERSONA_REGEN_DELTA
+        ):
+            return False
+
+        memories = await self._memory_store.list_memories(
+            user_id, limit=self._PERSONA_MAX_INPUT, offset=0
+        )
+        if not memories:
+            return False
+
+        lines = "\n".join(f"- [{m.category}] {m.text}" for m in memories)
+        messages = [
+            {"role": "system", "content": self._PERSONA_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Memories about the user:\n\n{lines}"},
+        ]
+
+        try:
+            kwargs: dict[str, Any] = {}
+            if provider.lightweight_model:
+                kwargs["model"] = provider.lightweight_model
+            content = await provider.get_response(messages, **kwargs)
+        except Exception as e:
+            _LOGGER.debug("Persona generation LLM call failed: %s", e)
+            return False
+
+        if not content:
+            return False
+
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+
+        from .auto_capture import ANTI_PATTERNS
+
+        if any(p.search(content) for p in ANTI_PATTERNS):
+            _LOGGER.warning("Persona generation produced unsafe content, skipping")
+            return False
+
+        if len(content) > self._PERSONA_MAX_CHARS:
+            content = content[: self._PERSONA_MAX_CHARS]
+
+        await self._persona_store.save_persona(
+            user_id, content, memory_count=count
+        )
+        _LOGGER.info(
+            "Regenerated persona for user %s (%d memories)", user_id, count
+        )
+        return True
+
+    async def get_persona_content(self, user_id: str) -> str | None:
+        """Return the persona Markdown for prompt injection, or None."""
+        if not self._initialized or not self._persona_store:
+            return None
+        persona = await self._persona_store.get_persona(user_id)
+        return persona.content if persona else None
 
     async def _ai_flush(
         self,
