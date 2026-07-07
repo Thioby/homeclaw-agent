@@ -182,11 +182,30 @@ class MemoryManager:
             # Merge results (hybrid: dedup by ID, boost overlapping)
             merged = _merge_memory_results(vector_results, keyword_results, limit=top_k)
 
-            if not merged:
+            # L2 scenario recall — summaries of related memory groups
+            scenario_context: list[dict[str, Any]] = []
+            if self._scenario_store:
+                try:
+                    scenarios = await self._scenario_store.search_scenarios(
+                        query_embedding=query_embedding,
+                        user_id=user_id,
+                    )
+                    scenario_context = [
+                        {
+                            "category": "scenario",
+                            "topic": s.title,
+                            "information": s.summary,
+                        }
+                        for s in scenarios
+                    ]
+                except Exception as e:
+                    _LOGGER.debug("Scenario recall failed: %s", e)
+
+            if not merged and not scenario_context:
                 return []
 
             # Format for system prompt injection
-            return _format_memories_for_prompt(merged)
+            return _format_memories_for_prompt(merged) + scenario_context
 
         except Exception as e:
             _LOGGER.debug("Memory recall failed: %s", e)

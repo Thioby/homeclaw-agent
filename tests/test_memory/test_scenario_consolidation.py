@@ -118,3 +118,29 @@ class TestConsolidateScenarios:
         provider = _mock_provider(response)
         created = await memory_manager.consolidate_scenarios("user1", provider)
         assert created == 0  # only 2 valid indices -> below min cluster size
+
+
+class TestScenarioRecall:
+    @pytest.mark.asyncio
+    async def test_recall_includes_matching_scenarios(self, memory_manager) -> None:
+        # Store one scenario whose embedding matches the mocked query embedding
+        query_embedding = [0.5] * 8  # matches mock_embedding_provider output
+        scenario_id = await memory_manager._scenario_store.store_scenario(
+            user_id="user1",
+            title="Evening routine",
+            summary="User dims lights and lowers blinds around 22:00.",
+            embedding=query_embedding,
+            memory_ids=["dummy-member-id"],
+        )
+        assert scenario_id is not None
+
+        results = await memory_manager.recall_for_query("evening", "user1")
+        scenario_entries = [r for r in results if r.get("category") == "scenario"]
+        assert len(scenario_entries) == 1
+        assert scenario_entries[0]["topic"] == "Evening routine"
+        assert "dims lights" in scenario_entries[0]["information"]
+
+    @pytest.mark.asyncio
+    async def test_recall_without_scenarios_unchanged(self, memory_manager) -> None:
+        results = await memory_manager.recall_for_query("anything", "user1")
+        assert results == []
