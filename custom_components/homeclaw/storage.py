@@ -506,6 +506,15 @@ class SessionStorage:
         if len(messages) <= keep_last + 2:
             return  # Not enough messages to compact
 
+        summary_content = f"[Previous conversation summary]\n{summary_text}"
+
+        # Skip when this summary already heads the session: the turn merely
+        # carried the existing summary forward, so re-trimming would discard
+        # fresh messages while freezing the stale summary in place.
+        head = messages[0]
+        if head.get("role") == "system" and head.get("content") == summary_content:
+            return
+
         now = datetime.now(timezone.utc).isoformat()
 
         # Create summary pair (matches format injected by compact_messages)
@@ -515,7 +524,7 @@ class SessionStorage:
             "message_id": str(uuid.uuid4()),
             "session_id": session_id,
             "role": "system",
-            "content": f"[Previous conversation summary]\n{summary_text}",
+            "content": summary_content,
             "timestamp": now,
             "status": "completed",
             "error_message": "",

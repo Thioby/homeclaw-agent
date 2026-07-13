@@ -750,6 +750,95 @@ class TestSessionStorageMessages:
         assert result is False
 
 
+class TestCompactSessionMessages:
+    """Tests for storage-side compaction and its idempotency guard."""
+
+    @staticmethod
+    async def _add_messages(
+        storage: SessionStorage, session_id: str, count: int, prefix: str
+    ) -> None:
+        for i in range(count):
+            await storage.add_message(
+                session_id,
+                Message(
+                    message_id=f"{prefix}-{i}",
+                    session_id=session_id,
+                    role="user" if i % 2 == 0 else "assistant",
+                    content=f"{prefix} message {i}",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+    @pytest.mark.asyncio
+    async def test_compaction_trims_to_summary_plus_recent(
+        self, storage: SessionStorage
+    ) -> None:
+        """A fresh summary replaces old messages, keeping the summary + recent."""
+        keep_last = 6
+        session = await storage.create_session(provider="anthropic")
+        await self._add_messages(storage, session.session_id, 20, "old")
+
+        await storage.compact_session_messages(
+            session.session_id, "conversation summary", keep_last=keep_last
+        )
+
+        messages = await storage.get_session_messages(session.session_id)
+        assert len(messages) == keep_last + 2
+        summary_messages = [m for m in messages if m.role == "system"]
+        assert len(summary_messages) == 1
+        assert (
+            summary_messages[0].content
+            == "[Previous conversation summary]\nconversation summary"
+        )
+
+    @pytest.mark.asyncio
+    async def test_same_summary_carried_forward_does_not_retrim(
+        self, storage: SessionStorage
+    ) -> None:
+        """Guard: an unchanged summary must not re-trim and drop fresh turns."""
+        keep_last = 6
+        session = await storage.create_session(provider="anthropic")
+        await self._add_messages(storage, session.session_id, 20, "old")
+
+        await storage.compact_session_messages(
+            session.session_id, "conversation summary", keep_last=keep_last
+        )
+        await self._add_messages(storage, session.session_id, 5, "new")
+        count_after_new_turns = len(
+            await storage.get_session_messages(session.session_id)
+        )
+
+        await storage.compact_session_messages(
+            session.session_id, "conversation summary", keep_last=keep_last
+        )
+
+        messages = await storage.get_session_messages(session.session_id)
+        assert len(messages) == count_after_new_turns
+        assert messages[-1].content == "new message 4"
+
+    @pytest.mark.asyncio
+    async def test_new_summary_retrims(self, storage: SessionStorage) -> None:
+        """A genuinely new summary does re-trim to summary + recent."""
+        keep_last = 6
+        session = await storage.create_session(provider="anthropic")
+        await self._add_messages(storage, session.session_id, 20, "old")
+
+        await storage.compact_session_messages(
+            session.session_id, "summary A", keep_last=keep_last
+        )
+        await self._add_messages(storage, session.session_id, 5, "new")
+
+        await storage.compact_session_messages(
+            session.session_id, "summary B", keep_last=keep_last
+        )
+
+        messages = await storage.get_session_messages(session.session_id)
+        assert len(messages) == keep_last + 2
+        contents = [m.content for m in messages]
+        assert "[Previous conversation summary]\nsummary B" in contents
+        assert "[Previous conversation summary]\nsummary A" not in contents
+
+
 class TestSessionStorageLimits:
     """Tests for storage limits enforcement."""
 
