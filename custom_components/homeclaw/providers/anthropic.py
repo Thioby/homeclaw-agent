@@ -6,7 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .adapters.anthropic_adapter import AnthropicAdapter
+from .adapters.anthropic_adapter import AnthropicAdapter, model_accepts_temperature
 from .adapters.stream_utils import SSEParser, ToolAccumulator
 from .base_client import BaseHTTPClient
 from .registry import ProviderRegistry
@@ -95,9 +95,11 @@ class AnthropicProvider(BaseHTTPClient):
         payload: dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
-            "temperature": self.config.get("temperature", 0.2),
             "messages": filtered_messages,
         }
+
+        if model_accepts_temperature(self._model):
+            payload["temperature"] = self.config.get("temperature", 0.2)
 
         # Add system message if present (Anthropic requires it separately)
         if system_content:

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
-from ..adapters.anthropic_adapter import AnthropicAdapter
+from ..adapters.anthropic_adapter import AnthropicAdapter, model_accepts_temperature
 from ..adapters.stream_utils import SSEParser, ToolAccumulator
 from ..registry import AIProvider, ProviderRegistry
 from .auth import InflightRefreshGate, OAuthRefreshError, TokenSet
@@ -133,10 +133,11 @@ class AnthropicOAuthProvider(AIProvider):
         payload: dict[str, Any] = {
             "model": self._model,
             "max_tokens": self._max_tokens,
-            "temperature": self.config.get("temperature", 0.2),
             "messages": anthropic_messages,
             "system": system_message,
         }
+        if model_accepts_temperature(self._model):
+            payload["temperature"] = self.config.get("temperature", 0.2)
         if stream:
             payload["stream"] = True
         if tools:

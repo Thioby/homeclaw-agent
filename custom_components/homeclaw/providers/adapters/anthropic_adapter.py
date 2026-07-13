@@ -12,6 +12,27 @@ from .stream_utils import ToolAccumulator
 
 _LOGGER = logging.getLogger(__name__)
 
+# Newer Claude models (Opus 4.7+, Sonnet 5, Fable 5) reject a non-default
+# `temperature` with a 400, so omit it by default and send it only for the
+# legacy models still known to accept it. New models added later inherit the
+# safe default without touching this list.
+_MODELS_ACCEPTING_TEMPERATURE = (
+    "claude-sonnet-4-6",
+    "claude-sonnet-4-5",
+    "claude-sonnet-4-0",
+    "claude-opus-4-6",
+    "claude-opus-4-5",
+    "claude-opus-4-1",
+    "claude-opus-4-0",
+    "claude-haiku-4-5",
+    "claude-3",
+)
+
+
+def model_accepts_temperature(model: str) -> bool:
+    """Return whether the given Claude model accepts a `temperature` param."""
+    return model.startswith(_MODELS_ACCEPTING_TEMPERATURE)
+
 
 class AnthropicAdapter(ProviderAdapter):
     """Converts between canonical (OpenAI) message format and Anthropic API format.
