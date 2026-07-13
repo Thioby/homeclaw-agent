@@ -1,0 +1,939 @@
+diff --git a/custom_components/homeclaw/core/agent.py b/custom_components/homeclaw/core/agent.py
+index e059cff..895093f 100644
+--- a/custom_components/homeclaw/core/agent.py
++++ b/custom_components/homeclaw/core/agent.py
+@@ -260,16 +260,21 @@ class Agent:
+ 
+     # === Automation Operations ===
+ 
+-    async def create_automation(self, config: dict[str, Any]) -> dict[str, Any]:
++    async def create_automation(
++        self, config: dict[str, Any], *, dry_run: bool = False
++    ) -> dict[str, Any]:
+         """Create a new automation.
+ 
+         Args:
+             config: Automation configuration dictionary.
++            dry_run: If True, validate and preview without writing.
+ 
+         Returns:
+             Dict with 'success' boolean and 'id' of the created automation.
+         """
+-        return await self._get_automation_manager().create_automation(config)
++        return await self._get_automation_manager().create_automation(
++            config, dry_run=dry_run
++        )
+ 
+     def get_automations(self) -> list[dict[str, Any]]:
+         """Get all automation entities.
+diff --git a/custom_components/homeclaw/managers/automation_manager.py b/custom_components/homeclaw/managers/automation_manager.py
+index 849e728..38fa31d 100644
+--- a/custom_components/homeclaw/managers/automation_manager.py
++++ b/custom_components/homeclaw/managers/automation_manager.py
+@@ -6,15 +6,58 @@ Extracted from the God Class to handle all automation-related operations.
+ from __future__ import annotations
+ 
+ import logging
++import os
+ import uuid
+ from typing import TYPE_CHECKING, Any
+ 
++import yaml
++
++from ..utils.yaml_writer import (
++    CONFIG_WRITE_LOCK,
++    atomic_write_file,
++    backup_file,
++    is_include_tag,
++    load_ha_yaml,
++    safe_load_yaml,
++)
++
+ if TYPE_CHECKING:
+     from homeassistant.core import HomeAssistant
+ 
+ _LOGGER = logging.getLogger(__name__)
+ 
+ AUTOMATION_DOMAIN = "automation"
++AUTOMATIONS_FILE = "automations.yaml"
++
++
++def _read_text(path: str) -> str | None:
++    try:
++        with open(path, encoding="utf-8") as f:
++            return f.read()
++    except FileNotFoundError:
++        return None
++
++
++RECOGNIZED_ACTION_KEYS = frozenset(
++    {
++        "service",
++        "action",
++        "delay",
++        "wait_template",
++        "wait_for_trigger",
++        "choose",
++        "if",
++        "repeat",
++        "parallel",
++        "sequence",
++        "stop",
++        "event",
++        "scene",
++        "device_id",
++        "variables",
++        "set_conversation_response",
++    }
++)
+ 
+ 
+ class AutomationManager:
+@@ -57,8 +100,9 @@ class AutomationManager:
+     def validate_automation(self, config: dict) -> dict:
+         """Validate automation configuration.
+ 
+-        Checks that the configuration has required trigger and action fields.
+-        Each action must have either a 'service' or 'action' field.
++        Accepts both the legacy singular keys (``trigger``/``action``) and the
++        modern plural keys (``triggers``/``actions``) that current HA writes.
++        Blueprint automations (``use_blueprint``) carry neither and are valid.
+ 
+         Args:
+             config: Automation configuration dictionary.
+@@ -66,76 +110,183 @@ class AutomationManager:
+         Returns:
+             Dict with 'valid' boolean and optional 'error' string.
+         """
+-        errors: list[str] = []
++        if not isinstance(config, dict):
++            return {"valid": False, "error": "Automation config must be a dictionary"}
++
++        if "use_blueprint" in config:
++            return {"valid": True}
+ 
+-        # Validate triggers - must exist and not be empty
+-        triggers = config.get("trigger")
+-        if triggers is None:
+-            errors.append("At least one trigger is required")
+-        elif isinstance(triggers, list):
+-            if len(triggers) == 0:
+-                errors.append("At least one trigger is required")
+-        elif not isinstance(triggers, dict):
+-            errors.append("Trigger must be a list or dictionary")
+-
+-        # Validate actions - must exist and not be empty
+-        actions = config.get("action")
+-        if actions is None:
+-            errors.append("At least one action is required")
+-        elif isinstance(actions, list):
+-            if len(actions) == 0:
+-                errors.append("At least one action is required")
+-            else:
+-                # Validate each action has service or action field
+-                for i, action in enumerate(actions):
+-                    if isinstance(action, dict):
+-                        if "service" not in action and "action" not in action:
+-                            errors.append(
+-                                f"Action {i} must have 'service' or 'action' field"
+-                            )
+-        elif isinstance(actions, dict):
+-            # Single action - validate it has service or action field
+-            if "service" not in actions and "action" not in actions:
+-                errors.append("Action must have 'service' or 'action' field")
+-        else:
+-            errors.append("Action must be a list or dictionary")
++        errors = self._section_errors(config, "trigger", "triggers")
++        errors += self._section_errors(config, "action", "actions")
++        if not errors:
++            errors += self._action_entry_errors(config)
+ 
+         if errors:
+             return {"valid": False, "error": "; ".join(errors)}
+ 
+         return {"valid": True}
+ 
+-    async def create_automation(self, config: dict) -> dict:
+-        """Create a new automation.
++    def _section_errors(self, config: dict, singular: str, plural: str) -> list[str]:
++        if singular in config and plural in config:
++            return [f"Use either '{singular}' or '{plural}', not both"]
++        value = config.get(singular, config.get(plural))
++        if value is None or (isinstance(value, list) and not value):
++            return [f"At least one {singular} is required"]
++        if not isinstance(value, (list, dict)):
++            return [f"{singular.capitalize()} must be a list or dictionary"]
++        return []
++
++    def _action_entry_errors(self, config: dict) -> list[str]:
++        actions = config.get("action", config.get("actions"))
++        entries = actions if isinstance(actions, list) else [actions]
++        errors: list[str] = []
++        for i, entry in enumerate(entries):
++            if isinstance(entry, dict) and not RECOGNIZED_ACTION_KEYS & entry.keys():
++                errors.append(f"Action {i} must have 'service' or 'action' field")
++        return errors
++
++    async def create_automation(self, config: dict, *, dry_run: bool = False) -> dict:
++        """Create a new automation by appending it to automations.yaml.
+ 
+-        Generates an ID if not provided and calls the reload service.
++        Existing file content is preserved byte-for-byte; the new entry is
++        appended, the merged result is re-parsed before writing, the write is
++        atomic and a ``.backup`` copy is made first.
+ 
+         Args:
+             config: Automation configuration dictionary.
++            dry_run: If True, validate and return a preview without writing.
+ 
+         Returns:
+-            Dict with 'success' boolean and 'id' of the created automation.
++            Dict with 'success' boolean, 'id', and 'preview' when dry_run.
+         """
+-        # Generate ID if not provided
+-        automation_id = config.get("id")
+-        if not automation_id:
+-            automation_id = str(uuid.uuid4())
+-            config["id"] = automation_id
+-
+-        _LOGGER.debug("Creating automation with id: %s", automation_id)
++        validation = self.validate_automation(config)
++        if not validation["valid"]:
++            return {"success": False, "error": validation["error"]}
++
++        if not self.hass.services.has_service(AUTOMATION_DOMAIN, "reload"):
++            return {"success": False, "error": "The automation integration is not loaded"}
++
++        layout_error = await self._automations_include_error()
++        if layout_error:
++            return {"success": False, "error": layout_error}
++
++        automation_id = str(config.get("id") or uuid.uuid4().hex)
++        item = {"id": automation_id, **{k: v for k, v in config.items() if k != "id"}}
++        new_item_yaml = yaml.dump(
++            [item], sort_keys=False, allow_unicode=True, default_flow_style=False
++        )
++        path = os.path.realpath(self.hass.config.path(AUTOMATIONS_FILE))
++
++        if dry_run:
++            _raw, existing, error = await self._load_existing(path)
++            if error:
++                return {"success": False, "error": error}
++            duplicate = self._duplicate_id_error(existing, automation_id)
++            if duplicate:
++                return {"success": False, "error": duplicate}
++            return {
++                "success": True,
++                "dry_run": True,
++                "id": automation_id,
++                "preview": new_item_yaml,
++            }
++
++        async with CONFIG_WRITE_LOCK:
++            raw, existing, error = await self._load_existing(path)
++            if error:
++                return {"success": False, "error": error}
++            duplicate = self._duplicate_id_error(existing, automation_id)
++            if duplicate:
++                return {"success": False, "error": duplicate}
++
++            new_content = self._merged_content(raw, existing, new_item_yaml)
++            error = self._roundtrip_error(new_content, len(existing))
++            if error:
++                return {"success": False, "error": error}
++
++            await self.hass.async_add_executor_job(backup_file, path)
++            await self.hass.async_add_executor_job(atomic_write_file, path, new_content)
++
++        _LOGGER.info("Created automation %s in %s", automation_id, path)
+ 
+         try:
+-            # Call the automation reload service to pick up new automations
+-            await self.hass.services.async_call(
+-                AUTOMATION_DOMAIN,
+-                "reload",
+-                {},
+-            )
+-
+-            return {"success": True, "id": automation_id}
++            await self.hass.services.async_call(AUTOMATION_DOMAIN, "reload", {})
+         except Exception as e:
+-            _LOGGER.exception("Error creating automation: %s", str(e))
+-            return {"success": False, "error": str(e), "id": automation_id}
++            _LOGGER.exception("Automation %s saved but reload failed", automation_id)
++            return {
++                "success": True,
++                "id": automation_id,
++                "warning": f"Automation saved but reload failed: {e}",
++            }
++
++        return {"success": True, "id": automation_id}
++
++    async def _automations_include_error(self) -> str | None:
++        config_path = self.hass.config.path("configuration.yaml")
++        raw = await self.hass.async_add_executor_job(_read_text, config_path)
++        if raw is None:
++            return "configuration.yaml not found; cannot verify automation storage layout"
++        try:
++            parsed = safe_load_yaml(raw)
++        except yaml.YAMLError:
++            return "configuration.yaml could not be parsed; refusing to create automations"
++        for key, value in parsed.items():
++            if key != "automation" and not str(key).startswith("automation "):
++                continue
++            if (
++                is_include_tag(value)
++                and value.tag == "!include"
++                and value.path == AUTOMATIONS_FILE
++            ):
++                return None
++        return (
++            "configuration.yaml does not map 'automation' to "
++            f"'!include {AUTOMATIONS_FILE}'; creating automations is not "
++            "supported for this configuration layout"
++        )
++
++    async def _load_existing(self, path: str) -> tuple[str | None, list, str | None]:
++        raw = await self.hass.async_add_executor_job(_read_text, path)
++        if raw is None:
++            return None, [], None
++        try:
++            parsed = load_ha_yaml(raw)
++        except yaml.YAMLError as e:
++            return raw, [], f"{AUTOMATIONS_FILE} is not valid YAML, refusing to modify it: {e}"
++        if parsed is None:
++            parsed = []
++        if not isinstance(parsed, list):
++            return raw, [], f"{AUTOMATIONS_FILE} does not contain a list, refusing to modify it"
++        return raw, parsed, None
++
++    def _duplicate_id_error(self, existing: list, automation_id: str) -> str | None:
++        for entry in existing:
++            if isinstance(entry, dict) and str(entry.get("id")) == automation_id:
++                return f"Automation id '{automation_id}' already exists"
++        return None
++
++    def _merged_content(
++        self, raw: str | None, existing: list, new_item_yaml: str
++    ) -> str:
++        if raw is None or not raw.strip():
++            return new_item_yaml
++        only_comments = all(
++            not line.strip() or line.lstrip().startswith("#")
++            for line in raw.splitlines()
++        )
++        if existing or only_comments:
++            base = raw if raw.endswith("\n") else raw + "\n"
++            return base + new_item_yaml
++        return new_item_yaml
++
++    def _roundtrip_error(self, content: str, previous_count: int) -> str | None:
++        try:
++            parsed = load_ha_yaml(content)
++        except yaml.YAMLError as e:
++            return f"Refusing to write: merged {AUTOMATIONS_FILE} would be invalid YAML: {e}"
++        if not isinstance(parsed, list) or len(parsed) != previous_count + 1:
++            return f"Refusing to write: merged {AUTOMATIONS_FILE} failed verification"
++        return None
+ 
+     def get_automations(self) -> list[dict[str, Any]]:
+         """Get all automation entities.
+diff --git a/custom_components/homeclaw/prompts.py b/custom_components/homeclaw/prompts.py
+index 69fdd41..b381f9f 100644
+--- a/custom_components/homeclaw/prompts.py
++++ b/custom_components/homeclaw/prompts.py
+@@ -78,7 +78,7 @@ BASE_SYSTEM_PROMPT = (
+     "- set_entity_state(entity_id, state, attributes?): Set entity state\n"
+     "- call_service(domain, service, target?, service_data?): Call any HA service\n\n"
+     "CREATE (only when explicitly requested!):\n"
+-    "- create_automation(automation): Create new automation\n"
++    "- create_automation(automation): Create new automation (user confirms before it applies)\n"
+     "- create_dashboard(...): Create new dashboard (user confirms before it applies)\n"
+     "- update_dashboard(...): Update existing dashboard (user confirms before it applies)\n"
+     "- delete_dashboard(...): Delete dashboard (user confirms before it applies)\n\n"
+@@ -260,7 +260,7 @@ SYSTEM_PROMPT_LOCAL = {
+         "- set_entity_state(entity_id, state, attributes?)\n"
+         "- call_service(domain, service, target?, service_data?)\n\n"
+         "CREATE (only when asked!):\n"
+-        "- create_automation(automation)\n"
++        "- create_automation(automation) — user confirms before it applies\n"
+         "- create_dashboard(...) — user confirms before it applies\n"
+         "- update_dashboard(...) — user confirms before it applies\n"
+         "- delete_dashboard(...) — user confirms before it applies\n\n"
+diff --git a/custom_components/homeclaw/tools/ha_native.py b/custom_components/homeclaw/tools/ha_native.py
+index 2500323..9c4b563 100644
+--- a/custom_components/homeclaw/tools/ha_native.py
++++ b/custom_components/homeclaw/tools/ha_native.py
+@@ -1237,6 +1237,48 @@ class GetAutomations(Tool):
+         )
+ 
+ 
++@ToolRegistry.register
++class CreateAutomation(Tool):
++    id = "create_automation"
++    requires_confirmation = True
++    description = (
++        "Create a new Home Assistant automation (saved to automations.yaml). "
++        "Use dry_run=true first to preview, then dry_run=false after user confirms."
++    )
++    category = ToolCategory.HOME_ASSISTANT
++    tier = ToolTier.CORE
++    parameters = [
++        ToolParameter(
++            name="automation",
++            type="object",
++            description=(
++                "Full automation config: alias, description?, triggers, "
++                "conditions?, actions, mode? (or use_blueprint)"
++            ),
++            required=True,
++        ),
++        ToolParameter(
++            name="dry_run",
++            type="boolean",
++            description="Preview without saving (default: true). Set false to create.",
++            required=False,
++        ),
++    ]
++
++    async def execute(self, **kwargs) -> ToolResult:
++        try:
++            from ..managers.automation_manager import AutomationManager
++
++            manager = AutomationManager(self.hass)
++            result = await manager.create_automation(
++                kwargs["automation"], dry_run=kwargs.get("dry_run", True)
++            )
++            return _dashboard_tool_result(result, "create_automation")
++        except Exception as e:
++            _LOGGER.error("Error in create_automation tool: %s", e)
++            return ToolResult(output=f"Error: {e}", error=str(e), success=False)
++
++
+ @ToolRegistry.register
+ class GetScenes(Tool):
+     id = "get_scenes"
+diff --git a/custom_components/homeclaw/utils/yaml_io.py b/custom_components/homeclaw/utils/yaml_io.py
+index db3191f..1b30666 100644
+--- a/custom_components/homeclaw/utils/yaml_io.py
++++ b/custom_components/homeclaw/utils/yaml_io.py
+@@ -28,7 +28,7 @@ CONFIG_WRITE_LOCK: asyncio.Lock = asyncio.Lock()
+ """Acquire before any read-modify-write on ``configuration.yaml``."""
+ 
+ 
+-def safe_load_yaml(content: str) -> dict[str, Any]:
++def load_ha_yaml(content: str) -> Any:
+     """Load YAML with custom constructors for Home Assistant tags.
+ 
+     Handles ``!include``, ``!include_dir_*``, ``!secret``, ``!env_var``,
+@@ -39,10 +39,7 @@ def safe_load_yaml(content: str) -> dict[str, Any]:
+         content: Raw YAML string.
+ 
+     Returns:
+-        Parsed dict (top-level keys to values).
+-
+-    Raises:
+-        yaml.YAMLError: If the content is not a valid top-level mapping.
++        Whatever the top-level node parses to (mapping, list, scalar or None).
+     """
+ 
+     class _SafeLoaderWithHA(yaml.SafeLoader):
+@@ -77,7 +74,22 @@ def safe_load_yaml(content: str) -> dict[str, Any]:
+     _SafeLoaderWithHA.add_constructor("!env_var", _generic_constructor)
+     _SafeLoaderWithHA.add_constructor("!input", _generic_constructor)
+ 
+-    result = yaml.load(content, Loader=_SafeLoaderWithHA)
++    return yaml.load(content, Loader=_SafeLoaderWithHA)
++
++
++def safe_load_yaml(content: str) -> dict[str, Any]:
++    """Load YAML with HA tag support, requiring a top-level mapping.
++
++    Args:
++        content: Raw YAML string.
++
++    Returns:
++        Parsed dict (top-level keys to values).
++
++    Raises:
++        yaml.YAMLError: If the content is not a valid top-level mapping.
++    """
++    result = load_ha_yaml(content)
+     if result is None:
+         return {}
+     if not isinstance(result, dict):
+diff --git a/custom_components/homeclaw/utils/yaml_writer.py b/custom_components/homeclaw/utils/yaml_writer.py
+index 8132322..08f7516 100644
+--- a/custom_components/homeclaw/utils/yaml_writer.py
++++ b/custom_components/homeclaw/utils/yaml_writer.py
+@@ -13,6 +13,7 @@ from .yaml_io import (
+     atomic_write_file,
+     backup_file,
+     dump_sections,
++    load_ha_yaml,
+     safe_load_yaml,
+ )
+ from .yaml_sections import remove_yaml_section
+@@ -36,6 +37,7 @@ __all__ = [
+     "dump_sections",
+     "is_include_tag",
+     "is_secret_tag",
++    "load_ha_yaml",
+     "redact_secrets",
+     "remove_yaml_section",
+     "safe_load_yaml",
+diff --git a/tests/test_core/test_agent.py b/tests/test_core/test_agent.py
+index 667bda4..e61dca3 100644
+--- a/tests/test_core/test_agent.py
++++ b/tests/test_core/test_agent.py
+@@ -378,7 +378,9 @@ class TestCreateAutomationDelegatesToManager:
+         config = {"trigger": [{"platform": "sun"}], "action": [{"service": "light.turn_on"}]}
+         result = await agent.create_automation(config)
+ 
+-        automation_manager.create_automation.assert_called_once_with(config)
++        automation_manager.create_automation.assert_called_once_with(
++            config, dry_run=False
++        )
+         assert result["success"] is True
+         assert result["id"] == "auto_123"
+ 
+diff --git a/tests/test_managers/test_automation_manager.py b/tests/test_managers/test_automation_manager.py
+index 0bcc8ba..0814f63 100644
+--- a/tests/test_managers/test_automation_manager.py
++++ b/tests/test_managers/test_automation_manager.py
+@@ -4,9 +4,14 @@ Tests automation operations extracted from the God Class.
+ Uses TDD approach - tests written first.
+ """
+ 
+-import pytest
++import asyncio
++import os
+ from datetime import datetime, timezone
+-from unittest.mock import MagicMock, AsyncMock, patch
++from pathlib import Path
++from unittest.mock import AsyncMock, MagicMock, patch
++
++import pytest
++import yaml
+ 
+ from custom_components.homeclaw.managers.automation_manager import AutomationManager
+ 
+@@ -61,6 +66,23 @@ def sample_automation_states():
+     ]
+ 
+ 
++@pytest.fixture
++def config_dir(hass, tmp_path):
++    """Point hass at a temp config dir with a standard automation include."""
++    hass.config.config_dir = str(tmp_path)
++    (tmp_path / "configuration.yaml").write_text(
++        "automation: !include automations.yaml\n"
++    )
++    return tmp_path
++
++
++@pytest.fixture
++def live_automations_content():
++    """Raw content of the production automations.yaml fixture."""
++    fixture = Path(__file__).parent.parent / "fixtures" / "live_automations.yaml"
++    return fixture.read_text()
++
++
+ @pytest.fixture
+ def valid_automation_config():
+     """Create a valid automation configuration."""
+@@ -224,17 +246,20 @@ class TestCreateAutomation:
+     """Tests for create_automation method."""
+ 
+     @pytest.mark.asyncio
+-    async def test_create_automation(self, automation_manager, hass, valid_automation_config):
+-        """Test that create_automation calls hass.services.async_call."""
++    async def test_create_automation(
++        self, automation_manager, hass, config_dir, valid_automation_config
++    ):
++        """Test that create_automation writes the file and reloads."""
+         result = await automation_manager.create_automation(valid_automation_config)
+ 
+-        # Should call the automation reload service
+-        hass.services.async_call.assert_called()
+-        assert result is not None
+-        assert "success" in result or "id" in result
++        hass.services.async_call.assert_called_with("automation", "reload", {})
++        assert result["success"] is True
++        assert (config_dir / "automations.yaml").exists()
+ 
+     @pytest.mark.asyncio
+-    async def test_create_automation_generates_id_if_missing(self, automation_manager, hass):
++    async def test_create_automation_generates_id_if_missing(
++        self, automation_manager, hass, config_dir
++    ):
+         """Test that create_automation generates an ID if not provided."""
+         config = {
+             "alias": "Auto ID Automation",
+@@ -244,12 +269,13 @@ class TestCreateAutomation:
+ 
+         result = await automation_manager.create_automation(config)
+ 
+-        assert result is not None
+-        # ID should be generated
+-        assert "id" in result
++        assert result["success"] is True
++        assert len(result["id"]) == 32
+ 
+     @pytest.mark.asyncio
+-    async def test_create_automation_uses_provided_id(self, automation_manager, hass):
++    async def test_create_automation_uses_provided_id(
++        self, automation_manager, hass, config_dir
++    ):
+         """Test that create_automation uses the provided ID."""
+         config = {
+             "id": "custom_automation_id",
+@@ -260,7 +286,7 @@ class TestCreateAutomation:
+ 
+         result = await automation_manager.create_automation(config)
+ 
+-        assert result is not None
++        assert result["success"] is True
+         assert result.get("id") == "custom_automation_id"
+ 
+ 
+@@ -388,3 +414,335 @@ class TestAutomationManagerInitialization:
+         """Test that AutomationManager raises error with None hass."""
+         with pytest.raises(ValueError, match="hass is required"):
+             AutomationManager(None)
++
++
++class TestValidateAutomationModernFormat:
++    """Tests for validate_automation with modern plural keys and blueprints."""
++
++    def test_modern_plural_keys_accepted(self, automation_manager):
++        config = {
++            "alias": "Modern",
++            "triggers": [{"trigger": "state", "entity_id": "sensor.temp"}],
++            "conditions": [],
++            "actions": [{"action": "light.turn_on", "target": {"entity_id": "light.x"}}],
++        }
++
++        assert automation_manager.validate_automation(config)["valid"] is True
++
++    def test_blueprint_without_triggers_accepted(self, automation_manager):
++        config = {
++            "alias": "Blueprint",
++            "use_blueprint": {
++                "path": "homeassistant/motion_light.yaml",
++                "input": {"motion_entity": "binary_sensor.motion"},
++            },
++        }
++
++        assert automation_manager.validate_automation(config)["valid"] is True
++
++    def test_both_singular_and_plural_rejected(self, automation_manager):
++        config = {
++            "trigger": [{"platform": "state"}],
++            "triggers": [{"trigger": "state"}],
++            "action": [{"service": "light.turn_on"}],
++        }
++
++        result = automation_manager.validate_automation(config)
++
++        assert result["valid"] is False
++        assert "not both" in result["error"]
++
++    def test_non_dict_config_rejected(self, automation_manager):
++        result = automation_manager.validate_automation("not a dict")
++
++        assert result["valid"] is False
++
++    def test_structured_action_entries_accepted(self, automation_manager):
++        config = {
++            "trigger": [{"platform": "state", "entity_id": "sensor.temp"}],
++            "action": [
++                {"delay": "00:00:05"},
++                {"choose": [], "default": []},
++                {"event": "custom_event"},
++            ],
++        }
++
++        assert automation_manager.validate_automation(config)["valid"] is True
++
++
++class TestCreateAutomationSafeWrite:
++    """Tests that create_automation never corrupts the HA configuration."""
++
++    NEW_AUTOMATION = {
++        "alias": "Test light on motion",
++        "triggers": [{"trigger": "state", "entity_id": "binary_sensor.motion", "to": "on"}],
++        "actions": [{"action": "light.turn_on", "target": {"entity_id": "light.office"}}],
++        "mode": "single",
++    }
++
++    @pytest.fixture
++    def live_file(self, config_dir, live_automations_content):
++        path = config_dir / "automations.yaml"
++        path.write_text(live_automations_content)
++        return path
++
++    @pytest.mark.asyncio
++    async def test_appends_preserving_live_config_bytes(
++        self, automation_manager, live_file, live_automations_content
++    ):
++        original = yaml.safe_load(live_automations_content)
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is True
++        new_content = live_file.read_text()
++        assert new_content.startswith(live_automations_content)
++        parsed = yaml.safe_load(new_content)
++        assert len(parsed) == len(original) + 1
++        assert parsed[-1]["alias"] == "Test light on motion"
++        assert parsed[-1]["id"] == result["id"]
++        assert parsed[: len(original)] == original
++
++    @pytest.mark.asyncio
++    async def test_backup_created_with_original_content(
++        self, automation_manager, live_file, live_automations_content
++    ):
++        await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        backup = live_file.parent / "automations.yaml.backup"
++        assert backup.read_text() == live_automations_content
++
++    @pytest.mark.asyncio
++    async def test_dry_run_writes_nothing(
++        self, automation_manager, hass, live_file, live_automations_content
++    ):
++        result = await automation_manager.create_automation(
++            dict(self.NEW_AUTOMATION), dry_run=True
++        )
++
++        assert result["success"] is True
++        assert result["dry_run"] is True
++        assert yaml.safe_load(result["preview"])[0]["alias"] == "Test light on motion"
++        assert live_file.read_text() == live_automations_content
++        assert not (live_file.parent / "automations.yaml.backup").exists()
++        hass.services.async_call.assert_not_called()
++
++    @pytest.mark.asyncio
++    async def test_duplicate_id_from_live_config_rejected(
++        self, automation_manager, live_file, live_automations_content
++    ):
++        existing_id = yaml.safe_load(live_automations_content)[0]["id"]
++        config = {**self.NEW_AUTOMATION, "id": existing_id}
++
++        result = await automation_manager.create_automation(config)
++
++        assert result["success"] is False
++        assert "already exists" in result["error"]
++        assert live_file.read_text() == live_automations_content
++
++    @pytest.mark.asyncio
++    async def test_unparseable_file_left_untouched(self, automation_manager, config_dir):
++        path = config_dir / "automations.yaml"
++        broken = "- id: '1'\n  alias: [unclosed\n"
++        path.write_text(broken)
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is False
++        assert "not valid YAML" in result["error"]
++        assert path.read_text() == broken
++        assert not (config_dir / "automations.yaml.backup").exists()
++
++    @pytest.mark.asyncio
++    async def test_non_list_file_rejected(self, automation_manager, config_dir):
++        path = config_dir / "automations.yaml"
++        content = "automation:\n  foo: bar\n"
++        path.write_text(content)
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is False
++        assert path.read_text() == content
++
++    @pytest.mark.asyncio
++    async def test_missing_file_created(self, automation_manager, config_dir):
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is True
++        parsed = yaml.safe_load((config_dir / "automations.yaml").read_text())
++        assert len(parsed) == 1
++
++    @pytest.mark.asyncio
++    async def test_empty_file_handled(self, automation_manager, config_dir):
++        (config_dir / "automations.yaml").write_text("")
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is True
++        parsed = yaml.safe_load((config_dir / "automations.yaml").read_text())
++        assert len(parsed) == 1
++
++    @pytest.mark.asyncio
++    async def test_literal_empty_list_replaced(self, automation_manager, config_dir):
++        (config_dir / "automations.yaml").write_text("[]\n")
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is True
++        parsed = yaml.safe_load((config_dir / "automations.yaml").read_text())
++        assert len(parsed) == 1
++
++    @pytest.mark.asyncio
++    async def test_comments_only_file_preserved(self, automation_manager, config_dir):
++        (config_dir / "automations.yaml").write_text("# my precious notes\n")
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is True
++        content = (config_dir / "automations.yaml").read_text()
++        assert content.startswith("# my precious notes\n")
++        assert len(yaml.safe_load(content)) == 1
++
++    @pytest.mark.asyncio
++    async def test_file_without_trailing_newline(self, automation_manager, config_dir):
++        (config_dir / "automations.yaml").write_text(
++            "- id: 'old'\n  alias: Old\n  trigger: []\n  action: []"
++        )
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is True
++        parsed = yaml.safe_load((config_dir / "automations.yaml").read_text())
++        assert len(parsed) == 2
++        assert parsed[0]["id"] == "old"
++
++    @pytest.mark.asyncio
++    async def test_blueprint_automation_written(self, automation_manager, live_file):
++        config = {
++            "alias": "Blueprint based",
++            "use_blueprint": {
++                "path": "homeassistant/motion_light.yaml",
++                "input": {"motion_entity": "binary_sensor.motion"},
++            },
++        }
++
++        result = await automation_manager.create_automation(config)
++
++        assert result["success"] is True
++        parsed = yaml.safe_load(live_file.read_text())
++        assert parsed[-1]["use_blueprint"]["path"] == "homeassistant/motion_light.yaml"
++
++    @pytest.mark.asyncio
++    async def test_jinja_template_survives_roundtrip(self, automation_manager, live_file):
++        config = {
++            **self.NEW_AUTOMATION,
++            "actions": [
++                {
++                    "action": "notify.mobile_app",
++                    "data": {"message": "{{ states('sensor.temp') | float > 21 }}"},
++                }
++            ],
++        }
++
++        result = await automation_manager.create_automation(config)
++
++        assert result["success"] is True
++        parsed = yaml.safe_load(live_file.read_text())
++        assert (
++            parsed[-1]["actions"][0]["data"]["message"]
++            == "{{ states('sensor.temp') | float > 21 }}"
++        )
++
++    @pytest.mark.asyncio
++    async def test_reload_service_missing_aborts_before_write(
++        self, automation_manager, hass, config_dir
++    ):
++        hass.services.has_service.return_value = False
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is False
++        assert "not loaded" in result["error"]
++        assert not (config_dir / "automations.yaml").exists()
++
++    @pytest.mark.asyncio
++    async def test_split_config_layout_rejected(
++        self, automation_manager, hass, config_dir
++    ):
++        (config_dir / "configuration.yaml").write_text(
++            "automation: !include_dir_merge_list automations/\n"
++        )
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is False
++        assert "layout" in result["error"]
++        assert not (config_dir / "automations.yaml").exists()
++
++    @pytest.mark.asyncio
++    async def test_missing_configuration_yaml_rejected(
++        self, automation_manager, hass, tmp_path
++    ):
++        hass.config.config_dir = str(tmp_path)
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is False
++        assert not (tmp_path / "automations.yaml").exists()
++
++    @pytest.mark.asyncio
++    async def test_symlinked_file_updated_in_place(
++        self, automation_manager, config_dir, live_automations_content, tmp_path
++    ):
++        real_dir = tmp_path / "external"
++        real_dir.mkdir()
++        real_file = real_dir / "automations.yaml"
++        real_file.write_text(live_automations_content)
++        link = config_dir / "automations.yaml"
++        link.symlink_to(real_file)
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is True
++        assert link.is_symlink()
++        assert len(yaml.safe_load(real_file.read_text())) == len(
++            yaml.safe_load(live_automations_content)
++        ) + 1
++
++    @pytest.mark.asyncio
++    async def test_concurrent_creates_both_land(
++        self, automation_manager, live_file, live_automations_content
++    ):
++        first = {**self.NEW_AUTOMATION, "id": "concurrent_one"}
++        second = {**self.NEW_AUTOMATION, "id": "concurrent_two", "alias": "Second"}
++
++        results = await asyncio.gather(
++            automation_manager.create_automation(first),
++            automation_manager.create_automation(second),
++        )
++
++        assert all(r["success"] for r in results)
++        parsed = yaml.safe_load(live_file.read_text())
++        assert len(parsed) == len(yaml.safe_load(live_automations_content)) + 2
++        ids = {entry["id"] for entry in parsed}
++        assert {"concurrent_one", "concurrent_two"} <= ids
++
++    @pytest.mark.asyncio
++    async def test_reload_failure_still_reports_saved(
++        self, automation_manager, hass, live_file
++    ):
++        hass.services.async_call.side_effect = RuntimeError("reload boom")
++
++        result = await automation_manager.create_automation(dict(self.NEW_AUTOMATION))
++
++        assert result["success"] is True
++        assert "reload failed" in result["warning"]
++
++    @pytest.mark.asyncio
++    async def test_invalid_config_never_touches_disk(
++        self, automation_manager, live_file, live_automations_content
++    ):
++        result = await automation_manager.create_automation({"alias": "no trigger"})
++
++        assert result["success"] is False
++        assert live_file.read_text() == live_automations_content
+diff --git a/tests/test_tools.py b/tests/test_tools_base_web.py
+similarity index 100%
+rename from tests/test_tools.py
+rename to tests/test_tools_base_web.py

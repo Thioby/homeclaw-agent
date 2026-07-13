@@ -13,6 +13,7 @@ from .yaml_io import (
     atomic_write_file,
     backup_file,
     dump_sections,
+    load_ha_yaml,
     safe_load_yaml,
 )
 from .yaml_sections import remove_yaml_section
@@ -36,6 +37,7 @@ __all__ = [
     "dump_sections",
     "is_include_tag",
     "is_secret_tag",
+    "load_ha_yaml",
     "redact_secrets",
     "remove_yaml_section",
     "safe_load_yaml",

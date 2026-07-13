@@ -1,0 +1,107 @@
+- id: '1766526051996'
+  alias: Wyłącz LEDy kolorowe - biuro
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.zasilanie_macstudio_power
+    below: 21
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 10
+  conditions: []
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id: switch.zasilanie_macstudio_usb_1
+    data: {}
+  mode: single
+- id: '1766531974561'
+  alias: Włącz LEDy kolorowe - biuro
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.zasilanie_macstudio_power
+    above: 22
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.zasilanie_macstudio_usb_1
+    data: {}
+  mode: single
+- id: '1774787723412'
+  alias: Wentylator kuchnia - automatyczne włączanie
+  description: Włącza wentylator i otwiera przepustnicę kominka gdy wilgotność przekroczy
+    60%, wyłącza i zamyka przepustnicę gdy spadnie poniżej 55% przez 5 minut
+  triggers:
+  - entity_id: sensor.piecyk_humidity
+    above: 60
+    id: wilgotnosc_wysoka
+    trigger: numeric_state
+  - entity_id: sensor.piecyk_humidity
+    below: 55
+    for:
+      minutes: 5
+    id: wilgotnosc_niska
+    trigger: numeric_state
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: wilgotnosc_wysoka
+      sequence:
+      - target:
+          entity_id: switch.wtr_pro_socket
+        data: {}
+        action: switch.turn_on
+      - target:
+          entity_id: cover.kominek_przepustnica_curtain
+        data: {}
+        action: cover.open_cover
+      - data:
+          message: "\U0001F32B️ Wykryto gotowanie - włączam wentylator i otwieram
+            przepustnicę (wilgotność {{ states('sensor.piecyk_humidity') }}%)"
+        action: notify.notify
+    - conditions:
+      - condition: trigger
+        id: wilgotnosc_niska
+      sequence:
+      - target:
+          entity_id: switch.wtr_pro_socket
+        data: {}
+        action: switch.turn_off
+      - target:
+          entity_id: cover.kominek_przepustnica_curtain
+        data: {}
+        action: cover.close_cover
+      - data:
+          message: ✅ Wilgotność spadła - wyłączam wentylator i zamykam przepustnicę
+            (wilgotność {{ states('sensor.piecyk_humidity') }}%)
+        action: notify.notify
+  mode: single
+- id: '1780347578829'
+  alias: Arenti Camera
+  description: ''
+  use_blueprint:
+    path: SgtBatten/Stable.yaml
+    input:
+      camera:
+      - camera.arenti
+      notify_device: c58032dea2e88da890e8bd84e07912f8
+      base_url: http://192.168.1.109:8123
+- id: '1780347634495'
+  alias: 'Yi Camera '
+  description: ''
+  use_blueprint:
+    path: SgtBatten/Stable.yaml
+    input:
+      camera:
+      - camera.yicam
+      notify_device: c58032dea2e88da890e8bd84e07912f8
+      base_url: http://192.168.1.109:8123/

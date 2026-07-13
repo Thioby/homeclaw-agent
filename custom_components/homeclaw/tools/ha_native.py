@@ -1238,6 +1238,48 @@ class GetAutomations(Tool):
 
 
 @ToolRegistry.register
+class CreateAutomation(Tool):
+    id = "create_automation"
+    requires_confirmation = True
+    description = (
+        "Create a new Home Assistant automation (saved to automations.yaml). "
+        "Use dry_run=true first to preview, then dry_run=false after user confirms."
+    )
+    category = ToolCategory.HOME_ASSISTANT
+    tier = ToolTier.CORE
+    parameters = [
+        ToolParameter(
+            name="automation",
+            type="object",
+            description=(
+                "Full automation config: alias, description?, triggers, "
+                "conditions?, actions, mode? (or use_blueprint)"
+            ),
+            required=True,
+        ),
+        ToolParameter(
+            name="dry_run",
+            type="boolean",
+            description="Preview without saving (default: true). Set false to create.",
+            required=False,
+        ),
+    ]
+
+    async def execute(self, **kwargs) -> ToolResult:
+        try:
+            from ..managers.automation_manager import AutomationManager
+
+            manager = AutomationManager(self.hass)
+            result = await manager.create_automation(
+                kwargs["automation"], dry_run=kwargs.get("dry_run", True)
+            )
+            return _dashboard_tool_result(result, "create_automation")
+        except Exception as e:
+            _LOGGER.error("Error in create_automation tool: %s", e)
+            return ToolResult(output=f"Error: {e}", error=str(e), success=False)
+
+
+@ToolRegistry.register
 class GetScenes(Tool):
     id = "get_scenes"
     description = "Get scenes in the system with pagination."

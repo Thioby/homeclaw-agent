@@ -28,7 +28,7 @@ CONFIG_WRITE_LOCK: asyncio.Lock = asyncio.Lock()
 """Acquire before any read-modify-write on ``configuration.yaml``."""
 
 
-def safe_load_yaml(content: str) -> dict[str, Any]:
+def load_ha_yaml(content: str) -> Any:
     """Load YAML with custom constructors for Home Assistant tags.
 
     Handles ``!include``, ``!include_dir_*``, ``!secret``, ``!env_var``,
@@ -39,10 +39,7 @@ def safe_load_yaml(content: str) -> dict[str, Any]:
         content: Raw YAML string.
 
     Returns:
-        Parsed dict (top-level keys to values).
-
-    Raises:
-        yaml.YAMLError: If the content is not a valid top-level mapping.
+        Whatever the top-level node parses to (mapping, list, scalar or None).
     """
 
     class _SafeLoaderWithHA(yaml.SafeLoader):
@@ -77,7 +74,22 @@ def safe_load_yaml(content: str) -> dict[str, Any]:
     _SafeLoaderWithHA.add_constructor("!env_var", _generic_constructor)
     _SafeLoaderWithHA.add_constructor("!input", _generic_constructor)
 
-    result = yaml.load(content, Loader=_SafeLoaderWithHA)
+    return yaml.load(content, Loader=_SafeLoaderWithHA)
+
+
+def safe_load_yaml(content: str) -> dict[str, Any]:
+    """Load YAML with HA tag support, requiring a top-level mapping.
+
+    Args:
+        content: Raw YAML string.
+
+    Returns:
+        Parsed dict (top-level keys to values).
+
+    Raises:
+        yaml.YAMLError: If the content is not a valid top-level mapping.
+    """
+    result = load_ha_yaml(content)
     if result is None:
         return {}
     if not isinstance(result, dict):

@@ -378,7 +378,9 @@ class TestCreateAutomationDelegatesToManager:
         config = {"trigger": [{"platform": "sun"}], "action": [{"service": "light.turn_on"}]}
         result = await agent.create_automation(config)
 
-        automation_manager.create_automation.assert_called_once_with(config)
+        automation_manager.create_automation.assert_called_once_with(
+            config, dry_run=False
+        )
         assert result["success"] is True
         assert result["id"] == "auto_123"
 

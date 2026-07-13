@@ -260,16 +260,21 @@ class Agent:
 
     # === Automation Operations ===
 
-    async def create_automation(self, config: dict[str, Any]) -> dict[str, Any]:
+    async def create_automation(
+        self, config: dict[str, Any], *, dry_run: bool = False
+    ) -> dict[str, Any]:
         """Create a new automation.
 
         Args:
             config: Automation configuration dictionary.
+            dry_run: If True, validate and preview without writing.
 
         Returns:
             Dict with 'success' boolean and 'id' of the created automation.
         """
-        return await self._get_automation_manager().create_automation(config)
+        return await self._get_automation_manager().create_automation(
+            config, dry_run=dry_run
+        )
 
     def get_automations(self) -> list[dict[str, Any]]:
         """Get all automation entities.
