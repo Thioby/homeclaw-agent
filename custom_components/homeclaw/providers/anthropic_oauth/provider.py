@@ -39,7 +39,7 @@ _OAUTH_DATA_KEY = "anthropic_oauth"
 class AnthropicOAuthProvider(AIProvider):
     """Anthropic provider using Claude Pro/Max OAuth credentials."""
 
-    DEFAULT_MODEL = "claude-sonnet-4-20250514"
+    DEFAULT_MODEL = "claude-sonnet-5"
     DEFAULT_MAX_TOKENS = 8192
 
     def __init__(self, hass: HomeAssistant, config: dict[str, Any]) -> None:

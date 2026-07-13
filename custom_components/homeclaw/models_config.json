@@ -78,27 +78,27 @@
     "description": "Anthropic Claude via API Key",
     "models": [
       {
-        "id": "claude-sonnet-4-20250514",
-        "name": "Claude Sonnet 4",
+        "id": "claude-sonnet-5",
+        "name": "Claude Sonnet 5",
         "description": "Best balance of speed and intelligence",
-        "context_window": 200000,
+        "context_window": 1000000,
         "default": true
       },
       {
-        "id": "claude-opus-4-20250514",
-        "name": "Claude Opus 4",
+        "id": "claude-opus-4-8",
+        "name": "Claude Opus 4.8",
         "description": "Most capable, complex tasks",
-        "context_window": 200000
+        "context_window": 1000000
       },
       {
-        "id": "claude-sonnet-4-5-20250929",
-        "name": "Claude Sonnet 4.5",
-        "description": "Latest Sonnet, enhanced coding and reasoning",
-        "context_window": 200000
+        "id": "claude-sonnet-4-6",
+        "name": "Claude Sonnet 4.6",
+        "description": "Previous-gen Sonnet, strong and cheaper",
+        "context_window": 1000000
       },
       {
-        "id": "claude-3-5-haiku-20241022",
-        "name": "Claude 3.5 Haiku",
+        "id": "claude-haiku-4-5",
+        "name": "Claude Haiku 4.5",
         "description": "Fastest, everyday tasks",
         "context_window": 200000
       }
@@ -109,17 +109,17 @@
     "description": "Claude Pro/Max via OAuth",
     "models": [
       {
-        "id": "claude-sonnet-4-20250514",
-        "name": "Claude Sonnet 4",
+        "id": "claude-sonnet-5",
+        "name": "Claude Sonnet 5",
         "description": "Best balance of speed and intelligence",
-        "context_window": 200000,
+        "context_window": 1000000,
         "default": true
       },
       {
-        "id": "claude-opus-4-20250514",
-        "name": "Claude Opus 4",
+        "id": "claude-opus-4-8",
+        "name": "Claude Opus 4.8",
         "description": "Most capable, complex tasks",
-        "context_window": 200000
+        "context_window": 1000000
       }
     ]
   },

@@ -28,7 +28,7 @@ class AnthropicProvider(BaseHTTPClient):
 
     API_URL = "https://api.anthropic.com/v1/messages"
     ANTHROPIC_VERSION = "2023-06-01"
-    DEFAULT_MODEL = "claude-sonnet-4-20250514"
+    DEFAULT_MODEL = "claude-sonnet-5"
     DEFAULT_MAX_TOKENS = 4096
 
     def __init__(self, hass: HomeAssistant, config: dict[str, Any]) -> None:
@@ -38,7 +38,7 @@ class AnthropicProvider(BaseHTTPClient):
             hass: Home Assistant instance.
             config: Provider configuration dictionary containing:
                 - api_key: Anthropic API key
-                - model: Model name (optional, defaults to claude-sonnet-4-20250514)
+                - model: Model name (optional, defaults to claude-sonnet-5)
                 - max_tokens: Maximum tokens in response (optional, defaults to 4096)
         """
         super().__init__(hass, config)

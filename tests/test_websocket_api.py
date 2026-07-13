@@ -921,7 +921,7 @@ class TestWsGetAvailableModels:
 
         # Verify expected models are present
         model_ids = [m["id"] for m in result["models"]]
-        assert "claude-sonnet-4-20250514" in model_ids
+        assert "claude-sonnet-5" in model_ids
 
         # Verify default model is marked
         default_models = [m for m in result["models"] if m.get("default")]

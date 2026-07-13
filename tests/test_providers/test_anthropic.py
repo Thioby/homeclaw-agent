@@ -193,7 +193,7 @@ class TestAnthropicProviderPayload:
 
         assert "model" in payload
         # Default model should be set (synced with models_config.json)
-        assert payload["model"] == "claude-sonnet-4-20250514"
+        assert payload["model"] == "claude-sonnet-5"
 
     def test_build_payload_no_system(self, hass: HomeAssistant) -> None:
         """Test that _build_payload works without system message."""
