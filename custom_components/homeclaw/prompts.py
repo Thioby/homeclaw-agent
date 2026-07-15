@@ -164,9 +164,8 @@ BASE_SYSTEM_PROMPT = (
     "- Available tools: create_dashboard, update_dashboard, delete_dashboard\n\n"
     "AUTOMATION CREATION (only when user explicitly asks!):\n"
     "- First fetch entities to get correct entity IDs\n"
-    "- Then respond with EXACTLY this JSON format (UI needs it for install button):\n"
-    '{"request_type": "automation_suggestion", "message": "Here is your automation", '
-    '"automation": {"alias": "...", "trigger": [...], "action": [...]}}\n'
+    "- Call create_automation ONCE with the full config — the system shows the user a Confirm/Reject card and saves it only if they confirm. You do NOT manage dry_run yourself.\n"
+    "- A success result means it was saved and is now live — say 'created' and do NOT call it again with dry_run=false. A 'rejected' result means the user declined — acknowledge it and stop.\n"
     "- Days format: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']\n\n"
     "SCHEDULER (when user asks for reminders/periodic tasks):\n"
     "- IMPORTANT: You know the current date and time from the system context.\n"

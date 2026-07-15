@@ -1243,7 +1243,9 @@ class CreateAutomation(Tool):
     requires_confirmation = True
     description = (
         "Create a new Home Assistant automation (saved to automations.yaml). "
-        "Use dry_run=true first to preview, then dry_run=false after user confirms."
+        "Call this ONCE with the full config — the system shows the user a "
+        "Confirm/Reject card and saves it only if they confirm. Do not manage "
+        "dry_run yourself; a success result means it was saved and is now live."
     )
     category = ToolCategory.HOME_ASSISTANT
     tier = ToolTier.CORE
@@ -1260,7 +1262,7 @@ class CreateAutomation(Tool):
         ToolParameter(
             name="dry_run",
             type="boolean",
-            description="Preview without saving (default: true). Set false to create.",
+            description="Managed automatically by the confirmation flow — do not set.",
             required=False,
         ),
     ]
@@ -1429,8 +1431,9 @@ class CreateDashboard(Tool):
     id = "create_dashboard"
     requires_confirmation = True
     description = (
-        "Create a new Lovelace dashboard. Use dry_run=true first to preview, "
-        "then dry_run=false after user confirms."
+        "Create a new Lovelace dashboard. Call this ONCE with the full config — "
+        "the system shows the user a Confirm/Reject card and applies it only if "
+        "they confirm. Do not manage dry_run yourself."
     )
     category = ToolCategory.HOME_ASSISTANT
     tier = ToolTier.CORE
@@ -1466,7 +1469,7 @@ class CreateDashboard(Tool):
         ToolParameter(
             name="dry_run",
             type="boolean",
-            description="Preview without saving (default: true). Set false to create.",
+            description="Managed automatically by the confirmation flow — do not set.",
             required=False,
         ),
     ]
@@ -1497,8 +1500,9 @@ class UpdateDashboard(Tool):
     id = "update_dashboard"
     requires_confirmation = True
     description = (
-        "Update an existing Lovelace dashboard. Use dry_run=true first to preview changes, "
-        "then dry_run=false after user confirms."
+        "Update an existing Lovelace dashboard. Call this ONCE with the changes — "
+        "the system shows the user a Confirm/Reject card and applies it only if "
+        "they confirm. Do not manage dry_run yourself."
     )
     category = ToolCategory.HOME_ASSISTANT
     tier = ToolTier.CORE
@@ -1534,7 +1538,7 @@ class UpdateDashboard(Tool):
         ToolParameter(
             name="dry_run",
             type="boolean",
-            description="Preview without saving (default: true). Set false to apply.",
+            description="Managed automatically by the confirmation flow — do not set.",
             required=False,
         ),
     ]
@@ -1565,8 +1569,9 @@ class DeleteDashboard(Tool):
     id = "delete_dashboard"
     requires_confirmation = True
     description = (
-        "Delete a Lovelace dashboard. Use dry_run=true first to see what will be deleted, "
-        "then dry_run=false after user confirms."
+        "Delete a Lovelace dashboard. Call this ONCE — the system shows the user "
+        "a Confirm/Reject card and deletes it only if they confirm. Do not manage "
+        "dry_run yourself."
     )
     category = ToolCategory.HOME_ASSISTANT
     tier = ToolTier.CORE
@@ -1580,7 +1585,7 @@ class DeleteDashboard(Tool):
         ToolParameter(
             name="dry_run",
             type="boolean",
-            description="Preview without deleting (default: true). Set false to delete.",
+            description="Managed automatically by the confirmation flow — do not set.",
             required=False,
         ),
     ]

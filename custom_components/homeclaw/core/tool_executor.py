@@ -190,6 +190,7 @@ class ToolExecutor:
                 if user_id:
                     exec_params["_user_id"] = user_id
 
+                confirmed_write = False
                 tool_class = (
                     ToolRegistry.get_tool_class(fc.name) if approval_enabled else None
                 )
@@ -262,11 +263,21 @@ class ToolExecutor:
 
                     if has_dry_run:
                         exec_params["dry_run"] = False
+                        confirmed_write = True
 
                 result = await ToolRegistry.execute_tool(
                     tool_id=fc.name, params=exec_params, hass=hass
                 )
-                result_str = json.dumps(result.to_dict())
+                result_dict = result.to_dict()
+                if confirmed_write and result.success:
+                    result_dict["confirmation"] = (
+                        "The user reviewed the preview and CONFIRMED. This was "
+                        "APPLIED for real and is now live — NOT a dry run or "
+                        "preview. Tell the user it is done; do not say it was only "
+                        "a preview and do not call this tool again with "
+                        "dry_run=false."
+                    )
+                result_str = json.dumps(result_dict)
 
                 # Safety cap: truncate oversized tool results to prevent context overflow
                 if len(result_str) > MAX_TOOL_RESULT_CHARS:

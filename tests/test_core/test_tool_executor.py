@@ -309,6 +309,53 @@ class TestToolExecutorApproval:
         # Result fed back to the model
         assert json.loads(messages[-1]["content"])["success"] is True
 
+    async def test_confirmed_write_result_tells_model_it_was_applied(self):
+        from custom_components.homeclaw.core.pending_actions import resolve_approval
+
+        fc = FunctionCall(
+            id="call_1",
+            name="create_automation",
+            arguments={"dry_run": True, "automation": {"alias": "Klima"}},
+        )
+        messages: list[dict] = []
+
+        preview_result = MagicMock()
+        preview_result.output = json.dumps({"ui_type": "dashboard_action"})
+        real_result = MagicMock()
+        real_result.success = True
+        real_result.to_dict.return_value = {"success": True, "id": "abc123"}
+        execute_mock = AsyncMock(side_effect=[preview_result, real_result])
+
+        with (
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool_class",
+                return_value=_confirmable_tool_class(),
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.get_tool",
+                return_value=None,
+            ),
+            patch(
+                "custom_components.homeclaw.core.tool_executor.ToolRegistry.execute_tool",
+                execute_mock,
+            ),
+        ):
+            async for event in ToolExecutor.execute_tool_calls(
+                [fc],
+                hass=MagicMock(),
+                messages=messages,
+                yield_mode="result",
+                approval_enabled=True,
+            ):
+                if event.get("type") == "approval_request":
+                    resolve_approval("call_1", True)
+
+        payload = json.loads(messages[-1]["content"])
+        assert payload["success"] is True
+        assert "confirmation" in payload
+        assert "dry_run=false" in payload["confirmation"]
+        assert "preview" in payload["confirmation"].lower()
+
     async def test_confirmable_tool_rejected_injects_rejection_and_skips_execution(self):
         from custom_components.homeclaw.core.pending_actions import resolve_approval
 
