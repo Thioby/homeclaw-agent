@@ -17,6 +17,8 @@ from typing import Any
 
 from .auto_capture import extract_explicit_commands
 from .memory_store import Memory, MemoryStore
+from .persona_store import PersonaStore
+from .scenario_store import ScenarioStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,6 +27,9 @@ RECALL_TOP_K = 3  # Max memories to inject
 RECALL_MIN_SIMILARITY = (
     0.35  # Lower threshold than entity RAG (memories are more varied)
 )
+
+# RRF constant — dampens the impact of top ranks (standard value from the literature)
+RRF_K = 60
 
 
 @dataclass
@@ -42,6 +47,8 @@ class MemoryManager:
     store: Any  # SqliteStore
     embedding_provider: Any  # CachedEmbeddingProvider or EmbeddingProvider
     _memory_store: MemoryStore | None = field(default=None, repr=False)
+    _scenario_store: ScenarioStore | None = field(default=None, repr=False)
+    _persona_store: PersonaStore | None = field(default=None, repr=False)
     _initialized: bool = field(default=False, repr=False)
 
     async def async_initialize(self) -> None:
@@ -54,6 +61,13 @@ class MemoryManager:
 
         self._memory_store = MemoryStore(store=self.store)
         await self._memory_store.async_initialize()
+
+        self._scenario_store = ScenarioStore(store=self.store)
+        await self._scenario_store.async_initialize()
+
+        self._persona_store = PersonaStore(store=self.store)
+        await self._persona_store.async_initialize()
+
         self._initialized = True
         _LOGGER.info("Memory manager initialized")
 
@@ -173,11 +187,30 @@ class MemoryManager:
             # Merge results (hybrid: dedup by ID, boost overlapping)
             merged = _merge_memory_results(vector_results, keyword_results, limit=top_k)
 
-            if not merged:
+            # L2 scenario recall — summaries of related memory groups
+            scenario_context: list[dict[str, Any]] = []
+            if self._scenario_store:
+                try:
+                    scenarios = await self._scenario_store.search_scenarios(
+                        query_embedding=query_embedding,
+                        user_id=user_id,
+                    )
+                    scenario_context = [
+                        {
+                            "category": "scenario",
+                            "topic": s.title,
+                            "information": s.summary,
+                        }
+                        for s in scenarios
+                    ]
+                except Exception as e:
+                    _LOGGER.debug("Scenario recall failed: %s", e)
+
+            if not merged and not scenario_context:
                 return []
 
             # Format for system prompt injection
-            return _format_memories_for_prompt(merged)
+            return _format_memories_for_prompt(merged) + scenario_context
 
         except Exception as e:
             _LOGGER.debug("Memory recall failed: %s", e)
@@ -247,7 +280,20 @@ class MemoryManager:
             Number of memories deleted.
         """
         self._ensure_initialized()
-        return await self._memory_store.delete_user_memories(user_id)
+        deleted = await self._memory_store.delete_user_memories(user_id)
+
+        if self._scenario_store:
+            try:
+                await self._scenario_store.delete_user_scenarios(user_id)
+            except Exception as e:
+                _LOGGER.debug("Failed to delete user scenarios: %s", e)
+        if self._persona_store:
+            try:
+                await self._persona_store.delete_persona(user_id)
+            except Exception as e:
+                _LOGGER.debug("Failed to delete user persona: %s", e)
+
+        return deleted
 
     async def search_memories(
         self,
@@ -306,7 +352,15 @@ class MemoryManager:
     async def get_stats(self, user_id: str | None = None) -> dict[str, Any]:
         """Get memory statistics."""
         self._ensure_initialized()
-        return await self._memory_store.get_stats(user_id)
+        stats = await self._memory_store.get_stats(user_id)
+
+        if self._scenario_store:
+            stats["scenarios"] = await self._scenario_store.count_scenarios(user_id)
+        if self._persona_store:
+            persona = await self._persona_store.get_persona(user_id)
+            stats["persona_generated"] = persona is not None
+
+        return stats
 
     # --- AI-powered memory flush (pre-compaction) ---
 
@@ -337,6 +391,51 @@ class MemoryManager:
 
     _FLUSH_MAX_MEMORIES = 8
 
+    # --- Scenario consolidation (L2) ---
+
+    _SCENARIO_SYSTEM_PROMPT = (
+        "You are a memory organization assistant. You receive a numbered list "
+        "of atomic memories about a user. Group RELATED memories into "
+        "scenarios — coherent topics like 'bedroom lighting setup', "
+        "'morning routine', 'vacation planning'.\n\n"
+        "FORMAT: Return a JSON array of scenario objects. Each must have:\n"
+        '- "title": Short scenario name (2-5 words)\n'
+        '- "summary": 2-4 sentences summarizing what these memories say together\n'
+        '- "memory_indices": Array of memory numbers belonging to this scenario\n\n'
+        "RULES:\n"
+        "- Only group memories genuinely about the same topic.\n"
+        "- A scenario needs at least 3 memories. Leave loners ungrouped.\n"
+        "- Each memory belongs to at most one scenario.\n"
+        "- Write title and summary in the SAME LANGUAGE as the memories.\n"
+        "- If no coherent groups exist, return an empty array: []"
+    )
+
+    _SCENARIO_MIN_UNGROUPED = 12
+    _SCENARIO_MIN_CLUSTER = 3
+    _SCENARIO_MAX_INPUT = 100
+
+    # --- Persona generation (L3) ---
+
+    _PERSONA_SYSTEM_PROMPT = (
+        "You are a user profiling assistant. You receive memories about a "
+        "user collected by a smart-home assistant. Distill them into a "
+        "concise persona profile the assistant reads before every "
+        "conversation.\n\n"
+        "FORMAT: Markdown, max 250 words, with these sections "
+        "(omit empty ones):\n"
+        "## Preferences\n## Facts\n## Routines\n## Communication style\n\n"
+        "RULES:\n"
+        "- Write in the SAME LANGUAGE as the memories.\n"
+        "- State only what the memories support — no speculation.\n"
+        "- Prefer stable traits over one-off events.\n"
+        "- Plain statements only, no meta-commentary."
+    )
+
+    _PERSONA_MIN_MEMORIES = 10
+    _PERSONA_REGEN_DELTA = 25
+    _PERSONA_MAX_INPUT = 200
+    _PERSONA_MAX_CHARS = 4000
+
     async def flush_from_messages(
         self,
         messages: list[dict[str, str]],
@@ -363,10 +462,195 @@ class MemoryManager:
         self._ensure_initialized()
 
         if provider:
-            return await self._ai_flush(messages, user_id, session_id, provider)
+            captured = await self._ai_flush(messages, user_id, session_id, provider)
+        else:
+            # Fallback: explicit commands only
+            captured = await self._explicit_flush(messages, user_id, session_id)
 
-        # Fallback: explicit commands only
-        return await self._explicit_flush(messages, user_id, session_id)
+        # Post-flush maintenance of higher memory layers (L2 + L3).
+        # Both are best-effort: a failure must never break compaction.
+        if provider:
+            try:
+                await self.consolidate_scenarios(user_id, provider)
+            except Exception as e:
+                _LOGGER.debug("Scenario consolidation failed (non-fatal): %s", e)
+            try:
+                await self.maybe_regenerate_persona(user_id, provider)
+            except Exception as e:
+                _LOGGER.debug("Persona regeneration failed (non-fatal): %s", e)
+
+        return captured
+
+    async def consolidate_scenarios(self, user_id: str, provider: Any) -> int:
+        """Group ungrouped memories into L2 scenario blocks using an LLM.
+
+        Returns the number of scenarios created. Skips silently when there
+        are too few ungrouped memories to be worth an LLM call.
+        """
+        self._ensure_initialized()
+        import json as _json
+
+        ungrouped = await self._scenario_store.list_ungrouped_memories(
+            user_id, limit=self._SCENARIO_MAX_INPUT
+        )
+        if len(ungrouped) < self._SCENARIO_MIN_UNGROUPED:
+            return 0
+
+        numbered = "\n".join(
+            f"{i}. [{m.category}] {m.text}" for i, m in enumerate(ungrouped)
+        )
+        messages = [
+            {"role": "system", "content": self._SCENARIO_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": f"Group these memories into scenarios:\n\n{numbered}",
+            },
+        ]
+
+        try:
+            kwargs: dict[str, Any] = {}
+            if provider.lightweight_model:
+                kwargs["model"] = provider.lightweight_model
+
+            response = await provider.get_response(messages, **kwargs)
+            if not response:
+                return 0
+
+            response = response.strip()
+            if response.startswith("```"):
+                response = response.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+
+            scenarios = _json.loads(response)
+            if not isinstance(scenarios, list):
+                return 0
+        except Exception as e:
+            _LOGGER.debug("Scenario consolidation LLM call failed: %s", e)
+            return 0
+
+        from .auto_capture import ANTI_PATTERNS
+
+        created = 0
+        for sc in scenarios:
+            try:
+                title = str(sc.get("title", "")).strip()
+                summary = str(sc.get("summary", "")).strip()
+                indices = sc.get("memory_indices", [])
+                if not title or not summary or not isinstance(indices, list):
+                    continue
+
+                member_ids = list(dict.fromkeys(
+                    ungrouped[i].id
+                    for i in indices
+                    if isinstance(i, int) and 0 <= i < len(ungrouped)
+                ))
+                if len(member_ids) < self._SCENARIO_MIN_CLUSTER:
+                    continue
+
+                if any(p.search(title) or p.search(summary) for p in ANTI_PATTERNS):
+                    _LOGGER.warning(
+                        "Scenario consolidation produced unsafe content, skipping: %s",
+                        title[:80],
+                    )
+                    continue
+
+                embeddings = await self.embedding_provider.get_embeddings(
+                    [f"{title}\n{summary}"]
+                )
+                if not embeddings or not embeddings[0]:
+                    continue
+
+                scenario_id = await self._scenario_store.store_scenario(
+                    user_id=user_id,
+                    title=title,
+                    summary=summary,
+                    embedding=embeddings[0],
+                    memory_ids=member_ids,
+                )
+                if scenario_id:
+                    created += 1
+                    _LOGGER.info("Consolidated scenario: %s (%d memories)",
+                                 title[:60], len(member_ids))
+            except Exception as e:
+                _LOGGER.debug("Failed to store scenario: %s", e)
+
+        return created
+
+    async def maybe_regenerate_persona(self, user_id: str, provider: Any) -> bool:
+        """Regenerate the L3 persona when enough new memories accumulated.
+
+        Triggers when the user has at least _PERSONA_MIN_MEMORIES memories
+        and either no persona exists yet or _PERSONA_REGEN_DELTA memories
+        were added since the last generation. Returns True when a new
+        persona was generated and saved.
+        """
+        self._ensure_initialized()
+
+        count = await self._memory_store.get_memory_count(user_id)
+        if count < self._PERSONA_MIN_MEMORIES:
+            return False
+
+        existing = await self._persona_store.get_persona(user_id)
+        if (
+            existing
+            and count - existing.memory_count_at_generation
+            < self._PERSONA_REGEN_DELTA
+        ):
+            return False
+
+        memories = await self._memory_store.list_memories(
+            user_id, limit=self._PERSONA_MAX_INPUT, offset=0
+        )
+        if not memories:
+            return False
+
+        lines = "\n".join(f"- [{m.category}] {m.text}" for m in memories)
+        messages = [
+            {"role": "system", "content": self._PERSONA_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Memories about the user:\n\n{lines}"},
+        ]
+
+        try:
+            kwargs: dict[str, Any] = {}
+            if provider.lightweight_model:
+                kwargs["model"] = provider.lightweight_model
+            content = await provider.get_response(messages, **kwargs)
+        except Exception as e:
+            _LOGGER.debug("Persona generation LLM call failed: %s", e)
+            return False
+
+        if not content:
+            return False
+
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+
+        if not content:
+            return False
+
+        from .auto_capture import ANTI_PATTERNS
+
+        if any(p.search(content) for p in ANTI_PATTERNS):
+            _LOGGER.warning("Persona generation produced unsafe content, skipping")
+            return False
+
+        if len(content) > self._PERSONA_MAX_CHARS:
+            content = content[: self._PERSONA_MAX_CHARS]
+
+        await self._persona_store.save_persona(
+            user_id, content, memory_count=count
+        )
+        _LOGGER.info(
+            "Regenerated persona for user %s (%d memories)", user_id, count
+        )
+        return True
+
+    async def get_persona_content(self, user_id: str) -> str | None:
+        """Return the persona Markdown for prompt injection, or None."""
+        if not self._initialized or not self._persona_store:
+            return None
+        persona = await self._persona_store.get_persona(user_id)
+        return persona.content if persona else None
 
     async def _ai_flush(
         self,
@@ -540,38 +824,29 @@ def _merge_memory_results(
     keyword_results: list[Memory],
     *,
     limit: int = 5,
-    vector_weight: float = 0.7,
-    keyword_weight: float = 0.3,
+    rrf_k: int = RRF_K,
 ) -> list[Memory]:
-    """Merge vector and keyword search results with deduplication and overlap boost.
+    """Merge vector and keyword results using Reciprocal Rank Fusion.
 
-    Same weighted merge strategy as the RAG hybrid search.
+    RRF is rank-based, so it is robust to incomparable score scales
+    (cosine similarity vs normalized BM25). A memory appearing in both
+    lists accumulates contributions from both ranks.
     """
     seen: dict[str, Memory] = {}
     scores: dict[str, float] = {}
 
-    # Process vector results
-    for mem in vector_results:
-        seen[mem.id] = mem
-        scores[mem.id] = mem.score * vector_weight
+    for result_list in (vector_results, keyword_results):
+        for rank, mem in enumerate(result_list):
+            if mem.id not in seen:
+                seen[mem.id] = mem
+            scores[mem.id] = scores.get(mem.id, 0.0) + 1.0 / (rrf_k + rank + 1)
 
-    # Process keyword results
-    for mem in keyword_results:
-        if mem.id in scores:
-            # Overlap boost: add keyword score
-            scores[mem.id] += mem.score * keyword_weight
-        else:
-            seen[mem.id] = mem
-            scores[mem.id] = mem.score * keyword_weight
-
-    # Sort by merged score, then importance
     ranked = sorted(
         seen.values(),
         key=lambda m: (scores.get(m.id, 0), m.importance),
         reverse=True,
     )
 
-    # Update scores on the Memory objects
     for mem in ranked:
         mem.score = scores.get(mem.id, 0)
 

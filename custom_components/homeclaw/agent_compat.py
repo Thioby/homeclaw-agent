@@ -687,6 +687,20 @@ class HomeclawAgent:
                 _LOGGER.warning("Failed to build system prompt with identity: %s", e)
                 system_prompt = BASE_SYSTEM_PROMPT
 
+        # Append user persona (L3 memory layer) when available
+        if self._rag_manager and self._rag_manager.is_initialized:
+            mem_mgr = getattr(self._rag_manager, "_memory_manager", None)
+            if mem_mgr:
+                try:
+                    persona_text = await mem_mgr.get_persona_content(user_id)
+                    if persona_text:
+                        system_prompt = (
+                            f"{system_prompt}\n\n<user-persona>\n"
+                            f"{persona_text}\n</user-persona>"
+                        )
+                except Exception as e:
+                    _LOGGER.debug("Persona injection failed (non-fatal): %s", e)
+
         # Append ON_DEMAND tool catalog when provider supports tools
         if self._provider.supports_tools:
             from .tools import ToolRegistry

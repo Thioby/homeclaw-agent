@@ -268,32 +268,44 @@ class TestHelperFunctions:
         # "I" and "a" are 1 char → dropped, "me" is 2 chars → kept
         assert result == '"me"'
 
-    def test_merge_results_dedup(self) -> None:
-        m1 = Memory(
-            id="1",
+    def _mem(self, mem_id: str, score: float = 0.5, importance: float = 0.5) -> Memory:
+        return Memory(
+            id=mem_id,
             user_id="u",
-            text="A",
+            text=f"text {mem_id}",
             category="fact",
-            importance=0.5,
+            importance=importance,
             created_at=0,
             updated_at=0,
-            score=0.8,
-        )
-        m2 = Memory(
-            id="1",
-            user_id="u",
-            text="A",
-            category="fact",
-            importance=0.5,
-            created_at=0,
-            updated_at=0,
-            score=0.6,
+            score=score,
         )
 
-        merged = _merge_memory_results([m1], [m2])
-        assert len(merged) == 1
-        # Should have combined score
-        assert merged[0].score > 0.5
+    def test_merge_rrf_overlap_ranks_first(self) -> None:
+        """A memory present in both result lists outranks single-list ones."""
+        vector = [self._mem("a", 0.9), self._mem("b", 0.8)]
+        keyword = [self._mem("b", 0.7), self._mem("c", 0.6)]
+        merged = _merge_memory_results(vector, keyword, limit=3)
+        assert merged[0].id == "b"
+
+    def test_merge_rrf_scale_invariance(self) -> None:
+        """Tiny cosine scores are not drowned out by large keyword scores."""
+        vector = [self._mem("a", 0.02)]
+        keyword = [self._mem("c", 0.99)]
+        merged = _merge_memory_results(vector, keyword, limit=3)
+        # Both are rank 1 in their list -> identical RRF contribution
+        assert merged[0].score == pytest.approx(merged[1].score)
+
+    def test_merge_rrf_score_value(self) -> None:
+        """Rank 1 in a single list yields exactly 1/(k+1) with k=60."""
+        merged = _merge_memory_results([self._mem("a")], [], limit=1)
+        assert merged[0].score == pytest.approx(1.0 / 61.0)
+
+    def test_merge_rrf_importance_tiebreak(self) -> None:
+        """Equal RRF scores are broken by importance."""
+        vector = [self._mem("a", importance=0.2)]
+        keyword = [self._mem("b", importance=0.9)]
+        merged = _merge_memory_results(vector, keyword, limit=2)
+        assert merged[0].id == "b"
 
     def test_merge_results_limit(self) -> None:
         memories = [
