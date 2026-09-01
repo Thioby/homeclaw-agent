@@ -32,4 +32,4 @@ def is_oauth_zero_cost_provider(provider_name: str) -> bool:
 
     Used by the Settings/Models UI to render cost as 0 for these providers.
     """
-    return provider_name == "anthropic_oauth"
+    return provider_name in ("anthropic_oauth", "grok_oauth")

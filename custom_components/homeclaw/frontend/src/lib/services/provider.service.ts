@@ -219,6 +219,6 @@ export async function fetchModels(
  * (Pro/Max plan). UI should render cost as 0 for these providers.
  */
 export function isOAuthZeroCostProvider(providerName: string): boolean {
-  return providerName === 'anthropic_oauth';
+  return providerName === 'anthropic_oauth' || providerName === 'grok_oauth';
 }
 

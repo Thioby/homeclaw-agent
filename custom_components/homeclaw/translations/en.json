@@ -33,6 +33,14 @@
                     "code": "Paste the authorization code from Google"
                 }
             },
+            "grok_oauth": {
+                "title": "Authorize with Grok",
+                "description": "1. Open this link: [Authorize Grok]({auth_url})\n2. Sign in with SuperGrok or X Premium+\n3. Enter this code if asked: {user_code}"
+            },
+            "grok_oauth_failed": {
+                "title": "Grok authorization failed",
+                "description": "Authorization did not complete. You can try again.\n\nLink: [Authorize Grok]({auth_url})\nCode: {user_code}"
+            },
             "reauth_confirm": {
                 "title": "Re-authorize OAuth",
                 "description": "Your OAuth session has expired. Please re-authorize:\n1. Click the link: [Open Authorization]({auth_url})\n2. After authorizing, copy the code shown\n3. Paste it below and click Submit",
@@ -86,7 +94,11 @@
             "already_configured": "Homeclaw is already configured",
             "oauth_reconfigure_not_supported": "To reconfigure OAuth, please delete and re-add the integration",
             "reauth_successful": "Re-authentication successful! The integration will reload automatically.",
-            "reauth_entry_removed": "The integration entry was removed. Please set up the integration again."
+            "reauth_entry_removed": "The integration entry was removed. Please set up the integration again.",
+            "oauth_failed": "OAuth authorization failed. Please try again."
+        },
+        "progress": {
+            "wait_for_grok": "Open [this link]({auth_url}) and enter code **{user_code}**. Waiting for approval…"
         }
     },
     "options": {

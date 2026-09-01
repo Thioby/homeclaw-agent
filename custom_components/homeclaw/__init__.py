@@ -39,6 +39,9 @@ _SENSITIVE_KEYS = frozenset(
         "openrouter_token",
         "anthropic_token",
         "zai_token",
+        "anthropic_oauth",
+        "gemini_oauth",
+        "grok_oauth",
     }
 )
 
@@ -101,7 +104,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             provider,
             {k: v for k, v in config_data.items() if k not in _SENSITIVE_KEYS},
         )
-        if provider in ("anthropic_oauth", "gemini_oauth"):
+        if provider.endswith("_oauth"):
             hass.data[DOMAIN]["agents"][provider] = HomeclawAgent(
                 hass, config_data, entry
             )

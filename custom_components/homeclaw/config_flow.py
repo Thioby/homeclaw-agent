@@ -10,6 +10,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
     SelectSelector,
@@ -29,6 +30,8 @@ from .const import (
 from .models import get_allow_custom_model, get_default_model, get_model_ids
 from .providers.anthropic_oauth import authorize, create_api_key, exchange_code
 from .providers.anthropic_oauth.auth import OAuthRefreshError
+from .providers.grok_oauth import poll_device_code_token, request_device_code
+from .providers.grok_oauth.auth import OAuthRefreshError as GrokOAuthError
 
 
 # Re-export for backward compatibility (used by config flow steps and tests)
@@ -61,6 +64,7 @@ PROVIDERS = {
     "openrouter": "OpenRouter",
     "anthropic": "Anthropic (Claude)",
     "anthropic_oauth": "Anthropic (Claude Pro/Max)",
+    "grok_oauth": "Grok (SuperGrok / X Premium+)",
     "alter": "Alter",
     "zai": "z.ai",
     "deepseek": "DeepSeek",
@@ -141,6 +145,8 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
             return await self._reauth_anthropic(user_input)
         if provider == "gemini_oauth":
             return await self._reauth_gemini(user_input)
+        if provider == "grok_oauth":
+            return await self.async_step_grok_oauth()
 
         # Unsupported provider — abort gracefully.
         return self.async_abort(reason="oauth_reconfigure_not_supported")
@@ -259,6 +265,9 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
 
             if user_input["ai_provider"] == "gemini_oauth":
                 return await self.async_step_gemini_oauth()
+
+            if user_input["ai_provider"] == "grok_oauth":
+                return await self.async_step_grok_oauth()
 
             return await self.async_step_configure()
 
@@ -621,6 +630,76 @@ class HomeclawConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ign
             errors=errors,
         )
 
+    def _grok_progress_placeholders(self) -> dict[str, str]:
+        device = getattr(self, "_grok_device", None)
+        if device is None:
+            return {"auth_url": "", "user_code": ""}
+        return {
+            "auth_url": device.verification_uri_complete or device.verification_uri,
+            "user_code": device.user_code,
+        }
+
+    def _show_grok_progress(self):
+        return self.async_show_progress(
+            step_id="grok_oauth",
+            progress_action="wait_for_grok",
+            description_placeholders=self._grok_progress_placeholders(),
+            progress_task=self._grok_poll_task,
+        )
+
+    async def async_step_grok_oauth(self, user_input=None):
+        if getattr(self, "_grok_poll_task", None) is None:
+            session = async_get_clientsession(self.hass)
+            try:
+                self._grok_device = await request_device_code(session)
+            except GrokOAuthError as err:
+                _LOGGER.error("Grok device code request failed: %s", err)
+                return self.async_abort(reason="oauth_failed")
+            self._grok_poll_task = self.hass.async_create_task(poll_device_code_token(session, self._grok_device))
+            return self._show_grok_progress()
+
+        if not self._grok_poll_task.done():
+            return self._show_grok_progress()
+
+        try:
+            self._grok_tokens = self._grok_poll_task.result()
+        except GrokOAuthError as err:
+            _LOGGER.error("Grok device authorization failed: %s", err)
+            return self.async_show_progress_done(next_step_id="grok_oauth_failed")
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Grok device authorization crashed")
+            return self.async_show_progress_done(next_step_id="grok_oauth_failed")
+        return self.async_show_progress_done(next_step_id="grok_oauth_finish")
+
+    async def async_step_grok_oauth_finish(self, user_input=None):
+        tokens = self._grok_tokens
+        oauth_data = {
+            "access_token": tokens.access_token,
+            "refresh_token": tokens.refresh_token,
+            "expires_at": tokens.expires_at,
+        }
+        if getattr(self, "_reauth_entry", None) is not None:
+            new_data = {**self._reauth_entry.data, "ai_provider": "grok_oauth", "grok_oauth": oauth_data}
+            self.hass.config_entries.async_update_entry(self._reauth_entry, data=new_data)
+            await self.hass.config_entries.async_reload(self._reauth_entry.entry_id)
+            return self.async_abort(reason="reauth_successful")
+        return self.async_create_entry(
+            title="Homeclaw (Grok)",
+            data={"ai_provider": "grok_oauth", "grok_oauth": oauth_data},
+        )
+
+    async def async_step_grok_oauth_failed(self, user_input=None):
+        if user_input is not None:
+            self._grok_poll_task = None
+            self._grok_device = None
+            self._grok_tokens = None
+            return await self.async_step_grok_oauth()
+        return self.async_show_form(
+            step_id="grok_oauth_failed",
+            errors={"base": "oauth_failed"},
+            description_placeholders=self._grok_progress_placeholders(),
+        )
+
 
 class InvalidApiKey(HomeAssistantError):
     """Error to indicate there is an invalid API key."""
@@ -667,7 +746,7 @@ class HomeclawOptionsFlowHandler(config_entries.OptionsFlow):
         current_rag_enabled = self.config_entry.data.get(CONF_RAG_ENABLED, DEFAULT_RAG_ENABLED)
 
         # OAuth providers - show only RAG option (no token reconfiguration)
-        if provider in ("anthropic_oauth", "gemini_oauth"):
+        if provider in ("anthropic_oauth", "gemini_oauth", "grok_oauth"):
             if user_input is not None:
                 # Update RAG setting
                 updated_data = dict(self.config_entry.data)

@@ -104,6 +104,27 @@
       }
     ]
   },
+  "grok_oauth": {
+    "display_name": "Grok (SuperGrok)",
+    "description": "Grok via SuperGrok / X Premium+ OAuth",
+    "allow_custom_model": true,
+    "models": [
+      {
+        "id": "grok-4.6",
+        "name": "Grok 4.6",
+        "description": "Current frontier model",
+        "context_window": 500000,
+        "default": true
+      },
+      {
+        "id": "grok-4.5",
+        "name": "Grok 4.5",
+        "description": "Previous frontier model",
+        "context_window": 500000,
+        "lightweight": true
+      }
+    ]
+  },
   "anthropic_oauth": {
     "display_name": "Claude Pro/Max",
     "description": "Claude Pro/Max via OAuth",

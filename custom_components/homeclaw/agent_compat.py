@@ -53,12 +53,8 @@ class HomeclawAgent:
         provider_config = self._build_provider_config()
 
         try:
-            _LOGGER.info(
-                "🔧 Creating provider '%s' via ProviderRegistry", self._provider_name
-            )
-            self._provider = ProviderRegistry.create(
-                self._provider_name, self.hass, provider_config
-            )
+            _LOGGER.info("🔧 Creating provider '%s' via ProviderRegistry", self._provider_name)
+            self._provider = ProviderRegistry.create(self._provider_name, self.hass, provider_config)
             _LOGGER.info(
                 "✅ Provider created: %s (has get_response_stream: %s)",
                 self._provider.__class__.__name__,
@@ -74,12 +70,8 @@ class HomeclawAgent:
             )
             base_provider = self._get_base_provider_name()
             _LOGGER.info("🔄 Falling back to base provider: %s", base_provider)
-            self._provider = ProviderRegistry.create(
-                base_provider, self.hass, provider_config
-            )
-            _LOGGER.info(
-                "✅ Fallback provider created: %s", self._provider.__class__.__name__
-            )
+            self._provider = ProviderRegistry.create(base_provider, self.hass, provider_config)
+            _LOGGER.info("✅ Fallback provider created: %s", self._provider.__class__.__name__)
 
     def _get_base_provider_name(self) -> str:
         """Map OAuth provider names to base provider names.
@@ -91,6 +83,7 @@ class HomeclawAgent:
             "anthropic_oauth": "anthropic",
             "gemini_oauth": "gemini",
             "openai_oauth": "openai",
+            "grok_oauth": "grok_oauth",
         }
         return mapping.get(self._provider_name, "openai")
 
@@ -115,9 +108,7 @@ class HomeclawAgent:
             "local": None,  # No token needed
         }
 
-        token_key = token_keys.get(
-            provider, token_keys.get(base_provider, f"{base_provider}_token")
-        )
+        token_key = token_keys.get(provider, token_keys.get(base_provider, f"{base_provider}_token"))
         token = self.config.get(token_key, "") if token_key else ""
 
         # Get model for this provider
@@ -126,9 +117,7 @@ class HomeclawAgent:
         # For OAuth providers, try provider name first (e.g., gemini_oauth),
         # then fall back to base provider (e.g., gemini)
         if is_oauth_provider:
-            model = models.get(
-                provider, models.get(base_provider, self._get_default_model(provider))
-            )
+            model = models.get(provider, models.get(base_provider, self._get_default_model(provider)))
         else:
             model = models.get(provider, self._get_default_model(provider))
 
@@ -210,8 +199,7 @@ class HomeclawAgent:
 
             openai_tools = ToolSchemaConverter.to_openai_format(tools)
             _LOGGER.debug(
-                "Retrieved %d CORE tools for native function calling "
-                "(ON_DEMAND tools available via load_tool)",
+                "Retrieved %d CORE tools for native function calling " "(ON_DEMAND tools available via load_tool)",
                 len(tools),
             )
             return openai_tools
@@ -296,18 +284,14 @@ class HomeclawAgent:
                 "error": str(e),
             }
 
-    def _apply_external_conversation_history(
-        self, conversation_history: list[dict] | None
-    ) -> None:
+    def _apply_external_conversation_history(self, conversation_history: list[dict] | None) -> None:
         """Inject external conversation history into the in-memory manager."""
         if not conversation_history:
             return
 
         self._agent._conversation.clear()
         for msg in conversation_history:
-            self._agent._conversation.add_message(
-                msg.get("role", "user"), msg.get("content", "")
-            )
+            self._agent._conversation.add_message(msg.get("role", "user"), msg.get("content", ""))
 
     async def _add_async_query_context(
         self,
@@ -324,11 +308,7 @@ class HomeclawAgent:
             if rag_context:
                 kwargs["rag_context"] = rag_context
 
-        prompt = (
-            system_prompt_override
-            if system_prompt_override
-            else await self._get_system_prompt(user_id or "")
-        )
+        prompt = system_prompt_override if system_prompt_override else await self._get_system_prompt(user_id or "")
         if prompt:
             kwargs[prompt_key] = prompt
 
@@ -456,11 +436,7 @@ class HomeclawAgent:
                         len(auto_loaded),
                     )
             if denied_tools:
-                tools = [
-                    t
-                    for t in tools
-                    if t.get("function", {}).get("name") not in denied_tools
-                ]
+                tools = [t for t in tools if t.get("function", {}).get("name") not in denied_tools]
             kwargs["tools"] = tools
 
         if denied_tools:
@@ -501,9 +477,7 @@ class HomeclawAgent:
         """
         return await self._get_system_prompt(user_id)
 
-    async def get_rag_context(
-        self, query: str, user_id: str | None = None
-    ) -> str | None:
+    async def get_rag_context(self, query: str, user_id: str | None = None) -> str | None:
         """Public method to retrieve RAG context for a query.
 
         Args:
@@ -519,9 +493,7 @@ class HomeclawAgent:
         """Create a new automation."""
         return await self._agent.create_automation(automation_config)
 
-    async def create_dashboard(
-        self, dashboard_config: dict, *, dry_run: bool = True
-    ) -> dict[str, Any]:
+    async def create_dashboard(self, dashboard_config: dict, *, dry_run: bool = True) -> dict[str, Any]:
         """Create a new dashboard."""
         return await self._agent.create_dashboard(dashboard_config, dry_run=dry_run)
 
@@ -533,9 +505,7 @@ class HomeclawAgent:
         dry_run: bool = True,
     ) -> dict[str, Any]:
         """Update an existing dashboard."""
-        return await self._agent._get_dashboard_manager().update_dashboard(
-            dashboard_url, dashboard_config, dry_run=dry_run
-        )
+        return await self._agent._get_dashboard_manager().update_dashboard(dashboard_url, dashboard_config, dry_run=dry_run)
 
     async def save_user_prompt_history(
         self,
@@ -566,9 +536,7 @@ class HomeclawAgent:
         """Set the RAG manager for semantic search."""
         self._rag_manager = rag_manager
 
-    async def _get_rag_context(
-        self, query: str, user_id: str | None = None
-    ) -> str | None:
+    async def _get_rag_context(self, query: str, user_id: str | None = None) -> str | None:
         """Get relevant context from RAG system.
 
         Args:
@@ -674,9 +642,7 @@ class HomeclawAgent:
             # Check if already in tools list
             if any(t.get("function", {}).get("name") == tool_id for t in tools):
                 continue
-            tool_instance = ToolRegistry.get_tool(
-                tool_id, hass=self.hass, config=self.config
-            )
+            tool_instance = ToolRegistry.get_tool(tool_id, hass=self.hass, config=self.config)
             if tool_instance is None:
                 continue
             new_schemas = ToolSchemaConverter.to_openai_format([tool_instance])

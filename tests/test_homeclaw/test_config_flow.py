@@ -28,6 +28,7 @@ class TestConfigFlow:
         assert hasattr(flow_class, 'async_step_configure')
         assert hasattr(flow_class, 'async_step_anthropic_oauth')
         assert hasattr(flow_class, 'async_step_gemini_oauth')
+        assert hasattr(flow_class, 'async_step_grok_oauth')
 
     def test_config_flow_domain(self):
         """Test config flow domain constants."""

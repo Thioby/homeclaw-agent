@@ -156,6 +156,29 @@ class TestAsyncSetupEntry:
             assert len(call_args[0]) == 3  # hass, config, entry
 
     @pytest.mark.asyncio
+    async def test_setup_entry_grok_oauth_provider(self, mock_hass):
+        mock_entry = MagicMock(spec=ConfigEntry)
+        mock_entry.version = 1
+        mock_entry.data = {
+            "ai_provider": "grok_oauth",
+            "grok_oauth": {
+                "access_token": "A",
+                "refresh_token": "R",
+                "expires_at": 9e9,
+            },
+        }
+        mock_entry.entry_id = "test_entry_id"
+
+        with patch("custom_components.homeclaw.HomeclawAgent") as mock_agent:
+            result = await async_setup_entry(mock_hass, mock_entry)
+
+            assert result is True
+            mock_agent.assert_called_once()
+            call_args = mock_agent.call_args
+            assert len(call_args[0]) == 3
+            assert call_args[0][2] is mock_entry
+
+    @pytest.mark.asyncio
     async def test_setup_entry_missing_ai_provider(self, mock_hass):
         """Test setup fails when ai_provider is missing."""
         mock_entry = MagicMock(spec=ConfigEntry)
